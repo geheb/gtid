@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.users_title }} — {{ t.app_name }}{% endblock %}
+
+{% block body %}
+<div class="layout">
+    {% include "admin/_sidebar.html" %}
+    <div class="main">
+        <div class="topbar">
+            <h1>{{ t.users_title }}</h1>
+            <a href="/admin/users/create" class="btn-icon" title="{{ t.sidebar_create_user }}">&#10010;</a>
+        </div>
+        <div class="content">
+            <div class="card card-table">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>{{ t.users_col_name }}</th>
+                            <th>{{ t.users_col_email }}</th>
+                            <th>{{ t.users_col_access_level }}</th>
+                            <th>{{ t.users_col_last_login }}</th>
+                            <th>{{ t.users_col_date_added }}</th>
+                            <th class="col-actions"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td class="cell-name">{{ user.display_name | default(value="—") }}</td>
+                            <td><span class="email">{{ user.email }}</span></td>
+                            <td>
+                                {% set user_roles = user.roles | split(pat=",") %}
+                                {% for r in user_roles %}
+                                    {% set r_trimmed = r | trim %}
+                                    {% if r_trimmed != "" %}
+                                        {% if r_trimmed == "admin" %}
+                                        <span class="badge badge-admin">{{ r_trimmed }}</span>
+                                        {% else %}
+                                        <span class="badge badge-user">{{ r_trimmed }}</span>
+                                        {% endif %}
+                                    {% endif %}
+                                {% endfor %}
+                                {% if user.roles == "" %}
+                                <span class="badge badge-user">—</span>
+                                {% endif %}
+                            </td>
+                            <td><span class="utc-time" data-utc="{{ user.last_login_at | default(value='') }}">{{ user.last_login_at | default(value="—") }}</span></td>
+                            <td><span class="utc-time" data-utc="{{ user.created_at }}">{{ user.created_at }}</span></td>
+                            <td>
+                                <div class="action-group">
+                                    <a href="/admin/users/{{ user.id }}/edit" class="btn-icon btn-icon-edit" title="Edit">&#x270E;</a>
+                                    <form method="POST" action="/admin/users/{{ user.id }}/delete" class="inline-form delete-form" data-confirm="{{ t.users_delete_confirm }}">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button type="submit" class="btn-icon" title="Delete">&#x2715;</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

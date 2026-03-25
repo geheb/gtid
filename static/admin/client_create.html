@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.client_create_title }} — {{ t.app_name }}{% endblock %}
+
+{% block body %}
+<div class="layout">
+    {% include "admin/_sidebar.html" %}
+    <div class="main">
+        <div class="topbar">
+            <h1>{{ t.client_create_title }}</h1>
+        </div>
+        <div class="content">
+            <div class="card card-narrow">
+                {% if error %}
+                <div class="alert alert-error">{{ error_message }}</div>
+                {% endif %}
+                <form method="POST" action="/admin/clients/create">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <div class="form-group">
+                        <label for="client_id">{{ t.client_create_id_label }}</label>
+                        <input class="form-input" type="text" id="client_id" name="client_id" placeholder="{{ t.client_create_id_placeholder }}" value="{{ form_client_id | default(value='') }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="client_secret">{{ t.client_create_secret_label }}</label>
+                        <div class="input-with-actions">
+                            <input class="form-input" type="password" id="client_secret" name="client_secret" placeholder="{{ t.client_create_secret_placeholder }}" required>
+                            <button type="button" class="btn-icon" id="btn-generate-secret" title="{{ t.client_create_generate_secret }}">&#x2684;</button>
+                            <button type="button" class="btn-icon" id="btn-copy-secret" title="{{ t.client_create_copy_secret }}" data-toast="{{ t.client_create_copied }}">&#x2398;</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="client_redirect_uri">{{ t.client_create_redirect_uri_label }}</label>
+                        <input class="form-input" type="url" id="client_redirect_uri" name="client_redirect_uri" placeholder="{{ t.client_create_redirect_uri_placeholder }}" value="{{ form_redirect_uri | default(value='') }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="client_post_logout_redirect_uri">{{ t.client_create_post_logout_uri_label }}</label>
+                        <input class="form-input" type="url" id="client_post_logout_redirect_uri" name="client_post_logout_redirect_uri" placeholder="{{ t.client_create_post_logout_uri_placeholder }}" value="{{ form_post_logout_uri | default(value='') }}">
+                    </div>
+                    <div class="flex-row-mt">
+                        <button type="submit" class="btn btn-primary">{{ t.client_create_submit }}</button>
+                        <a href="/admin/clients" class="btn btn-secondary">{{ t.client_create_cancel }}</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.clients_title }} — {{ t.app_name }}{% endblock %}
+
+{% block body %}
+<div class="layout">
+    {% include "admin/_sidebar.html" %}
+    <div class="main">
+        <div class="topbar">
+            <h1>{{ t.clients_title }}</h1>
+            <a href="/admin/clients/create" class="btn-icon" title="{{ t.sidebar_create_client }}">&#10010;</a>
+        </div>
+        <div class="content">
+            <div class="card card-table">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>{{ t.clients_col_id }}</th>
+                            <th>{{ t.clients_col_redirect_uri }}</th>
+                            <th>{{ t.clients_col_post_logout_uri }}</th>
+                            <th>{{ t.clients_col_date_added }}</th>
+                            <th class="col-actions"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for client in clients %}
+                        <tr>
+                            <td class="cell-name">{{ client.client_id }}</td>
+                            <td><span class="email">{{ client.client_redirect_uri }}</span></td>
+                            <td>{{ client.client_post_logout_redirect_uri | default(value="—") }}</td>
+                            <td><span class="utc-time" data-utc="{{ client.created_at }}">{{ client.created_at }}</span></td>
+                            <td>
+                                <div class="action-group">
+                                    <a href="/admin/clients/{{ client.client_id }}/edit" class="btn-icon btn-icon-edit" title="Edit">&#x270E;</a>
+                                    <form method="POST" action="/admin/clients/{{ client.client_id }}/delete" class="inline-form delete-form" data-confirm="{{ t.clients_delete_confirm }}">
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                        <button type="submit" class="btn-icon" title="Delete">&#x2715;</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

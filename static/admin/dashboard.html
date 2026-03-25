@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.dashboard_title }} — {{ t.app_name }}{% endblock %}
+
+{% block body %}
+<div class="layout">
+    {% include "admin/_sidebar.html" %}
+    <div class="main">
+        <div class="topbar">
+            <h1>{{ t.dashboard_title }}</h1>
+        </div>
+        <div class="content">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">{{ t.dashboard_total_users }}</div>
+                    <div class="stat-value">{{ user_count }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">{{ t.dashboard_active_users }}</div>
+                    <div class="stat-value">{{ active_users }}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">{{ t.dashboard_locked_users }}</div>
+                    <div class="stat-value">{{ locked_users }}</div>
+                </div>
+            </div>
+            <div class="card">
+                <h2 class="section-heading">{{ t.dashboard_quick_actions }}</h2>
+                <div class="flex-row">
+                    <a href="/admin/users" class="btn btn-secondary">{{ t.dashboard_manage_users }}</a>
+                    <a href="/admin/clients" class="btn btn-secondary">{{ t.dashboard_manage_clients }}</a>
+                    <a href="/admin/email-templates" class="btn btn-secondary">{{ t.dashboard_manage_email_templates }}</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

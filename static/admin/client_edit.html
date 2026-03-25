@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.client_edit_title }} — {{ t.app_name }}{% endblock %}
+
+{% block body %}
+<div class="layout">
+    {% include "admin/_sidebar.html" %}
+    <div class="main">
+        <div class="topbar">
+            <h1>{{ t.client_edit_title }}</h1>
+        </div>
+        <div class="content">
+            <div class="card card-narrow">
+                {% if error %}
+                <div class="alert alert-error">{{ error_message }}</div>
+                {% endif %}
+                <form method="POST" action="/admin/clients/{{ client.client_id }}/edit">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <div class="form-group">
+                        <label>{{ t.client_edit_id_label }}</label>
+                        <input class="form-input" type="text" value="{{ client.client_id }}" disabled>
+                    </div>
+                    <div class="form-group">
+                        <label for="client_secret">{{ t.client_edit_secret_label }}</label>
+                        <input class="form-input" type="password" id="client_secret" name="client_secret" placeholder="{{ t.client_edit_secret_placeholder }}">
+                    </div>
+                    <div class="form-group">
+                        <label for="client_redirect_uri">{{ t.client_edit_redirect_uri_label }}</label>
+                        <input class="form-input" type="url" id="client_redirect_uri" name="client_redirect_uri" value="{{ form_redirect_uri }}" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="client_post_logout_redirect_uri">{{ t.client_edit_post_logout_uri_label }}</label>
+                        <input class="form-input" type="url" id="client_post_logout_redirect_uri" name="client_post_logout_redirect_uri" value="{{ form_post_logout_uri | default(value='') }}">
+                    </div>
+                    <div class="flex-row-mt">
+                        <button type="submit" class="btn btn-primary">{{ t.client_edit_submit }}</button>
+                        <a href="/admin/clients" class="btn btn-secondary">{{ t.client_edit_cancel }}</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

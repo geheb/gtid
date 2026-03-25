@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.email_templates_title }} — {{ t.app_name }}{% endblock %}
+
+{% block body %}
+<div class="layout">
+    {% include "admin/_sidebar.html" %}
+    <div class="main">
+        <div class="topbar">
+            <h1>{{ t.email_templates_title }}</h1>
+        </div>
+        <div class="content">
+            <div class="card card-table">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Typ</th>
+                            <th>{{ t.email_template_subject }}</th>
+                            <th>{{ t.email_template_updated }}</th>
+                            <th class="col-actions"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for tpl in templates %}
+                        <tr>
+                            <td>
+                                {% if tpl.template_type == "confirm_registration" %}
+                                    {{ t.email_template_type_confirm_registration }}
+                                {% elif tpl.template_type == "change_email" %}
+                                    {{ t.email_template_type_change_email }}
+                                {% elif tpl.template_type == "reset_password" %}
+                                    {{ t.email_template_type_reset_password }}
+                                {% else %}
+                                    {{ tpl.template_type }}
+                                {% endif %}
+                            </td>
+                            <td>{{ tpl.subject }}</td>
+                            <td><span class="utc-time" data-utc="{{ tpl.updated_at }}">{{ tpl.updated_at }}</span></td>
+                            <td>
+                                <div class="action-group">
+                                    <a href="/admin/email-templates/{{ tpl.template_type }}/edit" class="btn-icon btn-icon-edit" title="Edit">&#x270E;</a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

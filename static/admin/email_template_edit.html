@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.email_template_edit_title }} — {{ t.app_name }}{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="/static/lib/quill/quill.snow.css?h={{ quill_css_hash }}">
+<script src="/static/lib/quill/quill.js?h={{ quill_js_hash }}"></script>
+<script src="/static/email_editor.js?h={{ editor_js_hash }}" defer></script>
+{% endblock %}
+
+{% block body %}
+<div class="layout">
+    {% include "admin/_sidebar.html" %}
+    <div class="main">
+        <div class="topbar">
+            <h1>{{ t.email_template_edit_title }}</h1>
+        </div>
+        <div class="content">
+            <div class="card">
+                <form method="POST" action="/admin/email-templates/{{ template_type }}/edit">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                    <div class="form-group">
+                        <label for="subject">{{ t.email_template_subject }}</label>
+                        <input type="text" id="subject" name="subject" value="{{ subject }}" required class="form-input">
+                    </div>
+
+                    <div class="form-group">
+                        <textarea id="body_html" name="body_html" class="hidden">{{ body_html }}</textarea>
+                        <div id="editor" class="editor-area"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label>{{ t.email_template_variables }}</label>
+                        <div class="variable-list">
+                            {% for var in variables %}
+                            <code class="variable-tag">{{ var }}</code>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">{{ t.email_template_save }}</button>
+                        <a href="/admin/email-templates" class="btn btn-secondary">{{ t.user_create_cancel }}</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

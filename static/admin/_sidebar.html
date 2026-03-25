@@ -1,0 +1,26 @@
+<aside class="sidebar">
+    <div class="sidebar-header">
+        <div class="app-name">{{ t.app_name }}</div>
+        <div class="user-email">{{ t.admin_panel }}</div>
+    </div>
+    <nav class="sidebar-nav">
+        <a href="/admin" class="{% if active_page is defined and active_page == 'dashboard' %}active{% endif %}">
+            <span class="icon">&#9632;</span> {{ t.sidebar_dashboard }}
+        </a>
+        <a href="/admin/users" class="{% if active_page is defined and active_page == 'users' %}active{% endif %}">
+            <span class="icon">&#9862;</span> {{ t.sidebar_users }}
+        </a>
+        <a href="/admin/clients" class="{% if active_page is defined and active_page == 'clients' %}active{% endif %}">
+            <span class="icon">&#9881;</span> {{ t.sidebar_clients }}
+        </a>
+        <a href="/admin/email-templates" class="{% if active_page is defined and active_page == 'email_templates' %}active{% endif %}">
+            <span class="icon">&#9993;</span> {{ t.sidebar_email_templates }}
+        </a>
+    </nav>
+    <div class="sidebar-footer">
+        <form method="POST" action="/logout">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit">&#x2190; {{ t.sidebar_logout }}</button>
+        </form>
+    </div>
+</aside>

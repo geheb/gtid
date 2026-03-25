@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.authorize_title }} — {{ t.app_name }}{% endblock %}
+
+{% block body %}
+<div class="centered">
+    <div class="centered-card">
+        <div class="logo">{{ t.app_name }}</div>
+        <h1>{{ t.authorize_title }}</h1>
+        <p class="subtitle">
+            <strong>{{ client_id }}</strong> {{ t.authorize_description_prefix }}
+            <strong>{{ user_email }}</strong>
+        </p>
+        <p class="scope-info">
+            {{ t.authorize_scope_label }} <span class="badge badge-admin">{{ scope }}</span>
+        </p>
+
+        <form method="POST" action="/authorize">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="response_type" value="{{ response_type }}">
+            <input type="hidden" name="client_id" value="{{ client_id }}">
+            <input type="hidden" name="redirect_uri" value="{{ redirect_uri }}">
+            <input type="hidden" name="scope" value="{{ scope }}">
+            {% if state %}<input type="hidden" name="state" value="{{ state }}">{% endif %}
+            <input type="hidden" name="code_challenge" value="{{ code_challenge }}">
+            <input type="hidden" name="code_challenge_method" value="{{ code_challenge_method }}">
+            {% if nonce %}<input type="hidden" name="nonce" value="{{ nonce }}">{% endif %}
+            <div class="flex-row">
+                <button type="submit" name="consent" value="allow" class="btn btn-primary btn-block flex-1">{{ t.authorize_allow }}</button>
+                <button type="submit" name="consent" value="deny" class="btn btn-secondary btn-block flex-1">{{ t.authorize_deny }}</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
