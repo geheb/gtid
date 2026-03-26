@@ -16,6 +16,9 @@ pub struct AppConfig {
     pub session_lifetime_secs: i64,
     pub allowed_grant_types: Vec<String>,
     pub key_rotation_interval_secs: u64,
+    pub cors_allowed_origins: Vec<String>,
+    pub max_request_body_bytes: usize,
+    pub trusted_proxies: bool,
 }
 
 impl AppConfig {
@@ -70,6 +73,15 @@ impl AppConfig {
             key_rotation_interval_secs: get("KEY_ROTATION_INTERVAL_SECS")
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(86400),
+            cors_allowed_origins: get("CORS_ALLOWED_ORIGINS")
+                .map(|v| v.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
+                .unwrap_or_default(),
+            max_request_body_bytes: get("MAX_REQUEST_BODY_BYTES")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(64 * 1024), // 64 KB
+            trusted_proxies: get("TRUSTED_PROXIES")
+                .map(|v| v == "true" || v == "1")
+                .unwrap_or(false),
         }
     }
 
@@ -107,6 +119,9 @@ mod tests {
         assert_eq!(c.key_rotation_interval_secs, 86400);
         assert_eq!(c.allowed_grant_types, vec!["authorization_code", "refresh_token"]);
         assert_eq!(c.roles, vec!["admin"]);
+        assert!(c.cors_allowed_origins.is_empty());
+        assert_eq!(c.max_request_body_bytes, 64 * 1024);
+        assert!(!c.trusted_proxies);
     }
 
     #[test]
@@ -228,5 +243,38 @@ mod tests {
             ("KEY_ROTATION_INTERVAL_SECS", "43200"),
         ]);
         assert_eq!(c.key_rotation_interval_secs, 43200);
+    }
+
+    #[test]
+    fn cors_allowed_origins_parsed() {
+        let c = config_from(&[
+            ("ADMIN_EMAIL", "a@b.c"), ("ADMIN_PASSWORD", "s"),
+            ("CORS_ALLOWED_ORIGINS", "https://app.example.com, https://other.example.com"),
+        ]);
+        assert_eq!(c.cors_allowed_origins, vec!["https://app.example.com", "https://other.example.com"]);
+    }
+
+    #[test]
+    fn cors_allowed_origins_empty_by_default() {
+        let c = minimal();
+        assert!(c.cors_allowed_origins.is_empty());
+    }
+
+    #[test]
+    fn trusted_proxies_enabled() {
+        let c = config_from(&[
+            ("ADMIN_EMAIL", "a@b.c"), ("ADMIN_PASSWORD", "s"),
+            ("TRUSTED_PROXIES", "true"),
+        ]);
+        assert!(c.trusted_proxies);
+    }
+
+    #[test]
+    fn custom_max_request_body_bytes() {
+        let c = config_from(&[
+            ("ADMIN_EMAIL", "a@b.c"), ("ADMIN_PASSWORD", "s"),
+            ("MAX_REQUEST_BODY_BYTES", "131072"),
+        ]);
+        assert_eq!(c.max_request_body_bytes, 131072);
     }
 }

@@ -32,6 +32,76 @@ use crate::middleware::csrf::{self, CsrfToken};
 use crate::middleware::session::AdminUser;
 use crate::AppState;
 
+fn validate_redirect_uri(uri: &str) -> Result<(), String> {
+    if uri.is_empty() {
+        return Err("Redirect URI is required".into());
+    }
+    let lower = uri.to_lowercase();
+    if !lower.starts_with("https://") && !lower.starts_with("http://") {
+        return Err("Redirect URI must use http:// or https:// scheme".into());
+    }
+    if lower.contains("..") || lower.contains("\\") {
+        return Err("Redirect URI contains invalid characters".into());
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod redirect_uri_tests {
+    use super::*;
+
+    #[test]
+    fn valid_https() {
+        assert!(validate_redirect_uri("https://example.com/cb").is_ok());
+    }
+
+    #[test]
+    fn valid_http() {
+        assert!(validate_redirect_uri("http://localhost:8080/cb").is_ok());
+    }
+
+    #[test]
+    fn rejects_javascript_scheme() {
+        assert!(validate_redirect_uri("javascript://alert(1)").is_err());
+    }
+
+    #[test]
+    fn rejects_mixed_case_javascript() {
+        assert!(validate_redirect_uri("JavaScript://alert(1)").is_err());
+    }
+
+    #[test]
+    fn rejects_data_scheme() {
+        assert!(validate_redirect_uri("data:text/html,<h1>hi</h1>").is_err());
+    }
+
+    #[test]
+    fn rejects_ftp_scheme() {
+        assert!(validate_redirect_uri("ftp://example.com").is_err());
+    }
+
+    #[test]
+    fn rejects_empty() {
+        assert!(validate_redirect_uri("").is_err());
+    }
+
+    #[test]
+    fn rejects_path_traversal() {
+        assert!(validate_redirect_uri("https://example.com/../secret").is_err());
+    }
+
+    #[test]
+    fn rejects_backslash() {
+        assert!(validate_redirect_uri("https://example.com\\@evil.com").is_err());
+    }
+
+    #[test]
+    fn accepts_mixed_case_http() {
+        assert!(validate_redirect_uri("HTTP://localhost/cb").is_ok());
+        assert!(validate_redirect_uri("HTTPS://example.com/cb").is_ok());
+    }
+}
+
 pub async fn dashboard(
     State(state): State<Arc<AppState>>,
     _admin: AdminUser,
@@ -137,6 +207,7 @@ pub async fn user_create_submit(
         .users
         .create(&id, &email, &hash, display_name.as_deref(), &roles_str)
         .await?;
+    tracing::info!(event = "user_created", user_id = %id, email = %email, roles = %roles_str, "Admin created user");
 
     Ok((
         StatusCode::SEE_OTHER,
@@ -216,6 +287,7 @@ pub async fn user_edit_submit(
 
     let roles_str = roles.join(",");
     state.users.update(&id, display_name.as_deref(), &roles_str).await?;
+    tracing::info!(event = "user_updated", user_id = %id, roles = %roles_str, "Admin updated user");
 
     Ok((
         StatusCode::SEE_OTHER,
@@ -242,6 +314,7 @@ pub async fn user_delete(
     }
 
     state.users.delete(&id).await?;
+    tracing::info!(event = "user_deleted", user_id = %id, "Admin deleted user");
 
     Ok((
         StatusCode::SEE_OTHER,
@@ -400,6 +473,15 @@ pub async fn client_create_submit(
         return render_client_create_error(&state, &msg, &csrf_token, &client_id, &redirect_uri, &post_logout_uri);
     }
 
+    if let Err(msg) = validate_redirect_uri(&redirect_uri) {
+        return render_client_create_error(&state, &msg, &csrf_token, &client_id, &redirect_uri, &post_logout_uri);
+    }
+    if let Some(ref plu) = post_logout_uri {
+        if let Err(msg) = validate_redirect_uri(plu) {
+            return render_client_create_error(&state, &msg, &csrf_token, &client_id, &redirect_uri, &post_logout_uri);
+        }
+    }
+
     if state.clients.find_by_id(&client_id).await?.is_some() {
         let msg = state.i18n["client_create_error_id_exists"].as_str().unwrap_or("");
         return render_client_create_error(&state, msg, &csrf_token, &client_id, &redirect_uri, &post_logout_uri);
@@ -407,6 +489,7 @@ pub async fn client_create_submit(
 
     let hash = password::hash_password(&client_secret)?;
     state.clients.create(&client_id, &hash, &redirect_uri, post_logout_uri.as_deref()).await?;
+    tracing::info!(event = "client_created", client_id = %client_id, redirect_uri = %redirect_uri, "Admin created client");
 
     Ok((
         StatusCode::SEE_OTHER,
@@ -473,6 +556,15 @@ pub async fn client_edit_submit(
         return Err(AppError::BadRequest("CSRF-Token ungültig".into()));
     }
 
+    if let Err(msg) = validate_redirect_uri(&redirect_uri) {
+        return Err(AppError::BadRequest(msg));
+    }
+    if let Some(ref plu) = post_logout_uri {
+        if let Err(msg) = validate_redirect_uri(plu) {
+            return Err(AppError::BadRequest(msg));
+        }
+    }
+
     let client = state.clients.find_by_id(&id).await?
         .ok_or_else(|| AppError::NotFound("Client not found".into()))?;
 
@@ -494,6 +586,7 @@ pub async fn client_edit_submit(
     }
 
     state.clients.update(&id, &redirect_uri, post_logout_uri.as_deref()).await?;
+    tracing::info!(event = "client_updated", client_id = %id, redirect_uri = %redirect_uri, "Admin updated client");
 
     Ok((
         StatusCode::SEE_OTHER,
@@ -514,6 +607,7 @@ pub async fn client_delete(
     }
 
     state.clients.delete(&id).await?;
+    tracing::info!(event = "client_deleted", client_id = %id, "Admin deleted client");
 
     Ok((
         StatusCode::SEE_OTHER,

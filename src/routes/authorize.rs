@@ -37,7 +37,8 @@ pub async fn authorize_get(
 ) -> Result<Response, AppError> {
     let ua = super::require_user_agent(&headers)
         .map_err(|e| AppError::BadRequest(e))?;
-    let ip_key = super::rate_limit_key("authorize", &addr, ua);
+    let ip = super::client_ip(&headers, &addr, state.config.trusted_proxies);
+    let ip_key = super::rate_limit_key("authorize", &ip, ua);
     if state.login_rate_limiter.is_limited(&ip_key) {
         return Err(AppError::BadRequest("Too many requests".into()));
     }
@@ -137,7 +138,8 @@ pub async fn authorize_post(
 ) -> Result<Response, AppError> {
     let ua = super::require_user_agent(&headers)
         .map_err(|e| AppError::BadRequest(e))?;
-    let ip_key = super::rate_limit_key("authorize", &addr, ua);
+    let ip = super::client_ip(&headers, &addr, state.config.trusted_proxies);
+    let ip_key = super::rate_limit_key("authorize", &ip, ua);
     if state.login_rate_limiter.is_limited(&ip_key) {
         return Err(AppError::BadRequest("Too many requests".into()));
     }

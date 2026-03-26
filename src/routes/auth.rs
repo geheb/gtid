@@ -143,13 +143,15 @@ pub async fn login_submit(
 
     let ua = super::require_user_agent(&headers)
         .map_err(|e| AppError::BadRequest(e))?;
-    let key = super::rate_limit_key("login", &addr, ua);
+    let ip = super::client_ip(&headers, &addr, state.config.trusted_proxies);
+    let key = super::rate_limit_key("login", &ip, ua);
 
     // Generate fresh CSRF token for error pages
     let csrf_form_token = csrf::set_new_csrf_cookie(&cookies, state.config.secure_cookies);
 
     // Check rate limit (IP + User-Agent)
     if state.login_rate_limiter.is_limited(&key) {
+        tracing::warn!(event = "rate_limited", ip = %ip, email = %form.email, "Login rate limited");
         let mut ctx = state.context();
         ctx.insert("error", &true);
         ctx.insert("error_message", &state.i18n["login_error_rate_limited"].as_str().unwrap_or(""));
@@ -162,6 +164,7 @@ pub async fn login_submit(
 
     // Check account lockout (per email)
     if state.account_lockout.is_locked(&form.email) {
+        tracing::warn!(event = "account_locked", ip = %ip, email = %form.email, "Login blocked by account lockout");
         let mut ctx = state.context();
         ctx.insert("error", &true);
         ctx.insert("error_message", &state.i18n["login_error_account_locked"].as_str().unwrap_or(""));
@@ -174,9 +177,13 @@ pub async fn login_submit(
 
     let user = state.users.find_by_email(&form.email).await?;
 
-    let user = match user {
-        Some(u) if password::verify_password(&form.password, &u.password_hash) => u,
+    let user = match &user {
+        Some(u) if password::verify_password(&form.password, &u.password_hash) => u.clone(),
         _ => {
+            if user.is_none() {
+                password::dummy_verify(&form.password);
+            }
+            tracing::warn!(event = "login_failed", ip = %ip, email = %form.email, "Failed login attempt");
             state.login_rate_limiter.record_failure(&key);
             state.account_lockout.record_failure(&form.email);
             let mut ctx = state.context();

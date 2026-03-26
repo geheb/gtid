@@ -30,9 +30,23 @@ pub fn require_user_agent(headers: &HeaderMap) -> Result<&str, String> {
         .ok_or_else(|| "Missing User-Agent header".to_string())
 }
 
-/// Builds a rate-limit key from a prefix, socket address and user-agent.
-pub fn rate_limit_key(prefix: &str, addr: &SocketAddr, ua: &str) -> String {
-    format!("{}|{}|{}", prefix, addr.ip(), ua)
+/// Extracts the client IP, using X-Forwarded-For when trusted_proxies is enabled.
+pub fn client_ip(headers: &HeaderMap, addr: &SocketAddr, trusted_proxies: bool) -> String {
+    if trusted_proxies {
+        if let Some(xff) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
+            if let Some(first_ip) = xff.split(',').next().map(|s| s.trim()) {
+                if !first_ip.is_empty() {
+                    return first_ip.to_string();
+                }
+            }
+        }
+    }
+    addr.ip().to_string()
+}
+
+/// Builds a rate-limit key from a prefix, client IP and user-agent.
+pub fn rate_limit_key(prefix: &str, ip: &str, ua: &str) -> String {
+    format!("{}|{}|{}", prefix, ip, ua)
 }
 
 /// Percent-encodes a string per RFC 3986.
@@ -79,11 +93,13 @@ pub async fn verify_client_credentials(
     let client = state.clients.find_by_id(&client_id).await
         .map_err(|_| oauth_error("server_error", "Database error"))?
         .ok_or_else(|| {
+            tracing::warn!(event = "client_auth_failed", client_id = %client_id, reason = "not_found", "Client authentication failed: unknown client_id");
             state.login_rate_limiter.record_failure(ip_key);
             oauth_error("invalid_client", "Invalid client credentials")
         })?;
 
     if !password::verify_password(&client_secret, &client.client_secret_hash) {
+        tracing::warn!(event = "client_auth_failed", client_id = %client_id, reason = "invalid_secret", "Client authentication failed: wrong secret");
         state.login_rate_limiter.record_failure(ip_key);
         return Err(oauth_error("invalid_client", "Invalid client credentials"));
     }
@@ -128,9 +144,38 @@ mod tests {
 
     #[test]
     fn rate_limit_key_format() {
-        let addr: SocketAddr = "127.0.0.1:8080".parse().unwrap();
-        let key = rate_limit_key("login", &addr, "ua");
+        let key = rate_limit_key("login", "127.0.0.1", "ua");
         assert_eq!(key, "login|127.0.0.1|ua");
+    }
+
+    #[test]
+    fn client_ip_without_proxy() {
+        let headers = HeaderMap::new();
+        let addr: SocketAddr = "192.168.1.1:1234".parse().unwrap();
+        assert_eq!(client_ip(&headers, &addr, false), "192.168.1.1");
+    }
+
+    #[test]
+    fn client_ip_ignores_xff_when_not_trusted() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-forwarded-for", HeaderValue::from_static("10.0.0.1, 10.0.0.2"));
+        let addr: SocketAddr = "192.168.1.1:1234".parse().unwrap();
+        assert_eq!(client_ip(&headers, &addr, false), "192.168.1.1");
+    }
+
+    #[test]
+    fn client_ip_uses_xff_when_trusted() {
+        let mut headers = HeaderMap::new();
+        headers.insert("x-forwarded-for", HeaderValue::from_static("203.0.113.5, 10.0.0.1"));
+        let addr: SocketAddr = "192.168.1.1:1234".parse().unwrap();
+        assert_eq!(client_ip(&headers, &addr, true), "203.0.113.5");
+    }
+
+    #[test]
+    fn client_ip_falls_back_without_xff_header() {
+        let headers = HeaderMap::new();
+        let addr: SocketAddr = "192.168.1.1:1234".parse().unwrap();
+        assert_eq!(client_ip(&headers, &addr, true), "192.168.1.1");
     }
 
     #[test]

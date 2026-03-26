@@ -6,6 +6,8 @@ use hyper_util::server::conn::auto::Builder as AutoBuilder;
 use hyper_util::service::TowerToHyperService;
 use tower::Service;
 use tower_cookies::CookieManagerLayer;
+use tower_http::cors::{AllowOrigin, CorsLayer};
+use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::trace::TraceLayer;
 
 pub mod config;
@@ -85,6 +87,9 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16) {
         config.public_ui_uri = format!("http://127.0.0.1:{actual_ui_port}");
     }
 
+    // Validate issuer URI
+    validate_issuer_uri(&config.issuer_uri);
+
     tracing::info!("API listening on 127.0.0.1:{actual_api_port}");
     tracing::info!("UI listening on 127.0.0.1:{actual_ui_port}");
 
@@ -144,14 +149,21 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16) {
         js_hash,
     });
 
+    let cors_layer = build_cors_layer(&config.cors_allowed_origins);
+
     let api_app = Router::new()
         .merge(routes::build_api_router())
+        .layer(axum::middleware::from_fn(middleware::content_type::validate_content_type))
+        .layer(cors_layer)
+        .layer(RequestBodyLimitLayer::new(config.max_request_body_bytes))
         .layer(axum::middleware::from_fn(middleware::security_headers::api_security_headers))
         .layer(TraceLayer::new_for_http())
         .with_state(state.clone());
 
     let ui_app = Router::new()
         .merge(routes::build_ui_router())
+        .layer(axum::middleware::from_fn(middleware::content_type::validate_content_type))
+        .layer(RequestBodyLimitLayer::new(config.max_request_body_bytes))
         .layer(CookieManagerLayer::new())
         .layer(axum::middleware::from_fn_with_state(state.clone(), middleware::security_headers::ui_security_headers))
         .layer(TraceLayer::new_for_http())
@@ -179,6 +191,26 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16) {
     });
 
     (actual_api_port, actual_ui_port)
+}
+
+fn build_cors_layer(allowed_origins: &[String]) -> CorsLayer {
+    use axum::http::{header, Method};
+
+    let origins = if allowed_origins.is_empty() {
+        AllowOrigin::list(std::iter::empty::<axum::http::HeaderValue>())
+    } else {
+        AllowOrigin::list(
+            allowed_origins
+                .iter()
+                .filter_map(|o| o.parse::<axum::http::HeaderValue>().ok()),
+        )
+    };
+
+    CorsLayer::new()
+        .allow_origin(origins)
+        .allow_methods([Method::GET, Method::POST])
+        .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE])
+        .max_age(std::time::Duration::from_secs(3600))
 }
 
 async fn serve_h2c(listener: tokio::net::TcpListener, app: Router) {
@@ -211,6 +243,19 @@ fn unwrap_infallible<T>(result: Result<T, std::convert::Infallible>) -> T {
     match result {
         Ok(value) => value,
         Err(e) => match e {},
+    }
+}
+
+fn validate_issuer_uri(uri: &str) {
+    if uri.is_empty() {
+        panic!("ISSUER_URI must not be empty");
+    }
+    let lower = uri.to_lowercase();
+    if !lower.starts_with("https://") && !lower.starts_with("http://") {
+        panic!("ISSUER_URI must use http:// or https:// scheme, got: {uri}");
+    }
+    if uri.ends_with('/') {
+        panic!("ISSUER_URI must not end with a trailing slash, got: {uri}");
     }
 }
 

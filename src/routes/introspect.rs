@@ -30,7 +30,8 @@ pub async fn introspect(
 
     let ua = super::require_user_agent(&headers)
         .map_err(|e| super::oauth_error("invalid_request", &e))?;
-    let ip_key = super::rate_limit_key("introspect", &addr, ua);
+    let ip = super::client_ip(&headers, &addr, state.config.trusted_proxies);
+    let ip_key = super::rate_limit_key("introspect", &ip, ua);
     if state.login_rate_limiter.is_limited(&ip_key) {
         return Err(super::oauth_error("slow_down", "Too many requests"));
     }

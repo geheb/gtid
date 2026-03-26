@@ -1,3 +1,4 @@
+pub mod content_type;
 pub mod csrf;
 pub mod lockout;
 pub mod pending_redirect;

@@ -35,7 +35,8 @@ pub async fn token(
 
     let ua = super::require_user_agent(&headers)
         .map_err(|e| super::oauth_error("invalid_request", &e))?;
-    let ip_key = super::rate_limit_key("token", &addr, ua);
+    let ip = super::client_ip(&headers, &addr, state.config.trusted_proxies);
+    let ip_key = super::rate_limit_key("token", &ip, ua);
     if state.login_rate_limiter.is_limited(&ip_key) {
         return Err(super::oauth_error("slow_down", "Too many requests"));
     }
@@ -83,7 +84,7 @@ async fn handle_authorization_code(
     {
         ConsumeResult::Ok(ac) => ac,
         ConsumeResult::Replayed(ac) => {
-            tracing::warn!("Auth code replay detected for code, revoking token family");
+            tracing::warn!(event = "auth_code_replay", client_id = %client.client_id, key = %ip_key, "Auth code replay detected, revoking token family");
             let _ = state.refresh_tokens.revoke_family(&ac.code).await;
             return Err(super::oauth_error("invalid_grant", "Authorization code already used"));
         }
@@ -196,7 +197,7 @@ async fn handle_refresh_token(
     {
         RefreshResult::Ok(rt) => rt,
         RefreshResult::Reused(family) => {
-            tracing::warn!("Refresh token reuse detected, revoking token family");
+            tracing::warn!(event = "refresh_token_reuse", client_id = %client.client_id, key = %ip_key, family = %family, "Refresh token reuse detected, revoking token family");
             let _ = state.refresh_tokens.revoke_family(&family).await;
             return Err(super::oauth_error("invalid_grant", "Token reuse detected, all tokens revoked"));
         }

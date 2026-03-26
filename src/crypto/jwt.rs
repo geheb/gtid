@@ -22,6 +22,7 @@ pub struct IdTokenClaims {
     pub exp: i64,
     pub iat: i64,
     pub email: String,
+    pub email_verified: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -83,6 +84,7 @@ pub fn issue_id_token(
         exp: now + 3600, // 1 hour
         iat: now,
         email: email.to_string(),
+        email_verified: true,
         name: display_name.map(|s| s.to_string()),
         nonce: nonce.map(|s| s.to_string()),
         at_hash: Some(compute_at_hash(access_token)),

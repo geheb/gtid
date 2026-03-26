@@ -38,6 +38,9 @@ impl TestServer {
             session_lifetime_secs: 86400,
             allowed_grant_types: vec!["authorization_code".to_string(), "refresh_token".to_string()],
             key_rotation_interval_secs: 86400,
+            cors_allowed_origins: vec![],
+            max_request_body_bytes: 64 * 1024,
+            trusted_proxies: false,
         };
 
         let (api_port, ui_port) = gtid::start_server(config).await;

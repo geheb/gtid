@@ -37,8 +37,11 @@ GT Id is the alternative when you don't need any of that: a single binary, one S
 - **Roles** — configurable, included in the ID token as `roles` claim
 - **Account lockout + rate limiting** — brute force protection
 - **CSRF protection** — double-submit cookie with SHA256 and SameSite=Strict
-- **Security headers** — CSP, HSTS (1 year), X-Frame-Options, Referrer-Policy
+- **Security headers** — CSP, HSTS (1 year), X-Frame-Options, Referrer-Policy, Cache-Control
 - **Constant-time comparisons** — `subtle` crate against timing attacks on credentials and PKCE
+- **email_verified claim** — included in ID token per OIDC Core
+- **Security event logging** — structured tracing for failed logins, lockouts, token replay, admin operations
+- **Redirect URI validation** — only http/https schemes allowed on client creation
 
 ## What it doesn't do (by design)
 
@@ -94,6 +97,9 @@ cargo run
 | `SECURE_COOKIES` | Secure flag for HTTPS cookies | `true` |
 | `ALLOWED_GRANT_TYPES` | Allowed grant types (comma-separated) | `authorization_code,refresh_token` |
 | `KEY_ROTATION_INTERVAL_SECS` | Ed25519 key rotation interval in seconds | `86400` (24h) |
+| `CORS_ALLOWED_ORIGINS` | Allowed CORS origins (comma-separated) | *none* (no cross-origin) |
+| `MAX_REQUEST_BODY_BYTES` | Max request body size in bytes | `65536` (64 KB) |
+| `TRUSTED_PROXIES` | Trust X-Forwarded-For header for client IP | `false` |
 
 ## Security Architecture
 
@@ -130,6 +136,12 @@ Ed25519 keys are held in memory. On rotation the current key becomes the previou
 | Scope escalation | Downscoping allowed, upscoping prevented |
 | Clickjacking | X-Frame-Options: DENY + CSP frame-ancestors 'none' |
 | MITM | HSTS with 1 year + includeSubDomains |
+| Cross-origin abuse | CORS with explicit origin allowlist (default: none) |
+| Oversized payloads | Request body size limit (default: 64 KB) |
+| Page caching | Cache-Control: no-store on all API and UI responses |
+| Proxy IP spoofing | X-Forwarded-For only used when TRUSTED_PROXIES=true |
+| Open redirect | Redirect URI scheme validation (http/https only) |
+| Missing audit trail | Structured security event logging (login, lockout, admin ops, token replay) |
 
 ## Architecture
 
