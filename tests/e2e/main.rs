@@ -41,6 +41,9 @@ impl TestServer {
             cors_allowed_origins: vec![],
             max_request_body_bytes: 64 * 1024,
             trusted_proxies: false,
+            access_token_expiry_secs: 900,
+            id_token_expiry_secs: 600,
+            refresh_token_expiry_days: 30,
         };
 
         let (api_port, ui_port) = gtid::start_server(config).await;

@@ -19,6 +19,9 @@ pub struct AppConfig {
     pub cors_allowed_origins: Vec<String>,
     pub max_request_body_bytes: usize,
     pub trusted_proxies: bool,
+    pub access_token_expiry_secs: i64,
+    pub id_token_expiry_secs: i64,
+    pub refresh_token_expiry_days: i64,
 }
 
 impl AppConfig {
@@ -82,6 +85,15 @@ impl AppConfig {
             trusted_proxies: get("TRUSTED_PROXIES")
                 .map(|v| v == "true" || v == "1")
                 .unwrap_or(false),
+            access_token_expiry_secs: get("ACCESS_TOKEN_EXPIRY_SECS")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(900), // 15 minutes
+            id_token_expiry_secs: get("ID_TOKEN_EXPIRY_SECS")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(600), // 10 minutes
+            refresh_token_expiry_days: get("REFRESH_TOKEN_EXPIRY_DAYS")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(30),
         }
     }
 
@@ -122,6 +134,9 @@ mod tests {
         assert!(c.cors_allowed_origins.is_empty());
         assert_eq!(c.max_request_body_bytes, 64 * 1024);
         assert!(!c.trusted_proxies);
+        assert_eq!(c.access_token_expiry_secs, 900);
+        assert_eq!(c.id_token_expiry_secs, 600);
+        assert_eq!(c.refresh_token_expiry_days, 30);
     }
 
     #[test]
@@ -267,6 +282,19 @@ mod tests {
             ("TRUSTED_PROXIES", "true"),
         ]);
         assert!(c.trusted_proxies);
+    }
+
+    #[test]
+    fn custom_token_expiry() {
+        let c = config_from(&[
+            ("ADMIN_EMAIL", "a@b.c"), ("ADMIN_PASSWORD", "s"),
+            ("ACCESS_TOKEN_EXPIRY_SECS", "300"),
+            ("ID_TOKEN_EXPIRY_SECS", "120"),
+            ("REFRESH_TOKEN_EXPIRY_DAYS", "7"),
+        ]);
+        assert_eq!(c.access_token_expiry_secs, 300);
+        assert_eq!(c.id_token_expiry_secs, 120);
+        assert_eq!(c.refresh_token_expiry_days, 7);
     }
 
     #[test]

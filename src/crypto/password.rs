@@ -95,20 +95,7 @@ pub fn verify_password(password: &str, hash: &str) -> bool {
 /// Prevents user enumeration via timing side-channels.
 pub fn dummy_verify(password: &str) {
     #[static_init::dynamic]
-    static DUMMY_HASH: String = match hash_password("dummy-timing-pad") {
-        Ok(h) => h,
-        Err(_) => {
-            // Fallback: run Argon2 directly to still burn time, even without a stored hash.
-            // This path is essentially unreachable (requires broken OS RNG).
-            let salt = argon2::password_hash::SaltString::from_b64("c29tZWR1bW15c2FsdHM")
-                .expect("static fallback salt");
-            let params = Params::new(65536, 3, 4, None).expect("static fallback params");
-            Argon2::new(Algorithm::Argon2id, Version::V0x13, params)
-                .hash_password(b"dummy-timing-pad", &salt)
-                .expect("static fallback hash")
-                .to_string()
-        }
-    };
+    static DUMMY_HASH: String = hash_password("dummy-timing-pad").expect("dummy hash failed");
     let _ = verify_password(password, &DUMMY_HASH);
 }
 

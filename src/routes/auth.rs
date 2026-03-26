@@ -36,6 +36,10 @@ pub async fn rp_initiated_logout(
 ) -> Result<Response, AppError> {
     // Validate id_token_hint if provided — decode without audience to extract client_id
     let hint_client_id = if let Some(ref hint) = query.id_token_hint {
+        // Reject oversized tokens to prevent DoS
+        if hint.len() > 2048 {
+            return Err(AppError::BadRequest("id_token_hint too large".into()));
+        }
         let decoding_keys = state.key_store.decoding_keys();
         let mut validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::EdDSA);
         validation.set_issuer(&[&state.config.issuer_uri]);

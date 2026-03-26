@@ -53,7 +53,8 @@ pub async fn authorize_get(
         None => {
             let query = build_query_string(&params);
             let redirect_url = format!("/authorize?{query}");
-            let rid = state.pending_redirects.store(redirect_url);
+            let rid = state.pending_redirects.store(redirect_url)
+                .ok_or_else(|| AppError::Internal("Server overloaded, please try again".into()))?;
             let login_url = format!("/login?rid={rid}");
             return Ok((StatusCode::SEE_OTHER, [(header::LOCATION, login_url)]).into_response());
         }

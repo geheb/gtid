@@ -122,6 +122,7 @@ async fn handle_authorization_code(
         &client.client_id,
         &user.id,
         &auth_code.scope,
+        state.config.access_token_expiry_secs,
     )
     .map_err(|_| super::oauth_error("server_error", "Failed to issue access token"))?;
 
@@ -137,13 +138,14 @@ async fn handle_authorization_code(
         auth_code.nonce.as_deref(),
         &access_token,
         user.roles().into_iter().map(String::from).collect(),
+        state.config.id_token_expiry_secs,
     )
     .map_err(|_| super::oauth_error("server_error", "Failed to issue ID token"))?;
 
     // #3 + #12: Refresh token bound to client_id and token family (auth code)
     let refresh_token_value = crate::crypto::id::new_id();
     let refresh_expires = chrono::Utc::now()
-        .checked_add_signed(chrono::Duration::days(30))
+        .checked_add_signed(chrono::Duration::days(state.config.refresh_token_expiry_days))
         .ok_or_else(|| super::oauth_error("server_error", "Token expiry overflow"))?
         .format("%Y-%m-%d %H:%M:%S")
         .to_string();
@@ -251,13 +253,14 @@ async fn handle_refresh_token(
         &client.client_id,
         &user.id,
         &effective_scope,
+        state.config.access_token_expiry_secs,
     )
     .map_err(|_| super::oauth_error("server_error", "Failed to issue access token"))?;
 
     // #12: New refresh token inherits token_family for chain tracking
     let new_refresh_token = crate::crypto::id::new_id();
     let refresh_expires = chrono::Utc::now()
-        .checked_add_signed(chrono::Duration::days(30))
+        .checked_add_signed(chrono::Duration::days(state.config.refresh_token_expiry_days))
         .ok_or_else(|| super::oauth_error("server_error", "Token expiry overflow"))?
         .format("%Y-%m-%d %H:%M:%S")
         .to_string();

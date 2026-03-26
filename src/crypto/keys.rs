@@ -124,7 +124,7 @@ mod tests {
         let kp = generate_key_pair().unwrap();
         assert!(!kp.kid.is_empty());
         let token = crate::crypto::jwt::issue_access_token(
-            &kp.encoding_key, &kp.kid, "http://test", "client", "user", "openid",
+            &kp.encoding_key, &kp.kid, "http://test", "client", "user", "openid", 900,
         ).unwrap();
         let claims = crate::crypto::jwt::decode_access_token(
             &token, &kp.decoding_key, "http://test", "client",

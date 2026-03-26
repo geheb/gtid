@@ -100,16 +100,19 @@ cargo run
 | `CORS_ALLOWED_ORIGINS` | Allowed CORS origins (comma-separated) | *none* (no cross-origin) |
 | `MAX_REQUEST_BODY_BYTES` | Max request body size in bytes | `65536` (64 KB) |
 | `TRUSTED_PROXIES` | Trust X-Forwarded-For header for client IP | `false` |
+| `ACCESS_TOKEN_EXPIRY_SECS` | Access token lifetime in seconds | `900` (15 min) |
+| `ID_TOKEN_EXPIRY_SECS` | ID token lifetime in seconds | `600` (10 min) |
+| `REFRESH_TOKEN_EXPIRY_DAYS` | Refresh token lifetime in days | `30` |
 
 ## Security Architecture
 
 ### Token Security
 
 ```
-Auth Code ──┬──> Access Token (JWT, 15 min, at_hash in ID token)
-            ├──> ID Token (JWT, 1h, with at_hash + nonce)
+Auth Code ──┬──> Access Token (JWT, 15 min default, at_hash in ID token)
+            ├──> ID Token (JWT, 10 min default, with at_hash + nonce)
             └──> Refresh Token ──> new Refresh Token ──> ...
-                 (30 days)        (same token_family)
+                 (30 days default) (same token_family)
 ```
 
 **Token family:** All refresh tokens derived from the same auth code form a family. On suspected token theft (reuse of an already revoked token) the entire family is revoked.

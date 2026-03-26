@@ -40,13 +40,14 @@ pub fn issue_access_token(
     client_id: &str,
     user_id: &str,
     scope: &str,
+    expiry_secs: i64,
 ) -> Result<String, jsonwebtoken::errors::Error> {
     let now = Utc::now().timestamp();
     let claims = AccessTokenClaims {
         sub: user_id.to_string(),
         iss: issuer.to_string(),
         aud: client_id.to_string(),
-        exp: now + 900, // 15 minutes
+        exp: now + expiry_secs,
         iat: now,
         scope: scope.to_string(),
     };
@@ -75,13 +76,14 @@ pub fn issue_id_token(
     nonce: Option<&str>,
     access_token: &str,
     roles: Vec<String>,
+    expiry_secs: i64,
 ) -> Result<String, jsonwebtoken::errors::Error> {
     let now = Utc::now().timestamp();
     let claims = IdTokenClaims {
         sub: user_id.to_string(),
         iss: issuer.to_string(),
         aud: client_id.to_string(),
-        exp: now + 3600, // 1 hour
+        exp: now + expiry_secs,
         iat: now,
         email: email.to_string(),
         email_verified: true,
@@ -160,7 +162,7 @@ mod tests {
     #[test]
     fn access_token_roundtrip() {
         let (enc, dec, kid) = test_keys();
-        let token = issue_access_token(&enc, &kid, ISSUER, CLIENT, USER, "openid").unwrap();
+        let token = issue_access_token(&enc, &kid, ISSUER, CLIENT, USER, "openid", 900).unwrap();
         let claims = decode_access_token(&token, &dec, ISSUER, CLIENT).unwrap();
         assert_eq!(claims.sub, USER);
         assert_eq!(claims.iss, ISSUER);
@@ -171,11 +173,11 @@ mod tests {
     #[test]
     fn id_token_roundtrip() {
         let (enc, dec, kid) = test_keys();
-        let at = issue_access_token(&enc, &kid, ISSUER, CLIENT, USER, "openid").unwrap();
+        let at = issue_access_token(&enc, &kid, ISSUER, CLIENT, USER, "openid", 900).unwrap();
         let id_token = issue_id_token(
             &enc, &kid, ISSUER, CLIENT, USER,
             "user@test.com", Some("Test User"), Some("nonce-1"), &at,
-            vec!["admin".to_string()],
+            vec!["admin".to_string()], 600,
         ).unwrap();
 
         let mut validation = Validation::new(Algorithm::EdDSA);
@@ -191,14 +193,14 @@ mod tests {
     #[test]
     fn wrong_issuer_rejected() {
         let (enc, dec, kid) = test_keys();
-        let token = issue_access_token(&enc, &kid, ISSUER, CLIENT, USER, "openid").unwrap();
+        let token = issue_access_token(&enc, &kid, ISSUER, CLIENT, USER, "openid", 900).unwrap();
         assert!(decode_access_token(&token, &dec, "http://wrong.issuer", CLIENT).is_err());
     }
 
     #[test]
     fn wrong_audience_rejected() {
         let (enc, dec, kid) = test_keys();
-        let token = issue_access_token(&enc, &kid, ISSUER, CLIENT, USER, "openid").unwrap();
+        let token = issue_access_token(&enc, &kid, ISSUER, CLIENT, USER, "openid", 900).unwrap();
         assert!(decode_access_token(&token, &dec, ISSUER, "wrong-client").is_err());
     }
 
@@ -206,7 +208,7 @@ mod tests {
     fn wrong_key_rejected() {
         let (enc, _, kid) = test_keys();
         let (_, dec2, _) = test_keys(); // different key pair
-        let token = issue_access_token(&enc, &kid, ISSUER, CLIENT, USER, "openid").unwrap();
+        let token = issue_access_token(&enc, &kid, ISSUER, CLIENT, USER, "openid", 900).unwrap();
         assert!(decode_access_token(&token, &dec2, ISSUER, CLIENT).is_err());
     }
 
@@ -214,7 +216,7 @@ mod tests {
     fn multi_key_decode() {
         let (enc, dec, kid) = test_keys();
         let (_, dec2, _) = test_keys();
-        let token = issue_access_token(&enc, &kid, ISSUER, CLIENT, USER, "openid").unwrap();
+        let token = issue_access_token(&enc, &kid, ISSUER, CLIENT, USER, "openid", 900).unwrap();
         // Correct key is second in list
         let keys = [&dec2, &dec];
         let claims = decode_access_token_multi(&token, &keys, ISSUER, CLIENT).unwrap();
@@ -224,7 +226,7 @@ mod tests {
     #[test]
     fn multi_key_empty_slice() {
         let (enc, _, kid) = test_keys();
-        let token = issue_access_token(&enc, &kid, ISSUER, CLIENT, USER, "openid").unwrap();
+        let token = issue_access_token(&enc, &kid, ISSUER, CLIENT, USER, "openid", 900).unwrap();
         let keys: &[&DecodingKey] = &[];
         assert!(decode_access_token_multi(&token, keys, ISSUER, CLIENT).is_err());
     }

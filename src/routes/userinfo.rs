@@ -1,9 +1,10 @@
 use axum::{
-    extract::State,
+    extract::{ConnectInfo, State},
     http::{header, StatusCode},
     response::{IntoResponse, Response},
     Json,
 };
+use std::net::SocketAddr;
 use std::sync::Arc;
 
 use crate::crypto::jwt;
@@ -11,9 +12,19 @@ use crate::AppState;
 
 pub async fn userinfo(
     State(state): State<Arc<AppState>>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: axum::http::HeaderMap,
 ) -> Result<Response, Response> {
-    tracing::info!("Calling userinfo ...");
+    let ua = super::require_user_agent(&headers).map_err(|_| {
+        (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": "invalid_request"}))).into_response()
+    })?;
+    let ip = super::client_ip(&headers, &addr, state.config.trusted_proxies);
+    let key = super::rate_limit_key("userinfo", &ip, ua);
+
+    if state.login_rate_limiter.is_limited(&key) {
+        tracing::warn!(event = "rate_limited", ip = %ip, endpoint = "userinfo", "Userinfo rate limited");
+        return Err((StatusCode::TOO_MANY_REQUESTS, Json(serde_json::json!({"error": "too_many_requests"}))).into_response());
+    }
 
     let auth_header = headers
         .get(header::AUTHORIZATION)
@@ -67,15 +78,15 @@ pub async fn userinfo(
         .await
         .map_err(|_| {
             (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "server_error"})),
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({"error": "invalid_token"})),
             )
                 .into_response()
         })?
         .ok_or_else(|| {
             (
-                StatusCode::NOT_FOUND,
-                Json(serde_json::json!({"error": "user_not_found"})),
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({"error": "invalid_token"})),
             )
                 .into_response()
         })?;
