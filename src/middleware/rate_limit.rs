@@ -1,5 +1,5 @@
-use std::collections::HashMap;
-use std::sync::Mutex;
+use dashmap::DashMap;
+use std::sync::Arc;
 use std::time::Instant;
 
 const MAX_ATTEMPTS: u32 = 5;
@@ -7,23 +7,22 @@ const WINDOW_SECS: u64 = 900; // 15 minutes
 
 #[derive(Clone)]
 pub struct LoginRateLimiter {
-    attempts: std::sync::Arc<Mutex<HashMap<String, Vec<Instant>>>>,
+    attempts: Arc<DashMap<String, Vec<Instant>>>,
 }
 
 impl LoginRateLimiter {
     pub fn new() -> Self {
         Self {
-            attempts: std::sync::Arc::new(Mutex::new(HashMap::new())),
+            attempts: Arc::new(DashMap::new()),
         }
     }
 
     /// Returns true if the IP is rate-limited.
     pub fn is_limited(&self, ip: &str) -> bool {
-        let mut map = self.attempts.lock().unwrap_or_else(|e| e.into_inner());
         let now = Instant::now();
         let window = std::time::Duration::from_secs(WINDOW_SECS);
 
-        if let Some(times) = map.get_mut(ip) {
+        if let Some(mut times) = self.attempts.get_mut(ip) {
             times.retain(|t| now.checked_duration_since(*t).is_some_and(|d| d < window));
             times.len() >= MAX_ATTEMPTS as usize
         } else {
@@ -33,19 +32,17 @@ impl LoginRateLimiter {
 
     /// Records a failed login attempt for the given IP.
     pub fn record_failure(&self, ip: &str) {
-        let mut map = self.attempts.lock().unwrap_or_else(|e| e.into_inner());
         let now = Instant::now();
         let window = std::time::Duration::from_secs(WINDOW_SECS);
 
-        let times = map.entry(ip.to_string()).or_default();
-        times.retain(|t| now.checked_duration_since(*t).is_some_and(|d| d < window));
-        times.push(now);
+        let mut entry = self.attempts.entry(ip.to_string()).or_default();
+        entry.retain(|t| now.checked_duration_since(*t).is_some_and(|d| d < window));
+        entry.push(now);
     }
 
     /// Clears attempts for the given IP on successful login.
     pub fn clear(&self, ip: &str) {
-        let mut map = self.attempts.lock().unwrap_or_else(|e| e.into_inner());
-        map.remove(ip);
+        self.attempts.remove(ip);
     }
 }
 

@@ -1,5 +1,5 @@
-use std::collections::HashMap;
-use std::sync::Mutex;
+use dashmap::DashMap;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 struct LockoutEntry {
@@ -9,7 +9,7 @@ struct LockoutEntry {
 
 #[derive(Clone)]
 pub struct AccountLockout {
-    entries: std::sync::Arc<Mutex<HashMap<String, LockoutEntry>>>,
+    entries: Arc<DashMap<String, LockoutEntry>>,
     max_attempts: u32,
     lockout_duration: Duration,
 }
@@ -17,7 +17,7 @@ pub struct AccountLockout {
 impl AccountLockout {
     pub fn new(max_attempts: u32, lockout_duration_secs: u64) -> Self {
         Self {
-            entries: std::sync::Arc::new(Mutex::new(HashMap::new())),
+            entries: Arc::new(DashMap::new()),
             max_attempts,
             lockout_duration: Duration::from_secs(lockout_duration_secs),
         }
@@ -25,25 +25,26 @@ impl AccountLockout {
 
     /// Returns true if the account (by email) is currently locked.
     pub fn is_locked(&self, email: &str) -> bool {
-        let mut map = self.entries.lock().unwrap_or_else(|e| e.into_inner());
         let email_lower = email.to_lowercase();
-        if let Some(entry) = map.get_mut(&email_lower) {
+        if let Some(entry) = self.entries.get(&email_lower) {
             if let Some(until) = entry.locked_until {
                 if until.checked_duration_since(Instant::now()).is_some() {
                     return true;
                 }
-                // Lock expired — reset
-                map.remove(&email_lower);
             }
         }
+        // Lock expired — remove outside the read guard
+        self.entries.remove_if(&email_lower, |_, e| {
+            e.locked_until
+                .is_some_and(|until| until.checked_duration_since(Instant::now()).is_none())
+        });
         false
     }
 
     /// Records a failed login attempt. Locks the account if max_attempts is reached.
     pub fn record_failure(&self, email: &str) {
-        let mut map = self.entries.lock().unwrap_or_else(|e| e.into_inner());
         let email_lower = email.to_lowercase();
-        let entry = map.entry(email_lower).or_insert(LockoutEntry {
+        let mut entry = self.entries.entry(email_lower).or_insert(LockoutEntry {
             attempts: 0,
             locked_until: None,
         });
@@ -54,17 +55,16 @@ impl AccountLockout {
     }
 
     pub fn locked_count(&self) -> usize {
-        let map = self.entries.lock().unwrap_or_else(|e| e.into_inner());
         let now = Instant::now();
-        map.values()
+        self.entries
+            .iter()
             .filter(|e| e.locked_until.is_some_and(|until| until.checked_duration_since(now).is_some()))
             .count()
     }
 
     /// Clears failed attempts on successful login.
     pub fn clear(&self, email: &str) {
-        let mut map = self.entries.lock().unwrap_or_else(|e| e.into_inner());
-        map.remove(&email.to_lowercase());
+        self.entries.remove(&email.to_lowercase());
     }
 }
 

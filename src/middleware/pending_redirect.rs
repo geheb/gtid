@@ -1,5 +1,5 @@
-use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
+use dashmap::DashMap;
+use std::sync::Arc;
 use std::time::Instant;
 
 struct Entry {
@@ -12,31 +12,30 @@ const MAX_ENTRIES: usize = 10_000;
 
 #[derive(Clone)]
 pub struct PendingRedirectStore {
-    inner: Arc<Mutex<HashMap<String, Entry>>>,
+    inner: Arc<DashMap<String, Entry>>,
 }
 
 impl PendingRedirectStore {
     pub fn new() -> Self {
         Self {
-            inner: Arc::new(Mutex::new(HashMap::new())),
+            inner: Arc::new(DashMap::new()),
         }
     }
 
     /// Stores a redirect URL and returns an opaque ID.
     pub fn store(&self, url: String) -> String {
         let id = crate::crypto::id::new_id();
-        let mut map = self.inner.lock().unwrap_or_else(|e| e.into_inner());
 
         // Evict expired entries
         let cutoff = Instant::now() - std::time::Duration::from_secs(MAX_AGE_SECS);
-        map.retain(|_, entry| entry.created > cutoff);
+        self.inner.retain(|_, entry| entry.created > cutoff);
 
         // DoS protection
-        if map.len() >= MAX_ENTRIES {
+        if self.inner.len() >= MAX_ENTRIES {
             return id;
         }
 
-        map.insert(id.clone(), Entry {
+        self.inner.insert(id.clone(), Entry {
             url,
             created: Instant::now(),
         });
@@ -45,8 +44,7 @@ impl PendingRedirectStore {
 
     /// Consumes and returns the redirect URL for the given ID (one-time use).
     pub fn take(&self, id: &str) -> Option<String> {
-        let mut map = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        let entry = map.remove(id)?;
+        let (_, entry) = self.inner.remove(id)?;
         if entry.created.elapsed().as_secs() > MAX_AGE_SECS {
             return None;
         }
