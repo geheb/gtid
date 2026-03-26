@@ -2,8 +2,8 @@ use dashmap::DashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
-const MAX_ATTEMPTS: u32 = 5;
-const WINDOW: Duration = Duration::from_secs(900); // 15 minutes
+const MAX_ATTEMPTS: u32 = 3;
+const WINDOW: Duration = Duration::from_secs(30); 
 const MAX_TRACKED_KEYS: usize = 50_000;
 
 #[derive(Clone)]
