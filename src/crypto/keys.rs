@@ -3,7 +3,8 @@ use ed25519_dalek::pkcs8::{EncodePrivateKey, EncodePublicKey};
 use ed25519_dalek::SigningKey;
 use jsonwebtoken::{DecodingKey, EncodingKey};
 use sha2::{Digest, Sha256};
-use std::sync::RwLock;
+use std::sync::Arc;
+use arc_swap::ArcSwap;
 
 pub struct KeyPair {
     pub encoding_key: EncodingKey,
@@ -12,20 +13,20 @@ pub struct KeyPair {
     pub jwk: serde_json::Value,
 }
 
-/// Manages current + previous key pairs for graceful rotation.
-pub struct KeyStore {
-    inner: RwLock<KeyStoreInner>,
-}
-
 struct KeyStoreInner {
     current: KeyPair,
     previous: Option<KeyPair>,
 }
 
+/// Manages current + previous key pairs for graceful rotation.
+pub struct KeyStore {
+    inner: ArcSwap<KeyStoreInner>,
+}
+
 impl KeyStore {
     pub fn new(initial: KeyPair) -> Self {
         Self {
-            inner: RwLock::new(KeyStoreInner {
+            inner: ArcSwap::from_pointee(KeyStoreInner {
                 current: initial,
                 previous: None,
             }),
@@ -36,24 +37,31 @@ impl KeyStore {
     pub fn rotate(&self) -> String {
         let new_keys = generate_key_pair();
         let new_kid = new_keys.kid.clone();
-        let mut guard = self.inner.write().unwrap_or_else(|p| p.into_inner());
-        let old = std::mem::replace(&mut guard.current, new_keys);
-        guard.previous = Some(old);
+        let old = self.inner.load();
+        self.inner.store(Arc::new(KeyStoreInner {
+            previous: Some(KeyPair {
+                encoding_key: old.current.encoding_key.clone(),
+                decoding_key: old.current.decoding_key.clone(),
+                kid: old.current.kid.clone(),
+                jwk: old.current.jwk.clone(),
+            }),
+            current: new_keys,
+        }));
         tracing::info!("Key rotation complete, new kid: {new_kid}");
         new_kid
     }
 
     /// Get the current encoding key and kid for signing.
     pub fn signing_key(&self) -> (EncodingKey, String) {
-        let guard = self.inner.read().unwrap_or_else(|p| p.into_inner());
-        (guard.current.encoding_key.clone(), guard.current.kid.clone())
+        let snap = self.inner.load();
+        (snap.current.encoding_key.clone(), snap.current.kid.clone())
     }
 
     /// Get all decoding keys (current + previous) for verification.
     pub fn decoding_keys(&self) -> Vec<DecodingKey> {
-        let guard = self.inner.read().unwrap_or_else(|p| p.into_inner());
-        let mut keys = vec![guard.current.decoding_key.clone()];
-        if let Some(ref prev) = guard.previous {
+        let snap = self.inner.load();
+        let mut keys = vec![snap.current.decoding_key.clone()];
+        if let Some(ref prev) = snap.previous {
             keys.push(prev.decoding_key.clone());
         }
         keys
@@ -61,9 +69,9 @@ impl KeyStore {
 
     /// Build JWKS JSON containing all available public keys.
     pub fn jwks_json(&self) -> serde_json::Value {
-        let guard = self.inner.read().unwrap_or_else(|p| p.into_inner());
-        let mut keys = vec![guard.current.jwk.clone()];
-        if let Some(ref prev) = guard.previous {
+        let snap = self.inner.load();
+        let mut keys = vec![snap.current.jwk.clone()];
+        if let Some(ref prev) = snap.previous {
             keys.push(prev.jwk.clone());
         }
         serde_json::json!({ "keys": keys })

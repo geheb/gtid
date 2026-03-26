@@ -31,6 +31,7 @@ tower-cookies = "0.11.0"
 password-strength = "1.0.0"
 hyper = { version = "1", features = ["http1", "http2", "server"] }
 hyper-util = { version = "0.1", features = ["tokio", "http1", "http2", "server", "server-auto"] }
+arc-swap = "1.9.0"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }
