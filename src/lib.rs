@@ -89,7 +89,7 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16) {
     tracing::info!("UI listening on 127.0.0.1:{actual_ui_port}");
 
     let db = repositories::db::init_pool(&config.database_uri).await;
-    let key_store = Arc::new(crypto::keys::generate_keys());
+    let key_store = Arc::new(crypto::keys::generate_keys().expect("Failed to generate initial keys"));
     let mut tera = tera::Tera::default();
     tera.add_raw_templates(vec![
         ("base.html", include_str!("../static/base.html")),
@@ -164,7 +164,9 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16) {
         interval.tick().await;
         loop {
             interval.tick().await;
-            rotation_key_store.rotate();
+            if let Err(e) = rotation_key_store.rotate() {
+                tracing::error!("Key rotation failed: {e}");
+            }
         }
     });
 

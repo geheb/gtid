@@ -138,7 +138,7 @@ mod tests {
     const USER: &str = "user-123";
 
     fn test_keys() -> (EncodingKey, DecodingKey, String) {
-        let kp = generate_key_pair();
+        let kp = generate_key_pair().unwrap();
         (kp.encoding_key, kp.decoding_key, kp.kid)
     }
 

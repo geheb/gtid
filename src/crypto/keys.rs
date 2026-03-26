@@ -6,6 +6,8 @@ use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use arc_swap::ArcSwap;
 
+type KeyError = Box<dyn std::error::Error + Send + Sync>;
+
 pub struct KeyPair {
     pub encoding_key: EncodingKey,
     pub decoding_key: DecodingKey,
@@ -34,8 +36,8 @@ impl KeyStore {
     }
 
     /// Rotate keys: current becomes previous, a new key pair becomes current.
-    pub fn rotate(&self) -> String {
-        let new_keys = generate_key_pair();
+    pub fn rotate(&self) -> Result<String, KeyError> {
+        let new_keys = generate_key_pair()?;
         let new_kid = new_keys.kid.clone();
         let old = self.inner.load();
         self.inner.store(Arc::new(KeyStoreInner {
@@ -48,7 +50,7 @@ impl KeyStore {
             current: new_keys,
         }));
         tracing::info!("Key rotation complete, new kid: {new_kid}");
-        new_kid
+        Ok(new_kid)
     }
 
     /// Get the current encoding key and kid for signing.
@@ -79,37 +81,33 @@ impl KeyStore {
 }
 
 /// Generates a fresh Ed25519 keypair in memory.
-pub fn generate_key_pair() -> KeyPair {
+pub fn generate_key_pair() -> Result<KeyPair, KeyError> {
     let seed: [u8; 32] = rand::random();
     let signing_key = SigningKey::from_bytes(&seed);
     let verifying_key = signing_key.verifying_key();
 
     let priv_pem = signing_key
-        .to_pkcs8_pem(ed25519_dalek::pkcs8::spki::der::pem::LineEnding::LF)
-        .expect("Failed to encode private key as PKCS8 PEM");
+        .to_pkcs8_pem(ed25519_dalek::pkcs8::spki::der::pem::LineEnding::LF)?;
     let pub_pem = verifying_key
-        .to_public_key_pem(ed25519_dalek::pkcs8::spki::der::pem::LineEnding::LF)
-        .expect("Failed to encode public key as SPKI PEM");
+        .to_public_key_pem(ed25519_dalek::pkcs8::spki::der::pem::LineEnding::LF)?;
 
-    let encoding_key =
-        EncodingKey::from_ed_pem(priv_pem.as_bytes()).expect("Failed to create encoding key");
-    let decoding_key =
-        DecodingKey::from_ed_pem(pub_pem.as_bytes()).expect("Failed to create decoding key");
+    let encoding_key = EncodingKey::from_ed_pem(priv_pem.as_bytes())?;
+    let decoding_key = DecodingKey::from_ed_pem(pub_pem.as_bytes())?;
 
-    let (kid, jwk) = build_jwk(pub_pem.as_bytes());
+    let (kid, jwk) = build_jwk(pub_pem.as_bytes())?;
 
-    KeyPair {
+    Ok(KeyPair {
         encoding_key,
         decoding_key,
         kid,
         jwk,
-    }
+    })
 }
 
 /// Convenience: generate keys and wrap in a KeyStore.
-pub fn generate_keys() -> KeyStore {
+pub fn generate_keys() -> Result<KeyStore, KeyError> {
     tracing::info!("Generating ephemeral Ed25519 keypair");
-    KeyStore::new(generate_key_pair())
+    Ok(KeyStore::new(generate_key_pair()?))
 }
 
 fn derive_kid(pub_bytes: &[u8]) -> String {
@@ -123,9 +121,8 @@ mod tests {
 
     #[test]
     fn generate_key_pair_produces_valid_keys() {
-        let kp = generate_key_pair();
+        let kp = generate_key_pair().unwrap();
         assert!(!kp.kid.is_empty());
-        // Sign and verify roundtrip via JWT using proper claims
         let token = crate::crypto::jwt::issue_access_token(
             &kp.encoding_key, &kp.kid, "http://test", "client", "user", "openid",
         ).unwrap();
@@ -137,7 +134,7 @@ mod tests {
 
     #[test]
     fn keystore_initial_state() {
-        let store = generate_keys();
+        let store = generate_keys().unwrap();
         assert_eq!(store.decoding_keys().len(), 1);
         let (_, kid) = store.signing_key();
         assert!(!kid.is_empty());
@@ -145,9 +142,9 @@ mod tests {
 
     #[test]
     fn keystore_rotation() {
-        let store = generate_keys();
+        let store = generate_keys().unwrap();
         let (_, kid1) = store.signing_key();
-        let new_kid = store.rotate();
+        let new_kid = store.rotate().unwrap();
         assert_ne!(kid1, new_kid);
         assert_eq!(store.decoding_keys().len(), 2);
         let (_, kid2) = store.signing_key();
@@ -156,7 +153,7 @@ mod tests {
 
     #[test]
     fn jwks_json_structure() {
-        let store = generate_keys();
+        let store = generate_keys().unwrap();
         let jwks = store.jwks_json();
         let keys = jwks["keys"].as_array().unwrap();
         assert_eq!(keys.len(), 1);
@@ -165,21 +162,20 @@ mod tests {
         assert_eq!(keys[0]["alg"], "EdDSA");
         assert_eq!(keys[0]["use"], "sig");
 
-        store.rotate();
+        store.rotate().unwrap();
         let jwks2 = store.jwks_json();
         assert_eq!(jwks2["keys"].as_array().unwrap().len(), 2);
     }
 }
 
-fn build_jwk(pub_pem: &[u8]) -> (String, serde_json::Value) {
-    let pem_str = std::str::from_utf8(pub_pem).expect("Invalid PEM");
+fn build_jwk(pub_pem: &[u8]) -> Result<(String, serde_json::Value), KeyError> {
+    let pem_str = std::str::from_utf8(pub_pem)?;
     let der_b64: String = pem_str
         .lines()
         .filter(|l| !l.starts_with("-----"))
         .collect();
     let der = base64::engine::general_purpose::STANDARD
-        .decode(&der_b64)
-        .expect("Failed to decode PEM base64");
+        .decode(&der_b64)?;
 
     let pub_bytes = &der[der.len() - 32..];
     let x = URL_SAFE_NO_PAD.encode(pub_bytes);
@@ -194,5 +190,5 @@ fn build_jwk(pub_pem: &[u8]) -> (String, serde_json::Value) {
         "x": x
     });
 
-    (kid, jwk)
+    Ok((kid, jwk))
 }
