@@ -33,15 +33,15 @@ pub async fn revoke(
     let ua = super::require_user_agent(&headers)
         .map_err(|e| super::oauth_error("invalid_request", &e))?;
     let ip = super::client_ip(&headers, &addr, state.config.trusted_proxies);
-    let ip_key = super::rate_limit_key("revoke", &ip, ua);
-    if state.login_rate_limiter.is_limited(&ip_key) {
+    let rl_key = state.login_rate_limiter.key("revoke", &ip, ua);
+    if state.login_rate_limiter.is_limited(rl_key) {
         return Err(super::oauth_error("slow_down", "Too many requests"));
     }
 
     super::verify_client_credentials(
         form.client_id.as_deref(),
         form.client_secret.as_deref(),
-        &headers, &state, &ip_key,
+        &headers, &state, rl_key,
     ).await?;
 
     // Look up the token to find its family, then revoke the entire family

@@ -10,6 +10,7 @@ sqlx = { version = "0.8", features = ["runtime-tokio", "sqlite"] }
 jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 argon2 = "0.5"
 rand = "0.10"
+rapidhash = "1"
 sha2 = "0.11"
 base64 = "0.22"
 uuid = { version = "1", features = ["v6"] }

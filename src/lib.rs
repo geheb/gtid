@@ -1,5 +1,9 @@
+use std::net::SocketAddr;
 use std::sync::Arc;
 
+use axum::extract::ConnectInfo;
+use axum::http::{header, StatusCode};
+use axum::response::IntoResponse;
 use axum::Router;
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as AutoBuilder;
@@ -19,6 +23,7 @@ pub mod repositories;
 pub mod routes;
 
 use config::AppConfig;
+use middleware::bot_trap::BotTrap;
 use middleware::lockout::AccountLockout;
 use middleware::pending_redirect::PendingRedirectStore;
 use middleware::rate_limit::LoginRateLimiter;
@@ -42,6 +47,7 @@ pub struct AppState {
     pub login_rate_limiter: LoginRateLimiter,
     pub account_lockout: AccountLockout,
     pub pending_redirects: PendingRedirectStore,
+    pub bot_trap: BotTrap,
     pub tera: tera::Tera,
     pub i18n: serde_json::Value,
     pub key_store: Arc<crypto::keys::KeyStore>,
@@ -141,6 +147,7 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16) {
         login_rate_limiter: LoginRateLimiter::new(),
         account_lockout: AccountLockout::new(config.lockout_max_attempts, config.lockout_duration_secs),
         pending_redirects: PendingRedirectStore::new(),
+        bot_trap: BotTrap::new(),
         tera,
         i18n,
         key_store: key_store.clone(),
@@ -153,20 +160,34 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16) {
 
     let api_app = Router::new()
         .merge(routes::build_api_router())
+        .fallback({
+            let st = state.clone();
+            move |conn: ConnectInfo<SocketAddr>, headers: axum::http::HeaderMap| {
+                bot_trap_fallback(st.clone(), conn, headers)
+            }
+        })
         .layer(axum::middleware::from_fn(middleware::content_type::validate_content_type))
         .layer(cors_layer)
         .layer(RequestBodyLimitLayer::new(config.max_request_body_bytes))
         .layer(axum::middleware::from_fn(middleware::security_headers::api_security_headers))
         .layer(TraceLayer::new_for_http())
+        .layer(axum::middleware::from_fn_with_state(state.clone(), bot_trap_guard))
         .with_state(state.clone());
 
     let ui_app = Router::new()
         .merge(routes::build_ui_router())
+        .fallback({
+            let st = state.clone();
+            move |conn: ConnectInfo<SocketAddr>, headers: axum::http::HeaderMap| {
+                bot_trap_fallback(st.clone(), conn, headers)
+            }
+        })
         .layer(axum::middleware::from_fn(middleware::content_type::validate_content_type))
         .layer(RequestBodyLimitLayer::new(config.max_request_body_bytes))
         .layer(CookieManagerLayer::new())
         .layer(axum::middleware::from_fn_with_state(state.clone(), middleware::security_headers::ui_security_headers))
         .layer(TraceLayer::new_for_http())
+        .layer(axum::middleware::from_fn_with_state(state.clone(), bot_trap_guard))
         .with_state(state);
 
     let rotation_interval = config.key_rotation_interval_secs;
@@ -237,6 +258,58 @@ async fn serve_h2c(listener: tokio::net::TcpListener, app: Router) {
             }
         });
     }
+}
+
+/// Middleware: blocks requests without User-Agent or from banned IP+UA combos.
+async fn bot_trap_guard(
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+    request: axum::http::Request<axum::body::Body>,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let ip = routes::client_ip(request.headers(), &addr, state.config.trusted_proxies);
+
+    let ua = request
+        .headers()
+        .get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    if ua.is_empty() {
+        tracing::warn!(event = "bot_blocked", ip = %ip, reason = "missing_user_agent", "Blocked: no User-Agent");
+        return StatusCode::IM_A_TEAPOT.into_response();
+    }
+
+    let bt_key = state.bot_trap.key(&ip, ua);
+    if state.bot_trap.is_banned(bt_key) {
+        tracing::debug!(event = "bot_blocked", ip = %ip, reason = "banned", "Blocked banned bot");
+        return StatusCode::IM_A_TEAPOT.into_response();
+    }
+
+    next.run(request).await
+}
+
+/// Fallback handler: any request that matches no route counts as a bot strike.
+async fn bot_trap_fallback(
+    state: Arc<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    headers: axum::http::HeaderMap,
+) -> impl IntoResponse {
+    let ip = routes::client_ip(&headers, &addr, state.config.trusted_proxies);
+    let ua = headers
+        .get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown");
+    let bt_key = state.bot_trap.key(&ip, ua);
+    let banned = state.bot_trap.record_strike(bt_key);
+    if banned {
+        tracing::warn!(event = "bot_banned", ip = %ip, ua = %ua, "Bot banned after repeated unknown-path probes");
+        return StatusCode::IM_A_TEAPOT;
+    } else {
+        tracing::info!(event = "bot_strike", ip = %ip, ua = %ua, "Unknown path probe recorded");
+    }
+
+    return StatusCode::NOT_FOUND;
 }
 
 fn unwrap_infallible<T>(result: Result<T, std::convert::Infallible>) -> T {

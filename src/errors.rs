@@ -40,7 +40,8 @@ impl IntoResponse for AppError {
             }
         };
 
-        (status, Html(format!("<h1>{}</h1><p>{}</p>", status, message))).into_response()
+        let escaped = tera::escape_html(&message);
+        (status, Html(format!("<h1>{}</h1><p>{}</p>", status, escaped))).into_response()
     }
 }
 

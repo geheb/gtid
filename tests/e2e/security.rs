@@ -467,7 +467,7 @@ async fn missing_user_agent() {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status(), 400, "Request without User-Agent not rejected");
+    assert_eq!(resp.status(), 418, "Request without User-Agent not rejected");
 }
 
 // ── Step 20: CSRF Validation ──

@@ -44,11 +44,6 @@ pub fn client_ip(headers: &HeaderMap, addr: &SocketAddr, trusted_proxies: bool) 
     addr.ip().to_string()
 }
 
-/// Builds a rate-limit key from a prefix, client IP and user-agent.
-pub fn rate_limit_key(prefix: &str, ip: &str, ua: &str) -> String {
-    format!("{}|{}|{}", prefix, ip, ua)
-}
-
 /// Percent-encodes a string per RFC 3986.
 pub fn urlencoding(s: &str) -> String {
     utf8_percent_encode(s, NON_ALPHANUMERIC).to_string()
@@ -73,7 +68,7 @@ pub async fn verify_client_credentials(
     client_secret_form: Option<&str>,
     headers: &HeaderMap,
     state: &AppState,
-    ip_key: &str,
+    key: u64,
 ) -> Result<Client, Response> {
     let (client_id, client_secret) = extract_basic_auth(headers)
         .unwrap_or_else(|| {
@@ -94,13 +89,13 @@ pub async fn verify_client_credentials(
         .map_err(|_| oauth_error("server_error", "Database error"))?
         .ok_or_else(|| {
             tracing::warn!(event = "client_auth_failed", client_id = %client_id, reason = "not_found", "Client authentication failed: unknown client_id");
-            state.login_rate_limiter.record_failure(ip_key);
+            state.login_rate_limiter.record_failure(key);
             oauth_error("invalid_client", "Invalid client credentials")
         })?;
 
     if !password::verify_password(&client_secret, &client.client_secret_hash) {
         tracing::warn!(event = "client_auth_failed", client_id = %client_id, reason = "invalid_secret", "Client authentication failed: wrong secret");
-        state.login_rate_limiter.record_failure(ip_key);
+        state.login_rate_limiter.record_failure(key);
         return Err(oauth_error("invalid_client", "Invalid client credentials"));
     }
 
@@ -140,12 +135,6 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.insert(header::USER_AGENT, HeaderValue::from_static(""));
         assert!(require_user_agent(&headers).is_err());
-    }
-
-    #[test]
-    fn rate_limit_key_format() {
-        let key = rate_limit_key("login", "127.0.0.1", "ua");
-        assert_eq!(key, "login|127.0.0.1|ua");
     }
 
     #[test]

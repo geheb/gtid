@@ -38,13 +38,13 @@ pub async fn authorize_get(
     let ua = super::require_user_agent(&headers)
         .map_err(|e| AppError::BadRequest(e))?;
     let ip = super::client_ip(&headers, &addr, state.config.trusted_proxies);
-    let ip_key = super::rate_limit_key("authorize", &ip, ua);
-    if state.login_rate_limiter.is_limited(&ip_key) {
+    let rl_key = state.login_rate_limiter.key("authorize", &ip, ua);
+    if state.login_rate_limiter.is_limited(rl_key) {
         return Err(AppError::BadRequest("Too many requests".into()));
     }
 
     if let Err(e) = validate_authorize_params(&params, &state).await {
-        state.login_rate_limiter.record_failure(&ip_key);
+        state.login_rate_limiter.record_failure(rl_key);
         return Ok(error_response(&state, &e)?);
     }
 
@@ -140,13 +140,13 @@ pub async fn authorize_post(
     let ua = super::require_user_agent(&headers)
         .map_err(|e| AppError::BadRequest(e))?;
     let ip = super::client_ip(&headers, &addr, state.config.trusted_proxies);
-    let ip_key = super::rate_limit_key("authorize", &ip, ua);
-    if state.login_rate_limiter.is_limited(&ip_key) {
+    let rl_key = state.login_rate_limiter.key("authorize", &ip, ua);
+    if state.login_rate_limiter.is_limited(rl_key) {
         return Err(AppError::BadRequest("Too many requests".into()));
     }
 
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
-        state.login_rate_limiter.record_failure(&ip_key);
+        state.login_rate_limiter.record_failure(rl_key);
         return Err(AppError::BadRequest("CSRF-Token ungültig".into()));
     }
 
@@ -155,11 +155,11 @@ pub async fn authorize_post(
     let client = state.clients.find_by_id(&form.client_id).await
         .map_err(|_| AppError::Internal("Database error".into()))?
         .ok_or_else(|| {
-            state.login_rate_limiter.record_failure(&ip_key);
+            state.login_rate_limiter.record_failure(rl_key);
             AppError::BadRequest("Invalid client_id or redirect_uri".into())
         })?;
     if !constant_time::constant_time_str_eq(&form.redirect_uri, &client.client_redirect_uri) {
-        state.login_rate_limiter.record_failure(&ip_key);
+        state.login_rate_limiter.record_failure(rl_key);
         return Err(AppError::BadRequest("Invalid client_id or redirect_uri".into()));
     }
     if form.code_challenge_method != "S256" {

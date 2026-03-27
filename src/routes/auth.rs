@@ -148,13 +148,12 @@ pub async fn login_submit(
     let ua = super::require_user_agent(&headers)
         .map_err(|e| AppError::BadRequest(e))?;
     let ip = super::client_ip(&headers, &addr, state.config.trusted_proxies);
-    let key = super::rate_limit_key("login", &ip, ua);
-
     // Generate fresh CSRF token for error pages
     let csrf_form_token = csrf::set_new_csrf_cookie(&cookies, state.config.secure_cookies);
 
+    let rl_key = state.login_rate_limiter.key("login", &ip, ua);
     // Check rate limit (IP + User-Agent)
-    if state.login_rate_limiter.is_limited(&key) {
+    if state.login_rate_limiter.is_limited(rl_key) {
         tracing::warn!(event = "rate_limited", ip = %ip, email = %form.email, "Login rate limited");
         let mut ctx = state.context();
         ctx.insert("error", &true);
@@ -188,7 +187,7 @@ pub async fn login_submit(
                 password::dummy_verify(&form.password);
             }
             tracing::warn!(event = "login_failed", ip = %ip, email = %form.email, "Failed login attempt");
-            state.login_rate_limiter.record_failure(&key);
+            state.login_rate_limiter.record_failure(rl_key);
             state.account_lockout.record_failure(&form.email);
             let mut ctx = state.context();
             ctx.insert("error", &true);
@@ -202,7 +201,7 @@ pub async fn login_submit(
     };
 
     // Successful login — clear rate limit and lockout, update last login
-    state.login_rate_limiter.clear(&key);
+    state.login_rate_limiter.clear(rl_key);
     state.account_lockout.clear(&form.email);
     state.users.update_last_login(&user.id).await?;
 

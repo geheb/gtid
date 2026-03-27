@@ -19,9 +19,8 @@ pub async fn userinfo(
         (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": "invalid_request"}))).into_response()
     })?;
     let ip = super::client_ip(&headers, &addr, state.config.trusted_proxies);
-    let key = super::rate_limit_key("userinfo", &ip, ua);
-
-    if state.login_rate_limiter.is_limited(&key) {
+    let rl_key = state.login_rate_limiter.key("userinfo", &ip, ua);
+    if state.login_rate_limiter.is_limited(rl_key) {
         tracing::warn!(event = "rate_limited", ip = %ip, endpoint = "userinfo", "Userinfo rate limited");
         return Err((StatusCode::TOO_MANY_REQUESTS, Json(serde_json::json!({"error": "too_many_requests"}))).into_response());
     }
