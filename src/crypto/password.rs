@@ -95,7 +95,10 @@ pub fn verify_password(password: &str, hash: &str) -> bool {
 /// Prevents user enumeration via timing side-channels.
 pub fn dummy_verify(password: &str) {
     #[static_init::dynamic]
-    static DUMMY_HASH: String = hash_password("dummy-timing-pad").expect("dummy hash failed");
+    static DUMMY_HASH: String = {
+        let random_pad = SaltString::generate(&mut OsRng).to_string();
+        hash_password(&random_pad).expect("dummy hash failed")
+    };
     let _ = verify_password(password, &DUMMY_HASH);
 }
 
