@@ -100,21 +100,16 @@ impl RefreshTokenRepository {
 mod tests {
     use super::*;
     use crate::repositories::client::ClientRepository;
+    use crate::repositories::test_helpers::{future_time, make_pool};
     use crate::repositories::user::UserRepository;
 
     async fn setup() -> RefreshTokenRepository {
-        let pool = crate::repositories::db::init_pool("sqlite::memory:").await;
+        let pool = make_pool().await;
         let users = UserRepository::new(pool.clone());
         let clients = ClientRepository::new(pool.clone());
         users.create("u1", "a@b.com", "hash", None, "").await.unwrap();
         clients.create("c1", "hash", "http://cb", None).await.unwrap();
         RefreshTokenRepository::new(pool)
-    }
-
-    fn future_time() -> String {
-        (chrono::Utc::now() + chrono::Duration::hours(24))
-            .format("%Y-%m-%d %H:%M:%S")
-            .to_string()
     }
 
     #[tokio::test]

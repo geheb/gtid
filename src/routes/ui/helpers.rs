@@ -1,0 +1,113 @@
+use axum::{
+    http::{header, StatusCode},
+    response::{IntoResponse, Response},
+};
+use serde::Deserialize;
+
+pub fn redirect(path: &str) -> Response {
+    (StatusCode::SEE_OTHER, [(header::LOCATION, path.to_string())]).into_response()
+}
+
+pub fn parse_form_fields(body: &[u8]) -> Vec<(String, String)> {
+    form_urlencoded::parse(body)
+        .map(|(k, v)| (k.into_owned(), v.into_owned()))
+        .collect()
+}
+
+pub fn get_field(fields: &[(String, String)], key: &str) -> String {
+    fields.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone()).unwrap_or_default()
+}
+
+pub fn get_field_opt(fields: &[(String, String)], key: &str) -> Option<String> {
+    fields.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone()).filter(|v| !v.is_empty())
+}
+
+pub fn get_all(fields: &[(String, String)], key: &str) -> Vec<String> {
+    fields.iter().filter(|(k, _)| k == key).map(|(_, v)| v.clone()).collect()
+}
+
+pub fn validate_redirect_uri(uri: &str) -> Result<(), String> {
+    if uri.is_empty() {
+        return Err("Redirect URI is required".into());
+    }
+    let lower = uri.to_lowercase();
+    if !lower.starts_with("https://") && !lower.starts_with("http://") {
+        return Err("Redirect URI must use http:// or https:// scheme".into());
+    }
+    if lower.contains("..") || lower.contains("\\") {
+        return Err("Redirect URI contains invalid characters".into());
+    }
+    Ok(())
+}
+
+pub fn validate_password(password: &str, i18n: &crate::i18n::I18n) -> Result<(), String> {
+    crate::crypto::password::validate_strength(password, 10)
+        .map_err(|e| i18n.password_msg(e).to_string())
+}
+
+pub fn validate_client_secret(secret: &str, i18n: &crate::i18n::I18n) -> Result<(), String> {
+    crate::crypto::password::validate_strength(secret, 16)
+        .map_err(|e| i18n.secret_msg(e).to_string())
+}
+
+#[derive(Deserialize)]
+pub struct DeleteForm {
+    #[serde(default)]
+    pub csrf_token: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn valid_https() {
+        assert!(validate_redirect_uri("https://example.com/cb").is_ok());
+    }
+
+    #[test]
+    fn valid_http() {
+        assert!(validate_redirect_uri("http://localhost:8080/cb").is_ok());
+    }
+
+    #[test]
+    fn rejects_javascript_scheme() {
+        assert!(validate_redirect_uri("javascript://alert(1)").is_err());
+    }
+
+    #[test]
+    fn rejects_mixed_case_javascript() {
+        assert!(validate_redirect_uri("JavaScript://alert(1)").is_err());
+    }
+
+    #[test]
+    fn rejects_data_scheme() {
+        assert!(validate_redirect_uri("data:text/html,<h1>hi</h1>").is_err());
+    }
+
+    #[test]
+    fn rejects_ftp_scheme() {
+        assert!(validate_redirect_uri("ftp://example.com").is_err());
+    }
+
+    #[test]
+    fn rejects_empty() {
+        assert!(validate_redirect_uri("").is_err());
+    }
+
+    #[test]
+    fn rejects_path_traversal() {
+        assert!(validate_redirect_uri("https://example.com/../secret").is_err());
+    }
+
+    #[test]
+    fn rejects_backslash() {
+        assert!(validate_redirect_uri("https://example.com\\@evil.com").is_err());
+    }
+
+    #[test]
+    fn accepts_mixed_case_http() {
+        assert!(validate_redirect_uri("HTTP://localhost/cb").is_ok());
+        assert!(validate_redirect_uri("HTTPS://example.com/cb").is_ok());
+    }
+}

@@ -1,6 +1,6 @@
 use std::env;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct AppConfig {
     pub issuer_uri: String,
     pub public_ui_uri: String,
@@ -99,6 +99,33 @@ impl AppConfig {
 
     pub fn grant_type_allowed(&self, grant_type: &str) -> bool {
         self.allowed_grant_types.iter().any(|g| g == grant_type)
+    }
+}
+
+impl std::fmt::Debug for AppConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AppConfig")
+            .field("issuer_uri", &self.issuer_uri)
+            .field("public_ui_uri", &self.public_ui_uri)
+            .field("ui_listen_port", &self.ui_listen_port)
+            .field("api_listen_port", &self.api_listen_port)
+            .field("database_uri", &"[REDACTED]")
+            .field("admin_email", &self.admin_email)
+            .field("admin_password", &"[REDACTED]")
+            .field("roles", &self.roles)
+            .field("lockout_max_attempts", &self.lockout_max_attempts)
+            .field("lockout_duration_secs", &self.lockout_duration_secs)
+            .field("secure_cookies", &self.secure_cookies)
+            .field("session_lifetime_secs", &self.session_lifetime_secs)
+            .field("allowed_grant_types", &self.allowed_grant_types)
+            .field("key_rotation_interval_secs", &self.key_rotation_interval_secs)
+            .field("cors_allowed_origins", &self.cors_allowed_origins)
+            .field("max_request_body_bytes", &self.max_request_body_bytes)
+            .field("trusted_proxies", &self.trusted_proxies)
+            .field("access_token_expiry_secs", &self.access_token_expiry_secs)
+            .field("id_token_expiry_secs", &self.id_token_expiry_secs)
+            .field("refresh_token_expiry_days", &self.refresh_token_expiry_days)
+            .finish()
     }
 }
 

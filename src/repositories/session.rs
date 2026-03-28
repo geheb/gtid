@@ -66,25 +66,14 @@ impl SessionRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::repositories::test_helpers::{future_time, make_pool, past_time};
     use crate::repositories::user::UserRepository;
 
     async fn setup() -> (SessionRepository, UserRepository) {
-        let pool = crate::repositories::db::init_pool("sqlite::memory:").await;
+        let pool = make_pool().await;
         let users = UserRepository::new(pool.clone());
         users.create("u1", "a@b.com", "hash", None, "").await.unwrap();
         (SessionRepository::new(pool), users)
-    }
-
-    fn future_time() -> String {
-        (chrono::Utc::now() + chrono::Duration::hours(1))
-            .format("%Y-%m-%d %H:%M:%S")
-            .to_string()
-    }
-
-    fn past_time() -> String {
-        (chrono::Utc::now() - chrono::Duration::hours(1))
-            .format("%Y-%m-%d %H:%M:%S")
-            .to_string()
     }
 
     #[tokio::test]

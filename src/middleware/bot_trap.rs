@@ -1,7 +1,4 @@
-use crate::middleware::build_key;
-use dashmap::DashMap;
-use rand::Rng;
-use std::sync::Arc;
+use crate::middleware::TrackedStore;
 use std::time::{Duration, Instant};
 
 /// Number of unknown-path hits before the IP+UA combo gets blocked.
@@ -20,36 +17,26 @@ struct BanEntry {
 
 #[derive(Clone)]
 pub struct BotTrap {
-    entries: Arc<DashMap<u64, BanEntry>>,
-    max_tracked_keys: usize,
-    seed: u64,
+    store: TrackedStore<BanEntry>,
 }
 
 impl BotTrap {
     pub fn new() -> Self {
-        Self {
-            entries: Arc::new(DashMap::new()),
-            max_tracked_keys: MAX_TRACKED_KEYS,
-            seed: rand::rng().next_u64(),
-        }
+        Self { store: TrackedStore::new(MAX_TRACKED_KEYS) }
     }
 
     #[cfg(test)]
     fn with_max_keys(max_tracked_keys: usize) -> Self {
-        Self {
-            entries: Arc::new(DashMap::new()),
-            max_tracked_keys,
-            seed: 0,
-        }
+        Self { store: TrackedStore::with_seed(max_tracked_keys, 0) }
     }
 
     pub fn key(&self, ip: &str, ua: &str) -> u64 {
-        build_key("", ip, ua, self.seed)
+        self.store.key("", ip, ua)
     }
 
     /// Returns true if this key is currently banned.
     pub fn is_banned(&self, key: u64) -> bool {
-        if let Some(entry) = self.entries.get(&key) {
+        if let Some(entry) = self.store.map.get(&key) {
             if let Some(banned_at) = entry.banned_at {
                 if banned_at.elapsed() < BAN_DURATION {
                     return true;
@@ -57,7 +44,7 @@ impl BotTrap {
             }
         }
         // Expired ban — clean up outside read guard
-        self.entries.remove_if(&key, |_, e| {
+        self.store.map.remove_if(&key, |_, e| {
             e.banned_at.is_some_and(|at| at.elapsed() >= BAN_DURATION)
         });
         false
@@ -65,16 +52,13 @@ impl BotTrap {
 
     /// Records a strike for this key. Returns true if now banned.
     pub fn record_strike(&self, key: u64) -> bool {
-        // Evict expired entries before inserting
-        self.entries.retain(|_, e| {
-            e.banned_at.map_or(true, |at| at.elapsed() < BAN_DURATION)
-        });
+        self.store.evict(|e| e.banned_at.is_some_and(|at| at.elapsed() >= BAN_DURATION));
 
-        if self.entries.len() >= self.max_tracked_keys && !self.entries.contains_key(&key) {
+        if !self.store.can_insert(key) {
             return false;
         }
 
-        let mut entry = self.entries.entry(key).or_insert(BanEntry {
+        let mut entry = self.store.map.entry(key).or_insert(BanEntry {
             strikes: 0,
             banned_at: None,
         });
@@ -88,7 +72,7 @@ impl BotTrap {
     }
 
     pub fn banned_count(&self) -> usize {
-        self.entries
+        self.store.map
             .iter()
             .filter(|e| e.banned_at.is_some_and(|at| at.elapsed() < BAN_DURATION))
             .count()
@@ -142,12 +126,13 @@ mod tests {
 
     #[test]
     fn ban_expires() {
+        // Instant subtraction can overflow on systems with low uptime; skip gracefully.
+        let Some(past) = Instant::now().checked_sub(BAN_DURATION + Duration::from_secs(1)) else {
+            return;
+        };
         let trap = BotTrap::with_max_keys(MAX_TRACKED_KEYS);
         let key = trap.key("1.2.3.4", "old-bot");
-        trap.entries.insert(key, BanEntry {
-            strikes: STRIKE_THRESHOLD,
-            banned_at: Some(Instant::now() - BAN_DURATION - Duration::from_secs(1)),
-        });
+        trap.store.map.insert(key, BanEntry { strikes: STRIKE_THRESHOLD, banned_at: Some(past) });
         assert!(!trap.is_banned(key));
     }
 
@@ -157,10 +142,10 @@ mod tests {
         trap.record_strike(trap.key("ip0", "ua0"));
         trap.record_strike(trap.key("ip1", "ua1"));
         trap.record_strike(trap.key("ip2", "ua2"));
-        assert_eq!(trap.entries.len(), 3);
+        assert_eq!(trap.store.map.len(), 3);
         // 4th unique key should be refused (returns false = not banned, but also not tracked)
         trap.record_strike(trap.key("ip3", "ua3"));
-        assert_eq!(trap.entries.len(), 3);
+        assert_eq!(trap.store.map.len(), 3);
         assert!(!trap.is_banned(trap.key("ip3", "ua3")));
     }
 
@@ -169,7 +154,7 @@ mod tests {
         let trap = BotTrap::with_max_keys(MAX_TRACKED_KEYS);
         let key = trap.key("10.0.0.1", "LongUserAgent/1.0");
         trap.record_strike(key);
-        assert!(trap.entries.contains_key(&key));
+        assert!(trap.store.map.contains_key(&key));
         assert_ne!(
             trap.key("10.0.0.1", "LongUserAgent/1.0"),
             trap.key("10.0.0.2", "LongUserAgent/1.0"),

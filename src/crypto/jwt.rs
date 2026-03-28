@@ -33,6 +33,16 @@ pub struct IdTokenClaims {
     pub roles: Vec<String>,
 }
 
+fn encode_token<T: serde::Serialize>(
+    encoding_key: &EncodingKey,
+    kid: &str,
+    claims: T,
+) -> Result<String, jsonwebtoken::errors::Error> {
+    let mut header = Header::new(Algorithm::EdDSA);
+    header.kid = Some(kid.to_string());
+    encode(&header, &claims, encoding_key)
+}
+
 pub fn issue_access_token(
     encoding_key: &EncodingKey,
     kid: &str,
@@ -51,11 +61,7 @@ pub fn issue_access_token(
         iat: now,
         scope: scope.to_string(),
     };
-
-    let mut header = Header::new(Algorithm::EdDSA);
-    header.kid = Some(kid.to_string());
-
-    encode(&header, &claims, encoding_key)
+    encode_token(encoding_key, kid, claims)
 }
 
 /// Compute at_hash per OIDC Core 3.1.3.6:
@@ -86,17 +92,14 @@ pub fn issue_id_token(
         exp: now + expiry_secs,
         iat: now,
         email: email.to_string(),
-        email_verified: true,
+        email_verified: false,
         name: display_name.map(|s| s.to_string()),
         nonce: nonce.map(|s| s.to_string()),
         at_hash: Some(compute_at_hash(access_token)),
         roles,
     };
 
-    let mut header = Header::new(Algorithm::EdDSA);
-    header.kid = Some(kid.to_string());
-
-    encode(&header, &claims, encoding_key)
+    encode_token(encoding_key, kid, claims)
 }
 
 pub fn decode_access_token(

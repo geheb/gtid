@@ -96,10 +96,11 @@ impl AuthCodeRepository {
 mod tests {
     use super::*;
     use crate::repositories::client::ClientRepository;
+    use crate::repositories::test_helpers::{future_time, make_pool, past_time};
     use crate::repositories::user::UserRepository;
 
     async fn setup() -> (AuthCodeRepository, ClientRepository, UserRepository) {
-        let pool = crate::repositories::db::init_pool("sqlite::memory:").await;
+        let pool = make_pool().await;
         let users = UserRepository::new(pool.clone());
         let clients = ClientRepository::new(pool.clone());
         let auth_codes = AuthCodeRepository::new(pool);
@@ -107,18 +108,6 @@ mod tests {
         users.create("u1", "a@b.com", "hash", None, "").await.unwrap();
         clients.create("c1", "hash", "http://cb", None).await.unwrap();
         (auth_codes, clients, users)
-    }
-
-    fn future_time() -> String {
-        (chrono::Utc::now() + chrono::Duration::minutes(10))
-            .format("%Y-%m-%d %H:%M:%S")
-            .to_string()
-    }
-
-    fn past_time() -> String {
-        (chrono::Utc::now() - chrono::Duration::minutes(10))
-            .format("%Y-%m-%d %H:%M:%S")
-            .to_string()
     }
 
     #[tokio::test]

@@ -39,9 +39,11 @@ impl PendingRedirectStore {
     pub fn store(&self, url: String) -> Option<String> {
         let id = crate::crypto::id::new_id();
 
-        // Evict expired entries
-        let cutoff = Instant::now() - self.max_age;
-        self.inner.retain(|_, entry| entry.created > cutoff);
+        // Evict expired entries (checked_sub avoids overflow on Windows
+        // when the process uptime is shorter than max_age)
+        if let Some(cutoff) = Instant::now().checked_sub(self.max_age) {
+            self.inner.retain(|_, entry| entry.created > cutoff);
+        }
 
         // DoS protection
         if self.inner.len() >= self.max_entries {

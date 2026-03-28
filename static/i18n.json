@@ -12,6 +12,7 @@
     "login_error_invalid": "Ungueltige E-Mail oder Passwort",
     "login_error_rate_limited": "Zu viele Anmeldeversuche. Bitte versuchen Sie es spaeter erneut.",
     "login_error_account_locked": "Konto gesperrt. Bitte versuchen Sie es spaeter erneut.",
+    "login_error_session_expired": "Sitzung abgelaufen, bitte erneut anmelden",
 
     "authorize_title": "Anwendung autorisieren",
     "authorize_description_prefix": "benötigt Zugriff auf dein Konto",

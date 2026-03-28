@@ -17,6 +17,7 @@ use tower_http::trace::TraceLayer;
 pub mod config;
 pub mod crypto;
 pub mod errors;
+pub mod i18n;
 pub mod middleware;
 pub mod models;
 pub mod repositories;
@@ -49,22 +50,14 @@ pub struct AppState {
     pub pending_redirects: PendingRedirectStore,
     pub bot_trap: BotTrap,
     pub tera: tera::Tera,
-    pub i18n: serde_json::Value,
+    pub i18n: i18n::I18n,
     pub key_store: Arc<crypto::keys::KeyStore>,
     pub config: AppConfig,
     pub css_hash: String,
     pub js_hash: String,
+    pub csp: Arc<std::sync::RwLock<String>>,
 }
 
-impl AppState {
-    pub fn context(&self) -> tera::Context {
-        let mut ctx = tera::Context::new();
-        ctx.insert("t", &self.i18n);
-        ctx.insert("css_hash", &self.css_hash);
-        ctx.insert("js_hash", &self.js_hash);
-        ctx
-    }
-}
 
 /// Starts the GT Id server with the given config.
 /// Returns the actual (api_port, ui_port) the listeners bound to.
@@ -120,7 +113,7 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16) {
         ("admin/client_edit.html", include_str!("../static/admin/client_edit.html")),
     ]).expect("Failed to load embedded templates");
 
-    let i18n: serde_json::Value =
+    let i18n: i18n::I18n =
         serde_json::from_str(include_str!("../static/i18n.json")).expect("Failed to parse embedded i18n.json");
 
     let users = UserRepository::new(db.clone());
@@ -132,9 +125,15 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16) {
     let refresh_tokens = RefreshTokenRepository::new(db);
 
     seed_admin(&users, &config).await;
+    config.admin_password = String::new();
     email_templates.seed().await.expect("Failed to seed email templates");
 
-    let (css_hash, js_hash) = routes::static_files::asset_hashes();
+    let initial_clients = clients.list().await.unwrap_or_default();
+    let csp = Arc::new(std::sync::RwLock::new(
+        middleware::security_headers::build_csp(&initial_clients),
+    ));
+
+    let (css_hash, js_hash) = routes::ui::static_files::asset_hashes();
 
     let state = Arc::new(AppState {
         users,
@@ -154,6 +153,7 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16) {
         config: config.clone(),
         css_hash,
         js_hash,
+        csp,
     });
 
     let cors_layer = build_cors_layer(&config.cors_allowed_origins);

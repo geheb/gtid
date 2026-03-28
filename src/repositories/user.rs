@@ -128,8 +128,7 @@ mod tests {
     use super::*;
 
     async fn test_repo() -> UserRepository {
-        let pool = crate::repositories::db::init_pool("sqlite::memory:").await;
-        UserRepository::new(pool)
+        UserRepository::new(crate::repositories::test_helpers::make_pool().await)
     }
 
     #[tokio::test]

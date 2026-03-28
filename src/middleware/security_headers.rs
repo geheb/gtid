@@ -37,12 +37,7 @@ pub async fn api_security_headers(request: Request<Body>, next: Next) -> Respons
     response
 }
 
-pub async fn ui_security_headers(
-    State(state): State<Arc<AppState>>,
-    request: Request<Body>,
-    next: Next,
-) -> Response {
-    let clients = state.clients.list().await.unwrap_or_default();
+pub fn build_csp(clients: &[crate::models::client::Client]) -> String {
     let origins: Vec<String> = clients.iter()
         .filter_map(|c| extract_origin(&c.client_redirect_uri))
         .collect::<std::collections::HashSet<_>>()
@@ -53,9 +48,17 @@ pub async fn ui_security_headers(
     } else {
         format!("'self' {}", origins.join(" "))
     };
-    let csp = format!(
-        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; form-action {form_action}; frame-ancestors 'none'; base-uri 'self'"
-    );
+    format!(
+        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; worker-src 'none'; manifest-src 'none'; form-action {form_action}; frame-ancestors 'none'; base-uri 'self'"
+    )
+}
+
+pub async fn ui_security_headers(
+    State(state): State<Arc<AppState>>,
+    request: Request<Body>,
+    next: Next,
+) -> Response {
+    let csp = state.csp.read().unwrap_or_else(|e| e.into_inner()).clone();
 
     let mut response = next.run(request).await;
     let headers = response.headers_mut();
