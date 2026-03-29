@@ -144,7 +144,6 @@ For detailed security patterns and guidelines for contributors, see [SECURITY_PA
 | Cross-origin abuse | CORS with explicit origin allowlist (default: none) |
 | Oversized payloads | Request body size limit (default: 64 KB) |
 | Page caching | Cache-Control: no-store on all API and UI responses |
-| Proxy IP spoofing | X-Forwarded-For only used when TRUSTED_PROXIES=true |
 | Open redirect | Redirect URI scheme validation (http/https only) |
 | Missing audit trail | Structured security event logging (login, lockout, admin ops, token replay) |
 
@@ -165,7 +164,7 @@ gtid (single binary, ~3 MB)
 
 > **Note:** The Ed25519 key is generated in memory on each start and never written to disk. This means: after a restart all previously issued tokens become invalid and users must log in again.
 
-Both ports always bind to `localhost`. For external access place a reverse proxy (nginx, Caddy) with TLS in front.
+Both ports always bind to `127.0.0.1`. For external access place a reverse proxy (nginx, Caddy) with TLS in front.
 
 ## Integration
 

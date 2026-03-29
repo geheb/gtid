@@ -657,6 +657,45 @@ async fn at_hash() {
     );
 }
 
+// ── Step 24b: Token Substitution Detection ──
+
+#[tokio::test]
+async fn token_substitution_detected() {
+    use sha2::{Sha256, Digest};
+
+    let (server, client) = setup().await;
+
+    // Get two independent token sets
+    let tokens_a = get_fresh_tokens(&server, &client).await;
+    let tokens_b = get_fresh_tokens(&server, &client).await;
+
+    let id_token_a = tokens_a["id_token"].as_str().unwrap();
+    let access_token_a = tokens_a["access_token"].as_str().unwrap();
+    let access_token_b = tokens_b["access_token"].as_str().unwrap();
+
+    // Verify the two access tokens are actually different
+    assert_ne!(access_token_a, access_token_b, "need two distinct access tokens");
+
+    // Extract at_hash from id_token_a
+    let payload_b64 = id_token_a.split('.').nth(1).unwrap();
+    let payload_bytes = URL_SAFE_NO_PAD.decode(payload_b64).unwrap();
+    let payload: serde_json::Value = serde_json::from_slice(&payload_bytes).unwrap();
+    let at_hash = payload["at_hash"].as_str().expect("at_hash missing");
+
+    // Recompute at_hash for the legitimate access token — must match
+    let hash_a = Sha256::digest(access_token_a.as_bytes());
+    let expected_hash_a = URL_SAFE_NO_PAD.encode(&hash_a[..16]);
+    assert_eq!(at_hash, expected_hash_a, "at_hash must match its own access token");
+
+    // Recompute at_hash for the substituted access token — must NOT match
+    let hash_b = Sha256::digest(access_token_b.as_bytes());
+    let expected_hash_b = URL_SAFE_NO_PAD.encode(&hash_b[..16]);
+    assert_ne!(
+        at_hash, expected_hash_b,
+        "at_hash must NOT match a substituted access token"
+    );
+}
+
 // ── Step 25: Nonce Mandatory ──
 
 #[tokio::test]
