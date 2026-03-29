@@ -1,3 +1,8 @@
+function isQuillEmpty(quill) {
+  if ((quill.getContents()['ops'] || []).length !== 1) { return false }
+  return quill.getText().trim().length === 0
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     var editorContainer = document.getElementById('editor');
     if (!editorContainer) return;
@@ -26,7 +31,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var form = editorContainer.closest('form');
     if (form) {
         form.addEventListener('submit', function () {
-            bodyHtml.value = quill.root.innerHTML;
+            bodyHtml.value = isQuillEmpty(quill) ? "" : quill.root.innerHTML;
         });
     }
 });

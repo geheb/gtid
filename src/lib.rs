@@ -32,6 +32,7 @@ use repositories::auth_code::AuthCodeRepository;
 use repositories::client::ClientRepository;
 use repositories::consent::ConsentRepository;
 use repositories::email_template::EmailTemplateRepository;
+use repositories::legal_page::LegalPageRepository;
 use repositories::refresh_token::RefreshTokenRepository;
 use repositories::session::SessionRepository;
 use repositories::user::UserRepository;
@@ -45,6 +46,7 @@ pub struct AppState {
     pub consents: ConsentRepository,
     pub refresh_tokens: RefreshTokenRepository,
     pub email_templates: EmailTemplateRepository,
+    pub legal_pages: LegalPageRepository,
     pub login_rate_limiter: LoginRateLimiter,
     pub account_lockout: AccountLockout,
     pub pending_redirects: PendingRedirectStore,
@@ -111,6 +113,9 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16) {
         ("admin/clients.html", include_str!("../static/admin/clients.html")),
         ("admin/client_create.html", include_str!("../static/admin/client_create.html")),
         ("admin/client_edit.html", include_str!("../static/admin/client_edit.html")),
+        ("legal.html", include_str!("../static/legal.html")),
+        ("admin/legal_pages.html", include_str!("../static/admin/legal_pages.html")),
+        ("admin/legal_page_edit.html", include_str!("../static/admin/legal_page_edit.html")),
     ]).expect("Failed to load embedded templates");
 
     let i18n: i18n::I18n =
@@ -122,11 +127,13 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16) {
     let auth_codes = AuthCodeRepository::new(db.clone());
     let consents = ConsentRepository::new(db.clone());
     let email_templates = EmailTemplateRepository::new(db.clone());
+    let legal_pages = LegalPageRepository::new(db.clone());
     let refresh_tokens = RefreshTokenRepository::new(db);
 
     seed_admin(&users, &config).await;
     config.admin_password = String::new();
     email_templates.seed().await.expect("Failed to seed email templates");
+    legal_pages.seed().await.expect("Failed to seed legal pages");
 
     let initial_clients = clients.list().await.unwrap_or_default();
     let csp = Arc::new(std::sync::RwLock::new(
@@ -143,6 +150,7 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16) {
         consents,
         refresh_tokens,
         email_templates,
+        legal_pages,
         login_rate_limiter: LoginRateLimiter::new(),
         account_lockout: AccountLockout::new(config.lockout_max_attempts, config.lockout_duration_secs),
         pending_redirects: PendingRedirectStore::new(),

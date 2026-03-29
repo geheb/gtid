@@ -16,6 +16,9 @@
         <a href="/admin/email-templates" class="{% if active_page is defined and active_page == 'email_templates' %}active{% endif %}">
             <span class="icon">&#9993;</span> {{ t.sidebar_email_templates }}
         </a>
+        <a href="/admin/legal-pages" class="{% if active_page is defined and active_page == 'legal_pages' %}active{% endif %}">
+            <span class="icon">&#9878;</span> {{ t.sidebar_legal_pages }}
+        </a>
     </nav>
     <div class="sidebar-footer">
         <form method="POST" action="/logout">

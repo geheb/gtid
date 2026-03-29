@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.legal_pages_title }} - GT Id{% endblock %}
+
+{% block body %}
+<div class="layout">
+    {% include "admin/_sidebar.html" %}
+    <div class="main">
+        <div class="topbar">
+            <h1>{{ t.legal_pages_title }}</h1>
+        </div>
+        <div class="content">
+            <div class="card card-table">
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>{{ t.legal_pages_col_type }}</th>
+                            <th>{{ t.legal_pages_col_status }}</th>
+                            <th>{{ t.email_template_updated }}</th>
+                            <th class="col-actions"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for page in pages %}
+                        <tr>
+                            <td class="cell-name">
+                                {% if page.page_type == "imprint" %}{{ t.legal_imprint_title }}{% elif page.page_type == "privacy" %}{{ t.legal_privacy_title }}{% endif %}
+                            </td>
+                            <td>
+                                {% if page.body_html | trim | length > 0 %}
+                                <span class="badge badge-admin">{{ t.legal_pages_status_active }}</span>
+                                {% else %}
+                                <span class="badge badge-user">{{ t.legal_pages_status_empty }}</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ page.updated_at }}</td>
+                            <td>
+                                <div class="action-group">
+                                    <a href="/admin/legal-pages/{{ page.page_type }}/edit" class="btn-icon btn-icon-edit" title="Edit">&#x270E;</a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

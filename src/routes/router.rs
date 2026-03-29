@@ -78,9 +78,16 @@ pub fn build_ui_router() -> Router<Arc<AppState>> {
             get(ui::user_edit_form).post(ui::user_edit_submit),
         )
         .route("/admin/users/{id}/delete", axum::routing::post(ui::user_delete))
+        .route("/imprint", get(ui::legal::imprint))
+        .route("/privacy", get(ui::legal::privacy))
         .route("/admin/email-templates", get(ui::email_templates_list))
         .route(
             "/admin/email-templates/{template_type}/edit",
             get(ui::email_template_edit_form).post(ui::email_template_edit_submit),
+        )
+        .route("/admin/legal-pages", get(ui::legal_pages_list))
+        .route(
+            "/admin/legal-pages/{page_type}/edit",
+            get(ui::legal_page_edit_form).post(ui::legal_page_edit_submit),
         )
 }

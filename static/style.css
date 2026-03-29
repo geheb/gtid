@@ -15,6 +15,7 @@
     --color-success-bg: #f0fdf4;
     --color-success-text: #166534;
     --color-success-border: #bbf7d0;
+    --font-primary: Segoe UI,Roboto,Oxygen,Ubuntu,Helvetica Neue,Helvetica,Arial,sans-serif;
     --radius: 8px;
     --radius-lg: 10px;
     --radius-xl: 12px;
@@ -24,7 +25,7 @@
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--color-bg); color: var(--color-text); min-height: 100vh; }
+body { font-family: var(--font-primary); background: var(--color-bg); color: var(--color-text); min-height: 100vh; }
 
 /* --- Layout --- */
 .layout { display: flex; min-height: 100vh; }
@@ -234,6 +235,9 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 .centered-card .subtitle { font-size: 0.875rem; color: var(--color-text-muted); margin-bottom: 1.5rem; }
 .centered-card .logo { font-size: 1.75rem; font-weight: 800; color: var(--color-primary); letter-spacing: 1px; margin-bottom: 1.5rem; }
 
+.page-card { padding: 2.5rem; width: 100%; }
+.page-card .logo { font-size: 1.75rem; font-weight: 800; color: var(--color-primary); letter-spacing: 1px; margin-bottom: 1.5rem; }
+
 /* --- Alert --- */
 .alert { padding: 0.75rem 1rem; border-radius: var(--radius); font-size: 0.875rem; margin-bottom: 1rem; }
 .alert-error { background: var(--color-danger-bg); color: #991b1b; border: 1px solid var(--color-danger-border); }
@@ -256,6 +260,13 @@ body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-
 .variable-tag { display: inline-block; padding: 0.25rem 0.625rem; background: #f1f5f9; border: 1px solid var(--color-border); border-radius: var(--radius); font-size: 0.8125rem; color: var(--color-text-subtle); }
 .ql-container.ql-snow { border-radius: 0 0 var(--radius) var(--radius); border-color: #d1d5db; min-height: 200px; }
 .ql-toolbar.ql-snow { border-radius: var(--radius) var(--radius) 0 0; border-color: #d1d5db; background: #f9fafb; }
+
+/* --- Legal --- */
+.legal-links { margin-top: 1.5rem; text-align: center; font-size: 0.8125rem; color: var(--color-text-muted); }
+.legal-links a { color: var(--color-text-muted); text-decoration: none; }
+.legal-links a:hover { color: var(--color-primary); text-decoration: underline; }
+.legal-sep { margin: 0 0.5rem; }
+.legal-content { font-size: 0.9375rem; line-height: 1.6; color: var(--color-text-subtle); }
 
 /* --- Modal --- */
 .modal-overlay {

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.legal_page_edit_title }} - GT Id{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="/static/lib/quill/quill.snow.css?h={{ quill_css_hash }}">
+<script src="/static/lib/quill/quill.js?h={{ quill_js_hash }}"></script>
+<script src="/static/email_editor.js?h={{ editor_js_hash }}" defer></script>
+{% endblock %}
+
+{% block body %}
+<div class="layout">
+    {% include "admin/_sidebar.html" %}
+    <div class="main">
+        <div class="topbar">
+            <h1>{{ t.legal_page_edit_title }}: {% if page_type == "imprint" %}{{ t.legal_imprint_title }}{% elif page_type == "privacy" %}{{ t.legal_privacy_title }}{% endif %}</h1>
+        </div>
+        <div class="content">
+            <div class="card">
+                <form method="POST" action="/admin/legal-pages/{{ page_type }}/edit">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+                    <div class="form-group">
+                        <textarea id="body_html" name="body_html" class="hidden">{{ body_html }}</textarea>
+                        <div id="editor" class="editor-area"></div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">{{ t.email_template_save }}</button>
+                        <a href="/admin/legal-pages" class="btn btn-secondary">{{ t.user_create_cancel }}</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

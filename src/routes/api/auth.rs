@@ -138,6 +138,8 @@ pub async fn login_page(
         rid,
         csrf_token: &csrf.form_token,
         form_email: "",
+        show_imprint: has_legal_content(&state, "imprint").await,
+        show_privacy: has_legal_content(&state, "privacy").await,
     })?;
     let rendered = state.tera.render("login.html", &ctx)?;
 
@@ -165,6 +167,9 @@ pub async fn login_submit(
     let rl_key = state.login_rate_limiter.key("login", &ip, ua);
     let rid = form.rid.as_deref().unwrap_or("");
 
+    let show_imprint = has_legal_content(&state, "imprint").await;
+    let show_privacy = has_legal_content(&state, "privacy").await;
+
     let render_login_error =
         |msg: &str, status: StatusCode, rid: &str, csrf: &str, email: &str| -> Result<Response, AppError> {
             let ctx = Context::from_serialize(LoginCtx {
@@ -176,6 +181,8 @@ pub async fn login_submit(
                 rid,
                 csrf_token: csrf,
                 form_email: email,
+                show_imprint,
+                show_privacy,
             })?;
             let rendered = state.tera.render("login.html", &ctx)?;
             Ok((status, Html(rendered)).into_response())
@@ -293,5 +300,13 @@ pub async fn logout(
         [(header::LOCATION, "/login")],
     )
         .into_response())
+}
+
+async fn has_legal_content(state: &AppState, page_type: &str) -> bool {
+    state.legal_pages.find_by_type(page_type).await
+        .ok()
+        .flatten()
+        .map(|p| !p.body_html.trim().is_empty())
+        .unwrap_or(false)
 }
 

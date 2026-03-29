@@ -55,6 +55,7 @@ pub struct I18n {
     pub dashboard_manage_users: String,
     pub dashboard_manage_clients: String,
     pub dashboard_manage_email_templates: String,
+    pub dashboard_manage_legal_pages: String,
 
     pub users_title: String,
     pub users_col_name: String,
@@ -156,6 +157,18 @@ pub struct I18n {
     pub secret_error_too_few_digits: String,
     pub secret_error_too_few_special: String,
     pub secret_error_too_weak: String,
+
+    pub legal_imprint_title: String,
+    pub legal_privacy_title: String,
+    pub legal_back: String,
+
+    pub sidebar_legal_pages: String,
+    pub legal_pages_title: String,
+    pub legal_page_edit_title: String,
+    pub legal_pages_col_type: String,
+    pub legal_pages_col_status: String,
+    pub legal_pages_status_active: String,
+    pub legal_pages_status_empty: String,
 }
 
 impl I18n {

@@ -137,6 +137,43 @@ pub struct LoginCtx<'a> {
     pub rid: &'a str,
     pub csrf_token: &'a str,
     pub form_email: &'a str,
+    pub show_imprint: bool,
+    pub show_privacy: bool,
+}
+
+// ── Legal pages ──────────────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+pub struct LegalCtx<'a> {
+    pub t: &'a I18n,
+    pub css_hash: &'a str,
+    pub js_hash: &'a str,
+    pub page_title: &'a str,
+    pub content: &'a str,
+}
+
+#[derive(Serialize)]
+pub struct LegalEditCtx<'a> {
+    pub t: &'a I18n,
+    pub css_hash: &'a str,
+    pub js_hash: &'a str,
+    pub active_page: &'a str,
+    pub csrf_token: &'a str,
+    pub page_type: &'a str,
+    pub body_html: &'a str,
+    pub quill_js_hash: String,
+    pub quill_css_hash: String,
+    pub editor_js_hash: String,
+}
+
+#[derive(Serialize)]
+pub struct LegalListCtx<'a> {
+    pub t: &'a I18n,
+    pub css_hash: &'a str,
+    pub js_hash: &'a str,
+    pub active_page: &'a str,
+    pub csrf_token: &'a str,
+    pub pages: &'a [crate::models::legal_page::LegalPage],
 }
 
 // ── OAuth2 authorize ──────────────────────────────────────────────────────────

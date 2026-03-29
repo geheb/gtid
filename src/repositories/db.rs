@@ -98,6 +98,12 @@ async fn run_migrations(pool: &SqlitePool) {
             body_html       TEXT NOT NULL,
             updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
         )",
+        "CREATE TABLE IF NOT EXISTS legal_pages (
+            id              TEXT PRIMARY KEY,
+            page_type       TEXT NOT NULL UNIQUE,
+            body_html       TEXT NOT NULL DEFAULT '',
+            updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+        )",
     ];
 
     for sql in &statements {

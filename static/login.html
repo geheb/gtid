@@ -26,6 +26,13 @@
             {% endif %}
             <button type="submit" class="btn btn-primary btn-block">{{ t.login_submit }}</button>
         </form>
+        {% if show_imprint or show_privacy %}
+        <div class="legal-links">
+            {% if show_imprint %}<a href="/imprint">{{ t.legal_imprint_title }}</a>{% endif %}
+            {% if show_imprint and show_privacy %}<span class="legal-sep">|</span>{% endif %}
+            {% if show_privacy %}<a href="/privacy">{{ t.legal_privacy_title }}</a>{% endif %}
+        </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
