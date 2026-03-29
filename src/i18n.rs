@@ -4,7 +4,7 @@ use crate::crypto::password::PasswordError;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct I18n {
-    pub app_name: String,
+
     pub admin_panel: String,
 
     pub login_title: String,
@@ -65,6 +65,7 @@ pub struct I18n {
     pub users_badge_admin: String,
     pub users_badge_user: String,
     pub users_delete_confirm: String,
+    pub users_locked_tooltip: String,
     pub users_create_tooltip: String,
 
     pub user_create_title: String,

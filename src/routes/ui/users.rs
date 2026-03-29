@@ -23,6 +23,13 @@ pub async fn users_list(
     csrf: CsrfToken,
 ) -> Result<Response, AppError> {
     let users = state.users.list().await?;
+    let locked_until: std::collections::HashMap<String, String> = users
+        .iter()
+        .filter_map(|u| {
+            state.account_lockout.locked_until_utc(&u.email)
+                .map(|until| (u.id.clone(), until))
+        })
+        .collect();
     let ctx = Context::from_serialize(UsersListCtx {
         t: &state.i18n,
         css_hash: &state.css_hash,
@@ -30,6 +37,7 @@ pub async fn users_list(
         active_page: "users",
         csrf_token: &csrf.form_token,
         users: &users,
+        locked_until,
     })?;
     let rendered = state.tera.render("admin/users.html", &ctx)?;
     Ok(Html(rendered).into_response())
@@ -119,7 +127,7 @@ pub async fn user_edit_form(
         .ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
     let user_roles: Vec<String> = user.roles().into_iter().map(String::from).collect();
-    let is_locked = state.account_lockout.is_locked(&user.email);
+    let locked_until = state.account_lockout.locked_until_utc(&user.email);
     let display_name = user.display_name.as_deref().unwrap_or("");
 
     let ctx = Context::from_serialize(UserEditCtx {
@@ -134,7 +142,7 @@ pub async fn user_edit_form(
         form_display_name: display_name,
         available_roles: &state.config.roles,
         form_roles: &user_roles,
-        is_locked,
+        locked_until,
     })?;
     let rendered = state.tera.render("admin/user_edit.html", &ctx)?;
     Ok(Html(rendered).into_response())
@@ -173,7 +181,7 @@ pub async fn user_edit_submit(
             form_display_name: display_name.as_deref().unwrap_or(""),
             available_roles: &state.config.roles,
             form_roles: &roles,
-            is_locked: state.account_lockout.is_locked(&user.email),
+            locked_until: state.account_lockout.locked_until_utc(&user.email),
         })?;
         let rendered = state.tera.render("admin/user_edit.html", &ctx)?;
         Ok((StatusCode::BAD_REQUEST, Html(rendered)).into_response())

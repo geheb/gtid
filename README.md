@@ -4,44 +4,44 @@ A minimalist OpenID Connect provider in Rust. Single binary with SQLite.
 
 ## Why?
 
-You want to add login to a small project. A proper one. With OAuth2, PKCE, ID tokens, refresh tokens — the full OIDC stack that every library understands.
+You want to add login to a small project. A proper one. With OAuth2, PKCE, ID tokens, refresh tokens - the full OIDC stack that every library understands.
 
 Your options:
-- **Keycloak** — Java process, needs PostgreSQL, XML configuration, realm concepts. For a project with three users.
-- **Authentik** — Python, Redis, PostgreSQL, Docker Compose with five services. Nice UI, but you just wanted login.
-- **Zitadel** — Go, CockroachDB. Enterprise features you'll never need.
-- **Auth0/Clerk** — Cloud, vendor lock-in, costs from user X.
+- **Keycloak** - Java process, needs PostgreSQL, XML configuration, realm concepts. For a project with three users.
+- **Authentik** - Python, Redis, PostgreSQL, Docker Compose with five services. Nice UI, but you just wanted login.
+- **Zitadel** - Go, CockroachDB. Enterprise features you'll never need.
+- **Auth0/Clerk** - Cloud, vendor lock-in, costs from user X.
 
 GT Id is the alternative when you don't need any of that: a single binary, one SQLite file, one `.env`. Done. Multiple clients are managed through the admin panel.
 
 ## Features
 
-- **OIDC-compliant** — Discovery, JWKS, Authorization Code Flow, Token Endpoint, UserInfo
-- **PKCE mandatory** (S256) — no insecure fallback, code_challenge 43–128 characters validated (RFC 7636)
-- **Ed25519 signatures** — ephemeral keys with key rotation support
-- **Multi-client** — manage any number of clients via admin panel, secrets hashed with Argon2id
-- **Client auth** — `client_secret_basic` and `client_secret_post`
+- **OIDC-compliant** - Discovery, JWKS, Authorization Code Flow, Token Endpoint, UserInfo
+- **PKCE mandatory** (S256) - no insecure fallback, code_challenge 43–128 characters validated (RFC 7636)
+- **Ed25519 signatures** - ephemeral keys with key rotation support
+- **Multi-client** - manage any number of clients via admin panel, secrets hashed with Argon2id
+- **Client auth** - `client_secret_basic` and `client_secret_post`
 - **Token Revocation** (RFC 7009) with cascade revocation of the entire token family
-- **Token Introspection** (RFC 7662) — resource servers can validate tokens
-- **Refresh Token Rotation** — old token is automatically revoked on use
-- **Refresh Token Chain Tracking** — on token reuse the entire family is revoked
-- **Auth Code Replay Detection** — on code reuse all derived tokens are revoked
-- **at_hash in ID Token** — binds access token to ID token (OIDC Core 3.1.3.6)
-- **Client binding** — auth codes and refresh tokens are bound to the client_id
-- **Nonce mandatory** — prevents ID token replay attacks
-- **Scope downscoping** — clients can request a subset of scopes on refresh
-- **Grant type restriction** — configurable which grant types are allowed
-- **RP-Initiated Logout** — with id_token_hint and post_logout_redirect_uri validation
-- **Session fixation protection** — old sessions are invalidated on login
-- **Admin panel** — create, edit, delete users and clients
-- **Roles** — configurable, included in the ID token as `roles` claim
-- **Account lockout + rate limiting** — brute force protection
-- **CSRF protection** — double-submit cookie with SHA256 and SameSite=Strict
-- **Security headers** — CSP, HSTS (1 year), X-Frame-Options, Referrer-Policy, Cache-Control
-- **Constant-time comparisons** — `subtle` crate against timing attacks on credentials and PKCE
-- **email_verified claim** — included in ID token per OIDC Core
-- **Security event logging** — structured tracing for failed logins, lockouts, token replay, admin operations
-- **Redirect URI validation** — only http/https schemes allowed on client creation
+- **Token Introspection** (RFC 7662) - resource servers can validate tokens
+- **Refresh Token Rotation** - old token is automatically revoked on use
+- **Refresh Token Chain Tracking** - on token reuse the entire family is revoked
+- **Auth Code Replay Detection** - on code reuse all derived tokens are revoked
+- **at_hash in ID Token** - binds access token to ID token (OIDC Core 3.1.3.6)
+- **Client binding** - auth codes and refresh tokens are bound to the client_id
+- **Nonce mandatory** - prevents ID token replay attacks
+- **Scope downscoping** - clients can request a subset of scopes on refresh
+- **Grant type restriction** - configurable which grant types are allowed
+- **RP-Initiated Logout** - with id_token_hint and post_logout_redirect_uri validation
+- **Session fixation protection** - old sessions are invalidated on login
+- **Admin panel** - create, edit, delete users and clients
+- **Roles** - configurable, included in the ID token as `roles` claim
+- **Account lockout + rate limiting** - brute force protection
+- **CSRF protection** - double-submit cookie with SHA256 and SameSite=Strict
+- **Security headers** - CSP, HSTS (1 year), X-Frame-Options, Referrer-Policy, Cache-Control
+- **Constant-time comparisons** - `subtle` crate against timing attacks on credentials and PKCE
+- **email_verified claim** - included in ID token per OIDC Core
+- **Security event logging** - structured tracing for failed logins, lockouts, token replay, admin operations
+- **Redirect URI validation** - only http/https schemes allowed on client creation
 
 ## What it doesn't do (by design)
 

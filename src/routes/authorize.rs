@@ -151,7 +151,7 @@ pub async fn authorize_post(
     }
 
     // Validate client_id, redirect_uri, code_challenge_method, and scope BEFORE
-    // checking consent — prevents open redirect via the deny path.
+    // checking consent - prevents open redirect via the deny path.
     let client = state.clients.find_by_id(&form.client_id).await
         .map_err(|_| AppError::Internal("Database error".into()))?
         .ok_or_else(|| {

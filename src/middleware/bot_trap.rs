@@ -43,7 +43,7 @@ impl BotTrap {
                 }
             }
         }
-        // Expired ban — clean up outside read guard
+        // Expired ban - clean up outside read guard
         self.store.map.remove_if(&key, |_, e| {
             e.banned_at.is_some_and(|at| at.elapsed() >= BAN_DURATION)
         });

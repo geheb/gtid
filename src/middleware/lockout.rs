@@ -1,4 +1,5 @@
 use crate::middleware::TrackedStore;
+use chrono::Utc;
 use std::time::{Duration, Instant};
 
 const MAX_TRACKED_KEYS: usize = 50_000;
@@ -38,7 +39,7 @@ impl AccountLockout {
                 }
             }
         }
-        // Lock expired — clean up outside read guard
+        // Lock expired - clean up outside read guard
         self.store.map.remove_if(&key, |_, e| {
             e.locked_until
                 .is_some_and(|until| until.checked_duration_since(Instant::now()).is_none())
@@ -73,6 +74,20 @@ impl AccountLockout {
             .iter()
             .filter(|e| e.locked_until.is_some_and(|until| until.checked_duration_since(now).is_some()))
             .count()
+    }
+
+    /// Returns the UTC timestamp until which the account is locked, or `None`.
+    pub fn locked_until_utc(&self, email: &str) -> Option<String> {
+        let key = self.key(email);
+        if let Some(entry) = self.store.map.get(&key) {
+            if let Some(until) = entry.locked_until {
+                if let Some(remaining) = until.checked_duration_since(Instant::now()) {
+                    let dt = Utc::now() + remaining;
+                    return Some(dt.format("%Y-%m-%dT%H:%M:%SZ").to_string());
+                }
+            }
+        }
+        None
     }
 
     /// Clears failed attempts on successful login.

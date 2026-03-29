@@ -50,7 +50,7 @@ pub async fn revoke(
     {
         let _ = state.refresh_tokens.revoke_family(&rt.token_family).await;
     } else {
-        // Token may already be revoked or not exist — revoke by token directly per spec
+        // Token may already be revoked or not exist - revoke by token directly per spec
         let _ = state.refresh_tokens.revoke(&form.token).await;
     }
 

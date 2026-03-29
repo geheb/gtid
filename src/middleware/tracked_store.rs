@@ -29,7 +29,7 @@ impl<V> TrackedStore<V> {
         rapidhash::rapidhash_seeded(s.as_bytes(), self.seed)
     }
 
-    /// Rapidhash of `prefix|ip|ua` with a runtime seed — returns u64, used as DashMap key.
+    /// Rapidhash of `prefix|ip|ua` with a runtime seed - returns u64, used as DashMap key.
     /// Pass an empty prefix if no namespace is needed.
     pub fn key(&self, prefix: &str, ip: &str, ua: &str) -> u64 {
         let mut buf = Vec::with_capacity(prefix.len() + 1 + ip.len() + 1 + ua.len());

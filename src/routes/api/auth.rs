@@ -36,7 +36,7 @@ pub async fn rp_initiated_logout(
     optional_user: OptionalSessionUser,
     Query(query): Query<RpLogoutQuery>,
 ) -> Result<Response, AppError> {
-    // Validate id_token_hint if provided — decode without audience to extract client_id
+    // Validate id_token_hint if provided - decode without audience to extract client_id
     let hint_client_id = if let Some(ref hint) = query.id_token_hint {
         // Reject oversized tokens to prevent DoS
         if hint.len() > 2048 {
@@ -63,7 +63,7 @@ pub async fn rp_initiated_logout(
         None
     };
 
-    // Validate post_logout_redirect_uri — requires id_token_hint for client identification
+    // Validate post_logout_redirect_uri - requires id_token_hint for client identification
     let redirect_to = if let Some(ref uri) = query.post_logout_redirect_uri {
         let client_id = hint_client_id.as_deref()
             .ok_or_else(|| AppError::BadRequest(
@@ -208,12 +208,12 @@ pub async fn login_submit(
         }
     };
 
-    // Successful login — clear rate limit and lockout, update last login
+    // Successful login - clear rate limit and lockout, update last login
     state.login_rate_limiter.clear(rl_key);
     state.account_lockout.clear(&form.email);
     state.users.update_last_login(&user.id).await?;
 
-    // #8: Session fixation prevention — invalidate all existing sessions for this user
+    // #8: Session fixation prevention - invalidate all existing sessions for this user
     state.sessions.delete_by_user_id(&user.id).await?;
 
     let session_id = crate::crypto::id::new_id();
@@ -244,7 +244,7 @@ pub async fn login_submit(
             match state.pending_redirects.take(rid) {
                 Some(url) => url,
                 None => {
-                    // Expired or invalid rid — destroy the session just created
+                    // Expired or invalid rid - destroy the session just created
                     state.sessions.delete(&session_id).await?;
                     cookies.remove(Cookie::from("session"));
 

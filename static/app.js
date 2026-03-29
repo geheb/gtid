@@ -48,10 +48,12 @@ document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll(".utc-time").forEach(function (el) {
         const raw = el.dataset.utc;
         if (!raw) return;
-        const d = new Date(raw + "Z");
+        const d = new Date(raw.endsWith("Z") ? raw : raw + "Z");
         if (isNaN(d.getTime())) return;
         const formatted = d.toLocaleString();
-        if (el.tagName === "INPUT") {
+        if (el.classList.contains("lock-icon")) {
+            el.title = (el.title ? el.title + " " : "") + formatted;
+        } else if (el.tagName === "INPUT") {
             el.value = formatted;
         } else {
             el.textContent = formatted;

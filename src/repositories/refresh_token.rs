@@ -6,7 +6,7 @@ use crate::models::refresh_token::RefreshToken;
 pub enum RefreshResult {
     Ok(RefreshToken),
     NotFound,
-    /// Token was already revoked — possible theft. Contains the token_family for cascade revocation.
+    /// Token was already revoked - possible theft. Contains the token_family for cascade revocation.
     Reused(String),
 }
 
@@ -63,7 +63,7 @@ impl RefreshTokenRepository {
                 Ok(RefreshResult::Ok(rt))
             }
             Some(rt) if rt.revoked == 1 => {
-                // Already revoked — this is a reuse attempt (possible theft)
+                // Already revoked - this is a reuse attempt (possible theft)
                 Ok(RefreshResult::Reused(rt.token_family))
             }
             _ => Ok(RefreshResult::NotFound),

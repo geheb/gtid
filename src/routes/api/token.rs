@@ -126,7 +126,7 @@ async fn handle_authorization_code(
     )
     .map_err(|_| crate::routes::oauth_error("server_error", "Failed to issue access token"))?;
 
-    // #1: at_hash — pass access_token to id_token issuer
+    // #1: at_hash - pass access_token to id_token issuer
     let id_token = jwt::issue_id_token(
         &encoding_key,
         &kid,
@@ -227,7 +227,7 @@ async fn handle_refresh_token(
         .map_err(|_| crate::routes::oauth_error("server_error", "Database error"))?
         .ok_or_else(|| crate::routes::oauth_error("server_error", "User not found"))?;
 
-    // #7: Scope downscoping — client may request a subset of the original scope
+    // #7: Scope downscoping - client may request a subset of the original scope
     let effective_scope = if let Some(ref requested_scope) = form.scope {
         let original_scopes: std::collections::HashSet<&str> =
             refresh_token.scope.split_whitespace().collect();

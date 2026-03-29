@@ -162,8 +162,8 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16) {
         .merge(routes::build_api_router())
         .fallback({
             let st = state.clone();
-            move |conn: ConnectInfo<SocketAddr>, headers: axum::http::HeaderMap| {
-                bot_trap_fallback(st.clone(), conn, headers)
+            move |conn: ConnectInfo<SocketAddr>, req: axum::http::Request<axum::body::Body>| {
+                bot_trap_fallback(st.clone(), conn, req)
             }
         })
         .layer(axum::middleware::from_fn(middleware::content_type::validate_content_type))
@@ -178,8 +178,8 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16) {
         .merge(routes::build_ui_router())
         .fallback({
             let st = state.clone();
-            move |conn: ConnectInfo<SocketAddr>, headers: axum::http::HeaderMap| {
-                bot_trap_fallback(st.clone(), conn, headers)
+            move |conn: ConnectInfo<SocketAddr>, req: axum::http::Request<axum::body::Body>| {
+                bot_trap_fallback(st.clone(), conn, req)
             }
         })
         .layer(axum::middleware::from_fn(middleware::content_type::validate_content_type))
@@ -280,10 +280,12 @@ async fn bot_trap_guard(
         return StatusCode::IM_A_TEAPOT.into_response();
     }
 
-    let bt_key = state.bot_trap.key(&ip, ua);
-    if state.bot_trap.is_banned(bt_key) {
-        tracing::debug!(event = "bot_blocked", ip = %ip, reason = "banned", "Blocked banned bot");
-        return StatusCode::IM_A_TEAPOT.into_response();
+    if !addr.ip().is_loopback() {
+        let bt_key = state.bot_trap.key(&ip, ua);
+        if state.bot_trap.is_banned(bt_key) {
+            tracing::debug!(event = "bot_blocked", ip = %ip, reason = "banned", "Blocked banned bot");
+            return StatusCode::IM_A_TEAPOT.into_response();
+        }
     }
 
     next.run(request).await
@@ -293,8 +295,16 @@ async fn bot_trap_guard(
 async fn bot_trap_fallback(
     state: Arc<AppState>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    headers: axum::http::HeaderMap,
+    req: axum::http::Request<axum::body::Body>,
 ) -> impl IntoResponse {
+    let path = req.uri().path().to_owned();
+    let headers = req.headers().clone();
+
+    if addr.ip().is_loopback() {
+        tracing::debug!(event = "fallback_404", path = %path, "Unknown path from localhost");
+        return StatusCode::NOT_FOUND;
+    }
+
     let ip = routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let ua = headers
         .get(header::USER_AGENT)
@@ -303,10 +313,10 @@ async fn bot_trap_fallback(
     let bt_key = state.bot_trap.key(&ip, ua);
     let banned = state.bot_trap.record_strike(bt_key);
     if banned {
-        tracing::warn!(event = "bot_banned", ip = %ip, ua = %ua, "Bot banned after repeated unknown-path probes");
+        tracing::warn!(event = "bot_banned", ip = %ip, ua = %ua, path = %path, "Bot banned after repeated unknown-path probes");
         return StatusCode::IM_A_TEAPOT;
     } else {
-        tracing::info!(event = "bot_strike", ip = %ip, ua = %ua, "Unknown path probe recorded");
+        tracing::info!(event = "bot_strike", ip = %ip, ua = %ua, path = %path, "Unknown path probe recorded");
     }
 
     return StatusCode::NOT_FOUND;

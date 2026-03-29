@@ -8,7 +8,7 @@ async fn oidc_complete_flow() {
     let server = TestServer::start().await;
     let client = server.new_following_client();
 
-    // ── Step 0: Setup — Create test client via admin panel ──
+    // ── Step 0: Setup - Create test client via admin panel ──
     setup_test_client(&server, &client).await;
 
     // ── Step 1: Discovery ──
@@ -113,7 +113,7 @@ async fn oidc_complete_flow() {
             .1
             .to_string();
     } else {
-        // Consent page shown — extract form fields and submit
+        // Consent page shown - extract form fields and submit
         let consent_html = consent_resp.text().await.unwrap();
         let consent_csrf = extract_csrf(&consent_html).expect("Consent CSRF missing");
         let form_client_id = extract_input_value(&consent_html, "client_id").unwrap_or_default();

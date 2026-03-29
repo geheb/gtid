@@ -77,7 +77,7 @@ impl AuthCodeRepository {
             };
         }
 
-        // Code was not consumed — check if it exists and was already used (replay)
+        // Code was not consumed - check if it exists and was already used (replay)
         let existing = sqlx::query_as::<_, AuthorizationCode>(
             "SELECT * FROM authorization_codes WHERE code = ?",
         )

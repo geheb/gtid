@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use serde::Serialize;
 
 use crate::i18n::I18n;
@@ -25,6 +27,7 @@ pub struct UsersListCtx<'a> {
     pub active_page: &'a str,
     pub csrf_token: &'a str,
     pub users: &'a [User],
+    pub locked_until: HashMap<String, String>,
 }
 
 #[derive(Serialize)]
@@ -55,7 +58,7 @@ pub struct UserEditCtx<'a> {
     pub form_display_name: &'a str,
     pub available_roles: &'a [String],
     pub form_roles: &'a [String],
-    pub is_locked: bool,
+    pub locked_until: Option<String>,
 }
 
 #[derive(Serialize)]

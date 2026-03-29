@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ t.users_title }} — {{ t.app_name }}{% endblock %}
+{% block title %}{{ t.users_title }} - GT Id{% endblock %}
 
 {% block body %}
 <div class="layout">
@@ -26,8 +26,13 @@
                     <tbody>
                         {% for user in users %}
                         <tr>
-                            <td class="cell-name">{{ user.display_name | default(value="—") }}</td>
-                            <td><span class="email">{{ user.email }}</span></td>
+                            <td class="cell-name">{{ user.display_name | default(value="-") }}</td>
+                            <td>
+                                <span class="email">{{ user.email }}</span>
+                                {% if locked_until[user.id] %}
+                                <span class="lock-icon utc-time" title="{{ t.users_locked_tooltip }}" data-utc="{{ locked_until[user.id] }}">&#x26A0;</span>
+                                {% endif %}
+                            </td>
                             <td>
                                 {% set user_roles = user.roles | split(pat=",") %}
                                 {% for r in user_roles %}
@@ -41,10 +46,10 @@
                                     {% endif %}
                                 {% endfor %}
                                 {% if user.roles == "" %}
-                                <span class="badge badge-user">—</span>
+                                <span class="badge badge-user">-</span>
                                 {% endif %}
                             </td>
-                            <td><span class="utc-time" data-utc="{{ user.last_login_at | default(value='') }}">{{ user.last_login_at | default(value="—") }}</span></td>
+                            <td><span class="utc-time" data-utc="{{ user.last_login_at | default(value='') }}">{{ user.last_login_at | default(value="-") }}</span></td>
                             <td><span class="utc-time" data-utc="{{ user.created_at }}">{{ user.created_at }}</span></td>
                             <td>
                                 <div class="action-group">

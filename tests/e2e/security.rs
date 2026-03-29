@@ -50,7 +50,7 @@ async fn setup() -> (TestServer, reqwest::Client) {
             .await
             .unwrap();
     } else {
-        // Auto-consent — exchange code to establish token family
+        // Auto-consent - exchange code to establish token family
         let loc = consent_resp.headers().get("location").unwrap().to_str().unwrap().to_string();
         let url = url::Url::parse(&loc).unwrap();
         let code = url.query_pairs().find(|(k, _)| k == "code").unwrap().1.to_string();
@@ -178,11 +178,11 @@ async fn auth_code_replay() {
 
     let (code, verifier) = get_fresh_code(&server, &client).await;
 
-    // First exchange — should succeed
+    // First exchange - should succeed
     let first = exchange_code(&server, &client, &code, &verifier).await;
     assert!(first["access_token"].as_str().is_some(), "First exchange failed");
 
-    // Replay — must fail
+    // Replay - must fail
     let replay = client
         .post(server.api_url("/token"))
         .form(&[
@@ -682,12 +682,12 @@ async fn token_substitution_detected() {
     let payload: serde_json::Value = serde_json::from_slice(&payload_bytes).unwrap();
     let at_hash = payload["at_hash"].as_str().expect("at_hash missing");
 
-    // Recompute at_hash for the legitimate access token — must match
+    // Recompute at_hash for the legitimate access token - must match
     let hash_a = Sha256::digest(access_token_a.as_bytes());
     let expected_hash_a = URL_SAFE_NO_PAD.encode(&hash_a[..16]);
     assert_eq!(at_hash, expected_hash_a, "at_hash must match its own access token");
 
-    // Recompute at_hash for the substituted access token — must NOT match
+    // Recompute at_hash for the substituted access token - must NOT match
     let hash_b = Sha256::digest(access_token_b.as_bytes());
     let expected_hash_b = URL_SAFE_NO_PAD.encode(&hash_b[..16]);
     assert_ne!(

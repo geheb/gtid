@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ t.user_edit_title }} — {{ t.app_name }}{% endblock %}
+{% block title %}{{ t.user_edit_title }} - GT Id{% endblock %}
 
 {% block body %}
 <div class="layout">
@@ -36,9 +36,9 @@
                         </label>
                         {% endfor %}
                     </div>
-                    {% if is_locked %}
+                    {% if locked_until %}
                     <div class="form-group">
-                        <div class="alert alert-error">{{ t.user_edit_locked_notice }}</div>
+                        <div class="alert alert-error">{{ t.user_edit_locked_notice }} <span class="utc-time" data-utc="{{ locked_until }}">{{ locked_until }}</span></div>
                         <label class="checkbox-label">
                             <input type="checkbox" name="unlock" value="1"> {{ t.user_edit_unlock_label }}
                         </label>

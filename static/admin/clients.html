@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}{{ t.clients_title }} — {{ t.app_name }}{% endblock %}
+{% block title %}{{ t.clients_title }} - GT Id{% endblock %}
 
 {% block body %}
 <div class="layout">
@@ -27,7 +27,7 @@
                         <tr>
                             <td class="cell-name">{{ client.client_id }}</td>
                             <td><span class="email">{{ client.client_redirect_uri }}</span></td>
-                            <td>{{ client.client_post_logout_redirect_uri | default(value="—") }}</td>
+                            <td>{{ client.client_post_logout_redirect_uri | default(value="-") }}</td>
                             <td><span class="utc-time" data-utc="{{ client.created_at }}">{{ client.created_at }}</span></td>
                             <td>
                                 <div class="action-group">

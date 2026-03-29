@@ -150,7 +150,7 @@ mod tests {
         store.store("http://b.com".to_string()).unwrap();
         assert_eq!(store.entry_count(), 2);
 
-        // full — new entry rejected
+        // full - new entry rejected
         assert!(store.store("http://c.com".to_string()).is_none());
         assert_eq!(store.entry_count(), 2);
 

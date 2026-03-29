@@ -221,7 +221,7 @@ pub async fn get_fresh_code(
     let authorize_url = auth_resp["authorize_url"].as_str().unwrap().to_string();
     let code_verifier = auth_resp["code_verifier"].as_str().unwrap().to_string();
 
-    // Follow authorize URL — should auto-redirect since consent was already given
+    // Follow authorize URL - should auto-redirect since consent was already given
     let redir_resp = client
         .get(&authorize_url)
         .send()

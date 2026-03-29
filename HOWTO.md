@@ -1,10 +1,10 @@
-# GT Id — OIDC Integration Guide
+# GT Id - OIDC Integration Guide
 
 ## Architecture
 
 GT Id runs on **two ports** (always localhost):
-- **UI** (`UI_LISTEN_PORT`, default `3001`) — Login, Consent, Admin Panel
-- **API** (`API_LISTEN_PORT`, default `3000`) — OIDC Endpoints
+- **UI** (`UI_LISTEN_PORT`, default `3001`) - Login, Consent, Admin Panel
+- **API** (`API_LISTEN_PORT`, default `3000`) - OIDC Endpoints
 
 ## OIDC Discovery
 
@@ -20,7 +20,7 @@ Returns all endpoints automatically. Any OIDC-compliant library can work with th
 GET http://localhost:3000/jwks
 ```
 
-Returns the public Ed25519 key for **token verification**. The key is generated in memory on each start — after a restart the key and `kid` (Key ID) change. OIDC clients should therefore not cache the JWKS endpoint indefinitely.
+Returns the public Ed25519 key for **token verification**. The key is generated in memory on each start - after a restart the key and `kid` (Key ID) change. OIDC clients should therefore not cache the JWKS endpoint indefinitely.
 
 **Fetch JWKS:**
 ```bash
@@ -42,7 +42,7 @@ curl -s http://localhost:3000/jwks
 
 **Decode token payload (without signature verification):**
 ```bash
-# id_token or access_token — payload is the middle part (Base64)
+# id_token or access_token - payload is the middle part (Base64)
 echo "$ID_TOKEN" | cut -d. -f2 | base64 -d 2>/dev/null | jq .
 ```
 
@@ -82,7 +82,7 @@ http://localhost:8080/callback?code={AUTH_CODE}&state={STATE}
 
 ### 2. Exchange Code for Token
 
-**Option A — client_secret_post (form-encoded):**
+**Option A - client_secret_post (form-encoded):**
 ```bash
 curl -X POST http://localhost:3000/token \
   -d grant_type=authorization_code \
@@ -93,7 +93,7 @@ curl -X POST http://localhost:3000/token \
   -d code_verifier={CODE_VERIFIER}
 ```
 
-**Option B — client_secret_basic (HTTP Basic Auth):**
+**Option B - client_secret_basic (HTTP Basic Auth):**
 ```bash
 curl -X POST http://localhost:3000/token \
   -u "my-app:a-secure-secret" \
