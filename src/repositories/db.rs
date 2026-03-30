@@ -16,21 +16,33 @@ pub async fn init_pool(database_uri: &str) -> SqlitePool {
         .expect("Invalid DATABASE_URI")
         .create_if_missing(true);
 
+    let default_parallelism = std::thread::available_parallelism()
+        .map(|p| p.get() as u32)
+        .unwrap_or(1);
+
+    tracing::info!("Using max. {} sqlite connections", default_parallelism);
+
     let pool = SqlitePoolOptions::new()
-        .max_connections(5)
+        .max_connections(default_parallelism)
         .connect_with(options)
         .await
         .expect("Failed to connect to SQLite");
 
-    // Enable WAL mode and foreign keys
-    sqlx::query("PRAGMA journal_mode=WAL")
-        .execute(&pool)
-        .await
-        .expect("Failed to set WAL mode");
-    sqlx::query("PRAGMA foreign_keys = ON")
-        .execute(&pool)
-        .await
-        .expect("Failed to enable foreign keys");
+     let pragma_statements = [
+        "PRAGMA foreign_keys = ON",
+        "PRAGMA journal_mode=WAL",
+        "PRAGMA synchronous=NORMAL",
+        "PRAGMA cache_size = -65536", // ~64MiB per connection
+        &format!("PRAGMA threads = {}", default_parallelism),
+        "PRAGMA mmap_size = 1073741824" // 1GiB, more than the current db
+    ];
+
+    for sql in &pragma_statements {
+        sqlx::query(sql)
+            .execute(&pool)
+            .await
+            .expect("Failed to run pragma statements");
+    }  
 
     // Run schema migrations
     run_migrations(&pool).await;
