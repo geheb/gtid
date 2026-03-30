@@ -11,6 +11,7 @@ use tower_cookies::Cookies;
 use crate::crypto::password;
 use crate::errors::AppError;
 use crate::middleware::csrf::{self, CsrfToken};
+use crate::middleware::language::Lang;
 use crate::middleware::session::AdminUser;
 use crate::routes::ctx::{UserCreateCtx, UserEditCtx, UsersListCtx};
 use crate::AppState;
@@ -21,6 +22,7 @@ pub async fn users_list(
     State(state): State<Arc<AppState>>,
     _admin: AdminUser,
     csrf: CsrfToken,
+    lang: Lang,
 ) -> Result<Response, AppError> {
     let users = state.users.list().await?;
     let locked_until: std::collections::HashMap<String, String> = users
@@ -31,7 +33,8 @@ pub async fn users_list(
         })
         .collect();
     let ctx = Context::from_serialize(UsersListCtx {
-        t: &state.i18n,
+        t: state.locales.get(&lang.tag),
+        lang: &lang.tag,
         css_hash: &state.css_hash,
         js_hash: &state.js_hash,
         active_page: "users",
@@ -47,9 +50,11 @@ pub async fn user_create_form(
     State(state): State<Arc<AppState>>,
     _admin: AdminUser,
     csrf: CsrfToken,
+    lang: Lang,
 ) -> Result<Response, AppError> {
     let ctx = Context::from_serialize(UserCreateCtx {
-        t: &state.i18n,
+        t: state.locales.get(&lang.tag),
+        lang: &lang.tag,
         css_hash: &state.css_hash,
         js_hash: &state.js_hash,
         active_page: "create",
@@ -69,6 +74,7 @@ pub async fn user_create_submit(
     State(state): State<Arc<AppState>>,
     cookies: Cookies,
     _admin: AdminUser,
+    lang: Lang,
     body: Bytes,
 ) -> Result<Response, AppError> {
     let fields = parse_form_fields(&body);
@@ -79,12 +85,13 @@ pub async fn user_create_submit(
     let roles = get_all(&fields, "roles");
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
-        return Err(AppError::BadRequest("CSRF-Token ungültig".into()));
+        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
     }
 
     let render_error = |msg: &str, status: StatusCode| -> Result<Response, AppError> {
         let ctx = Context::from_serialize(UserCreateCtx {
-            t: &state.i18n,
+            t: state.locales.get(&lang.tag),
+            lang: &lang.tag,
             css_hash: &state.css_hash,
             js_hash: &state.js_hash,
             active_page: "create",
@@ -100,12 +107,12 @@ pub async fn user_create_submit(
         Ok((status, Html(rendered)).into_response())
     };
 
-    if let Err(msg) = validate_password(&pw, &state.i18n) {
+    if let Err(msg) = validate_password(&pw, state.locales.get(&lang.tag)) {
         return render_error(&msg, StatusCode::BAD_REQUEST);
     }
 
     if state.users.find_by_email(&email).await?.is_some() {
-        return render_error(&state.i18n.user_create_error_email_exists, StatusCode::CONFLICT);
+        return render_error(&state.locales.get(&lang.tag).user_create_error_email_exists, StatusCode::CONFLICT);
     }
 
     let id = crate::crypto::id::new_id();
@@ -122,6 +129,7 @@ pub async fn user_edit_form(
     _admin: AdminUser,
     Path(id): Path<String>,
     csrf: CsrfToken,
+    lang: Lang,
 ) -> Result<Response, AppError> {
     let user = state.users.find_by_id(&id).await?
         .ok_or_else(|| AppError::NotFound("User not found".into()))?;
@@ -131,7 +139,8 @@ pub async fn user_edit_form(
     let display_name = user.display_name.as_deref().unwrap_or("");
 
     let ctx = Context::from_serialize(UserEditCtx {
-        t: &state.i18n,
+        t: state.locales.get(&lang.tag),
+        lang: &lang.tag,
         css_hash: &state.css_hash,
         js_hash: &state.js_hash,
         active_page: "users",
@@ -153,6 +162,7 @@ pub async fn user_edit_submit(
     cookies: Cookies,
     _admin: AdminUser,
     Path(id): Path<String>,
+    lang: Lang,
     body: Bytes,
 ) -> Result<Response, AppError> {
     let fields = parse_form_fields(&body);
@@ -162,7 +172,7 @@ pub async fn user_edit_submit(
     let roles = get_all(&fields, "roles");
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
-        return Err(AppError::BadRequest("CSRF-Token ungültig".into()));
+        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
     }
 
     let user = state.users.find_by_id(&id).await?
@@ -170,7 +180,8 @@ pub async fn user_edit_submit(
 
     let render_error = |msg: &str| -> Result<Response, AppError> {
         let ctx = Context::from_serialize(UserEditCtx {
-            t: &state.i18n,
+            t: state.locales.get(&lang.tag),
+            lang: &lang.tag,
             css_hash: &state.css_hash,
             js_hash: &state.js_hash,
             active_page: "users",
@@ -188,7 +199,7 @@ pub async fn user_edit_submit(
     };
 
     if !pw.is_empty() {
-        if let Err(msg) = validate_password(&pw, &state.i18n) {
+        if let Err(msg) = validate_password(&pw, state.locales.get(&lang.tag)) {
             return render_error(&msg);
         }
         let hash = password::hash_password(&pw)?;
@@ -211,10 +222,11 @@ pub async fn user_delete(
     cookies: Cookies,
     _admin: AdminUser,
     Path(id): Path<String>,
+    lang: Lang,
     axum::Form(form): axum::Form<DeleteForm>,
 ) -> Result<Response, AppError> {
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
-        return Err(AppError::BadRequest("CSRF-Token ungültig".into()));
+        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
     }
 
     state.users.delete(&id).await?;

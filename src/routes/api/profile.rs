@@ -11,6 +11,7 @@ use tower_cookies::Cookies;
 use crate::crypto::password;
 use crate::errors::AppError;
 use crate::middleware::csrf::{self, CsrfToken};
+use crate::middleware::language::Lang;
 use crate::middleware::session::SessionUser;
 use crate::routes::ctx::ProfileCtx;
 use crate::AppState;
@@ -30,11 +31,13 @@ fn render_profile(
     saved: bool,
     pw_saved: bool,
     pw_error_message: &str,
+    lang: &str,
 ) -> Result<String, AppError> {
     let user_roles: Vec<String> = user.roles().into_iter().map(String::from).collect();
     let display_name = user.display_name.clone().unwrap_or_default();
     let ctx = Context::from_serialize(ProfileCtx {
-        t: &state.i18n,
+        t: state.locales.get(lang),
+        lang,
         css_hash: &state.css_hash,
         js_hash: &state.js_hash,
         user,
@@ -54,6 +57,7 @@ pub async fn profile_page(
     session_user: SessionUser,
     csrf: CsrfToken,
     axum::extract::Query(query): axum::extract::Query<ProfileQuery>,
+    lang: Lang,
 ) -> Result<Response, AppError> {
     let user = state
         .users
@@ -63,7 +67,7 @@ pub async fn profile_page(
 
     let rendered = render_profile(
         &state, &user, &csrf.form_token,
-        query.saved.is_some(), query.pw_saved.is_some(), "",
+        query.saved.is_some(), query.pw_saved.is_some(), "", &lang.tag,
     )?;
 
     Ok(Html(rendered).into_response())
@@ -81,10 +85,11 @@ pub async fn profile_submit(
     State(state): State<Arc<AppState>>,
     cookies: Cookies,
     session_user: SessionUser,
+    lang: Lang,
     axum::Form(form): axum::Form<ProfileForm>,
 ) -> Result<Response, AppError> {
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
-        return Err(AppError::BadRequest("CSRF-Token ungültig".into()));
+        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
     }
 
     let display_name = if form.display_name.trim().is_empty() {
@@ -120,12 +125,14 @@ pub async fn password_submit(
     State(state): State<Arc<AppState>>,
     cookies: Cookies,
     session_user: SessionUser,
+    lang: Lang,
     axum::Form(form): axum::Form<PasswordForm>,
 ) -> Result<Response, AppError> {
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
-        return Err(AppError::BadRequest("CSRF-Token ungültig".into()));
+        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
     }
 
+    let t = state.locales.get(&lang.tag);
     let user = state
         .users
         .find_by_id(&session_user.0.id)
@@ -134,21 +141,21 @@ pub async fn password_submit(
 
     // Verify current password
     if !password::verify_password(&form.current_password, &user.password_hash) {
-        let msg = &state.i18n.profile_password_error_wrong;
-        let rendered = render_profile(&state, &user, &form.csrf_token, false, false, msg)?;
+        let msg = &t.profile_password_error_wrong;
+        let rendered = render_profile(&state, &user, &form.csrf_token, false, false, msg, &lang.tag)?;
         return Ok((StatusCode::BAD_REQUEST, Html(rendered)).into_response());
     }
 
     // Check that new passwords match
     if form.new_password != form.new_password_confirm {
-        let msg = &state.i18n.profile_password_error_mismatch;
-        let rendered = render_profile(&state, &user, &form.csrf_token, false, false, msg)?;
+        let msg = &t.profile_password_error_mismatch;
+        let rendered = render_profile(&state, &user, &form.csrf_token, false, false, msg, &lang.tag)?;
         return Ok((StatusCode::BAD_REQUEST, Html(rendered)).into_response());
     }
 
     // Validate new password strength
-    if let Err(msg) = crate::routes::ui::validate_password(&form.new_password, &state.i18n) {
-        let rendered = render_profile(&state, &user, &form.csrf_token, false, false, &msg)?;
+    if let Err(msg) = crate::routes::ui::validate_password(&form.new_password, t) {
+        let rendered = render_profile(&state, &user, &form.csrf_token, false, false, &msg, &lang.tag)?;
         return Ok((StatusCode::BAD_REQUEST, Html(rendered)).into_response());
     }
 

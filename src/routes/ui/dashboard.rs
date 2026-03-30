@@ -4,6 +4,7 @@ use tera::Context;
 
 use crate::errors::AppError;
 use crate::middleware::csrf::CsrfToken;
+use crate::middleware::language::Lang;
 use crate::middleware::session::AdminUser;
 use crate::routes::ctx::DashboardCtx;
 use crate::AppState;
@@ -12,12 +13,14 @@ pub async fn dashboard(
     State(state): State<Arc<AppState>>,
     _admin: AdminUser,
     csrf: CsrfToken,
+    lang: Lang,
 ) -> Result<Response, AppError> {
     let users = state.users.list().await?;
     let active_users = state.sessions.count_active_users().await.unwrap_or(0);
     let locked_users = state.account_lockout.locked_count();
     let ctx = Context::from_serialize(DashboardCtx {
-        t: &state.i18n,
+        t: state.locales.get(&lang.tag),
+        lang: &lang.tag,
         css_hash: &state.css_hash,
         js_hash: &state.js_hash,
         active_page: "dashboard",

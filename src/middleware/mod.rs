@@ -1,4 +1,5 @@
 pub mod bot_trap;
+pub mod language;
 pub mod content_type;
 pub mod csrf;
 pub mod lockout;

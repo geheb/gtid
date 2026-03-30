@@ -14,6 +14,7 @@ use tower_cookies::{Cookie, Cookies};
 use crate::crypto::{jwt, password};
 use crate::errors::AppError;
 use crate::middleware::csrf::{self, CsrfToken};
+use crate::middleware::language::Lang;
 use crate::middleware::session::{OptionalSessionUser, SessionUser};
 use crate::routes::ctx::LoginCtx;
 use crate::AppState;
@@ -121,6 +122,7 @@ pub async fn login_page(
     Query(query): Query<LoginQuery>,
     optional_user: OptionalSessionUser,
     csrf: CsrfToken,
+    lang: Lang,
 ) -> Result<Response, AppError> {
     // Already logged in → redirect to appropriate page
     if let Some(user) = optional_user.0 {
@@ -130,7 +132,8 @@ pub async fn login_page(
 
     let rid = query.rid.as_deref().unwrap_or("");
     let ctx = Context::from_serialize(LoginCtx {
-        t: &state.i18n,
+        t: state.locales.get(&lang.tag),
+        lang: &lang.tag,
         css_hash: &state.css_hash,
         js_hash: &state.js_hash,
         error: false,
@@ -151,11 +154,12 @@ pub async fn login_submit(
     cookies: Cookies,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: axum::http::HeaderMap,
+    lang: Lang,
     axum::Form(form): axum::Form<LoginForm>,
 ) -> Result<Response, AppError> {
     // CSRF verification
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
-        return Err(AppError::BadRequest("CSRF-Token ungültig".into()));
+        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
     }
 
     let ua = crate::routes::require_user_agent(&headers)
@@ -166,6 +170,7 @@ pub async fn login_submit(
 
     let rl_key = state.login_rate_limiter.key("login", &ip, ua);
     let rid = form.rid.as_deref().unwrap_or("");
+    let t = state.locales.get(&lang.tag);
 
     let show_imprint = has_legal_content(&state, "imprint").await;
     let show_privacy = has_legal_content(&state, "privacy").await;
@@ -173,7 +178,8 @@ pub async fn login_submit(
     let render_login_error =
         |msg: &str, status: StatusCode, rid: &str, csrf: &str, email: &str| -> Result<Response, AppError> {
             let ctx = Context::from_serialize(LoginCtx {
-                t: &state.i18n,
+                t,
+                lang: &lang.tag,
                 css_hash: &state.css_hash,
                 js_hash: &state.js_hash,
                 error: true,
@@ -191,13 +197,13 @@ pub async fn login_submit(
     // Check rate limit (IP + User-Agent)
     if state.login_rate_limiter.is_limited(rl_key) {
         tracing::warn!(event = "rate_limited", ip = %ip, email = %form.email, "Login rate limited");
-        return render_login_error(&state.i18n.login_error_rate_limited, StatusCode::TOO_MANY_REQUESTS, rid, &csrf_form_token, &form.email);
+        return render_login_error(&t.login_error_rate_limited, StatusCode::TOO_MANY_REQUESTS, rid, &csrf_form_token, &form.email);
     }
 
     // Check account lockout (per email)
     if state.account_lockout.is_locked(&form.email) {
         tracing::warn!(event = "account_locked", ip = %ip, email = %form.email, "Login blocked by account lockout");
-        return render_login_error(&state.i18n.login_error_account_locked, StatusCode::FORBIDDEN, rid, &csrf_form_token, &form.email);
+        return render_login_error(&t.login_error_account_locked, StatusCode::FORBIDDEN, rid, &csrf_form_token, &form.email);
     }
 
     let user = state.users.find_by_email(&form.email).await?;
@@ -211,7 +217,7 @@ pub async fn login_submit(
             tracing::warn!(event = "login_failed", ip = %ip, email = %form.email, "Failed login attempt");
             state.login_rate_limiter.record_failure(rl_key);
             state.account_lockout.record_failure(&form.email);
-            return render_login_error(&state.i18n.login_error_invalid, StatusCode::UNAUTHORIZED, rid, &csrf_form_token, &form.email);
+            return render_login_error(&t.login_error_invalid, StatusCode::UNAUTHORIZED, rid, &csrf_form_token, &form.email);
         }
     };
 
@@ -256,7 +262,7 @@ pub async fn login_submit(
                     cookies.remove(Cookie::from("session"));
 
                     let csrf_form_token = csrf::set_new_csrf_cookie(&cookies, state.config.secure_cookies);
-                    return render_login_error(&state.i18n.login_error_session_expired, StatusCode::UNAUTHORIZED, "", &csrf_form_token, &form.email);
+                    return render_login_error(&t.login_error_session_expired, StatusCode::UNAUTHORIZED, "", &csrf_form_token, &form.email);
                 }
             }
         }
@@ -282,10 +288,11 @@ pub async fn logout(
     State(state): State<Arc<AppState>>,
     cookies: Cookies,
     session_user: SessionUser,
+    lang: Lang,
     axum::Form(form): axum::Form<LogoutForm>,
 ) -> Result<Response, AppError> {
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
-        return Err(AppError::BadRequest("CSRF-Token ungültig".into()));
+        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
     }
 
     state
@@ -309,4 +316,3 @@ async fn has_legal_content(state: &AppState, page_type: &str) -> bool {
         .map(|p| !p.body_html.trim().is_empty())
         .unwrap_or(false)
 }
-

@@ -10,6 +10,7 @@ use crate::models::{client::Client, email_template::EmailTemplate, user::User};
 #[derive(Serialize)]
 pub struct DashboardCtx<'a> {
     pub t: &'a I18n,
+    pub lang: &'a str,
     pub css_hash: &'a str,
     pub js_hash: &'a str,
     pub active_page: &'a str,
@@ -22,6 +23,7 @@ pub struct DashboardCtx<'a> {
 #[derive(Serialize)]
 pub struct UsersListCtx<'a> {
     pub t: &'a I18n,
+    pub lang: &'a str,
     pub css_hash: &'a str,
     pub js_hash: &'a str,
     pub active_page: &'a str,
@@ -33,6 +35,7 @@ pub struct UsersListCtx<'a> {
 #[derive(Serialize)]
 pub struct UserCreateCtx<'a> {
     pub t: &'a I18n,
+    pub lang: &'a str,
     pub css_hash: &'a str,
     pub js_hash: &'a str,
     pub active_page: &'a str,
@@ -48,6 +51,7 @@ pub struct UserCreateCtx<'a> {
 #[derive(Serialize)]
 pub struct UserEditCtx<'a> {
     pub t: &'a I18n,
+    pub lang: &'a str,
     pub css_hash: &'a str,
     pub js_hash: &'a str,
     pub active_page: &'a str,
@@ -64,6 +68,7 @@ pub struct UserEditCtx<'a> {
 #[derive(Serialize)]
 pub struct ClientsListCtx<'a> {
     pub t: &'a I18n,
+    pub lang: &'a str,
     pub css_hash: &'a str,
     pub js_hash: &'a str,
     pub active_page: &'a str,
@@ -74,6 +79,7 @@ pub struct ClientsListCtx<'a> {
 #[derive(Serialize)]
 pub struct ClientCreateCtx<'a> {
     pub t: &'a I18n,
+    pub lang: &'a str,
     pub css_hash: &'a str,
     pub js_hash: &'a str,
     pub active_page: &'a str,
@@ -88,6 +94,7 @@ pub struct ClientCreateCtx<'a> {
 #[derive(Serialize)]
 pub struct ClientEditCtx<'a> {
     pub t: &'a I18n,
+    pub lang: &'a str,
     pub css_hash: &'a str,
     pub js_hash: &'a str,
     pub active_page: &'a str,
@@ -102,6 +109,7 @@ pub struct ClientEditCtx<'a> {
 #[derive(Serialize)]
 pub struct EmailTemplatesListCtx<'a> {
     pub t: &'a I18n,
+    pub lang: &'a str,
     pub css_hash: &'a str,
     pub js_hash: &'a str,
     pub active_page: &'a str,
@@ -112,6 +120,7 @@ pub struct EmailTemplatesListCtx<'a> {
 #[derive(Serialize)]
 pub struct EmailTemplateEditCtx<'a> {
     pub t: &'a I18n,
+    pub lang: &'a str,
     pub css_hash: &'a str,
     pub js_hash: &'a str,
     pub active_page: &'a str,
@@ -130,6 +139,7 @@ pub struct EmailTemplateEditCtx<'a> {
 #[derive(Serialize)]
 pub struct LoginCtx<'a> {
     pub t: &'a I18n,
+    pub lang: &'a str,
     pub css_hash: &'a str,
     pub js_hash: &'a str,
     pub error: bool,
@@ -146,6 +156,7 @@ pub struct LoginCtx<'a> {
 #[derive(Serialize)]
 pub struct LegalCtx<'a> {
     pub t: &'a I18n,
+    pub lang: &'a str,
     pub css_hash: &'a str,
     pub js_hash: &'a str,
     pub page_title: &'a str,
@@ -155,6 +166,7 @@ pub struct LegalCtx<'a> {
 #[derive(Serialize)]
 pub struct LegalEditCtx<'a> {
     pub t: &'a I18n,
+    pub lang: &'a str,
     pub css_hash: &'a str,
     pub js_hash: &'a str,
     pub active_page: &'a str,
@@ -169,6 +181,7 @@ pub struct LegalEditCtx<'a> {
 #[derive(Serialize)]
 pub struct LegalListCtx<'a> {
     pub t: &'a I18n,
+    pub lang: &'a str,
     pub css_hash: &'a str,
     pub js_hash: &'a str,
     pub active_page: &'a str,
@@ -181,6 +194,7 @@ pub struct LegalListCtx<'a> {
 #[derive(Serialize)]
 pub struct AuthorizeCtx<'a> {
     pub t: &'a I18n,
+    pub lang: &'a str,
     pub css_hash: &'a str,
     pub js_hash: &'a str,
     pub csrf_token: &'a str,
@@ -202,6 +216,7 @@ pub struct AuthorizeCtx<'a> {
 #[derive(Serialize)]
 pub struct ProfileCtx<'a> {
     pub t: &'a I18n,
+    pub lang: &'a str,
     pub css_hash: &'a str,
     pub js_hash: &'a str,
     pub user: &'a User,
@@ -219,6 +234,7 @@ pub struct ProfileCtx<'a> {
 #[derive(Serialize)]
 pub struct ErrorCtx<'a> {
     pub t: &'a I18n,
+    pub lang: &'a str,
     pub css_hash: &'a str,
     pub js_hash: &'a str,
     pub error_message: &'a str,

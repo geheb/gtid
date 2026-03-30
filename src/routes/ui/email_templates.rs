@@ -9,6 +9,7 @@ use tower_cookies::Cookies;
 
 use crate::errors::AppError;
 use crate::middleware::csrf::{self, CsrfToken};
+use crate::middleware::language::Lang;
 use crate::middleware::session::AdminUser;
 use crate::models::email_template::EmailTemplateType;
 use crate::routes::ctx::{EmailTemplateEditCtx, EmailTemplatesListCtx};
@@ -20,10 +21,12 @@ pub async fn email_templates_list(
     State(state): State<Arc<AppState>>,
     _admin: AdminUser,
     csrf: CsrfToken,
+    lang: Lang,
 ) -> Result<Response, AppError> {
     let templates = state.email_templates.list().await?;
     let ctx = Context::from_serialize(EmailTemplatesListCtx {
-        t: &state.i18n,
+        t: state.locales.get(&lang.tag),
+        lang: &lang.tag,
         css_hash: &state.css_hash,
         js_hash: &state.js_hash,
         active_page: "email_templates",
@@ -39,6 +42,7 @@ pub async fn email_template_edit_form(
     _admin: AdminUser,
     Path(template_type): Path<String>,
     csrf: CsrfToken,
+    lang: Lang,
 ) -> Result<Response, AppError> {
     let tt = EmailTemplateType::from_str(&template_type)
         .ok_or_else(|| AppError::NotFound("Template type not found".into()))?;
@@ -50,7 +54,8 @@ pub async fn email_template_edit_form(
         crate::routes::ui::static_files::email_editor_hashes();
 
     let ctx = Context::from_serialize(EmailTemplateEditCtx {
-        t: &state.i18n,
+        t: state.locales.get(&lang.tag),
+        lang: &lang.tag,
         css_hash: &state.css_hash,
         js_hash: &state.js_hash,
         active_page: "email_templates",
@@ -72,6 +77,7 @@ pub async fn email_template_edit_submit(
     cookies: Cookies,
     _admin: AdminUser,
     Path(template_type): Path<String>,
+    lang: Lang,
     body: Bytes,
 ) -> Result<Response, AppError> {
     EmailTemplateType::from_str(&template_type)
@@ -83,7 +89,7 @@ pub async fn email_template_edit_submit(
     let body_html = get_field(&fields, "body_html");
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
-        return Err(AppError::BadRequest("CSRF-Token ungültig".into()));
+        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
     }
 
     if subject.is_empty() {

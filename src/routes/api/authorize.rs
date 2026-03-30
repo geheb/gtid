@@ -12,6 +12,7 @@ use tower_cookies::Cookies;
 use crate::crypto::constant_time;
 use crate::errors::AppError;
 use crate::middleware::csrf::{self, CsrfToken};
+use crate::middleware::language::Lang;
 use crate::middleware::session::OptionalSessionUser;
 use crate::models::client::Client;
 use crate::routes::ctx::{AuthorizeCtx, ErrorCtx};
@@ -36,6 +37,7 @@ pub async fn authorize_get(
     Query(params): Query<AuthorizeParams>,
     session: OptionalSessionUser,
     csrf: CsrfToken,
+    lang: Lang,
 ) -> Result<Response, AppError> {
     let ua = crate::routes::require_user_agent(&headers)
         .map_err(|e| AppError::BadRequest(e))?;
@@ -47,7 +49,7 @@ pub async fn authorize_get(
 
     if let Err(e) = validate_authorize_params(&params, &state).await {
         state.login_rate_limiter.record_failure(rl_key);
-        return Ok(error_response(&state, &e)?);
+        return Ok(error_response(&state, &e, &lang.tag)?);
     }
 
     let user = match session.0 {
@@ -96,7 +98,8 @@ pub async fn authorize_get(
 
     // No grant → render the consent page
     let ctx = Context::from_serialize(AuthorizeCtx {
-        t: &state.i18n,
+        t: state.locales.get(&lang.tag),
+        lang: &lang.tag,
         css_hash: &state.css_hash,
         js_hash: &state.js_hash,
         csrf_token: &csrf.form_token,
@@ -136,6 +139,7 @@ pub async fn authorize_post(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     session: crate::middleware::session::SessionUser,
     headers: axum::http::HeaderMap,
+    lang: Lang,
     axum::Form(form): axum::Form<ConsentForm>,
 ) -> Result<Response, AppError> {
     let ua = crate::routes::require_user_agent(&headers)
@@ -148,7 +152,7 @@ pub async fn authorize_post(
 
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
         state.login_rate_limiter.record_failure(rl_key);
-        return Err(AppError::BadRequest("CSRF-Token ungültig".into()));
+        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
     }
 
     // Validate client_id, redirect_uri, code_challenge_method, and scope BEFORE
@@ -299,9 +303,10 @@ async fn validate_authorize_params(params: &AuthorizeParams, state: &AppState) -
     Ok(client)
 }
 
-fn error_response(state: &AppState, message: &str) -> Result<Response, AppError> {
+fn error_response(state: &AppState, message: &str, lang: &str) -> Result<Response, AppError> {
     let ctx = Context::from_serialize(ErrorCtx {
-        t: &state.i18n,
+        t: state.locales.get(lang),
+        lang,
         css_hash: &state.css_hash,
         js_hash: &state.js_hash,
         error_message: message,

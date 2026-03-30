@@ -9,6 +9,7 @@ use tower_cookies::Cookies;
 
 use crate::errors::AppError;
 use crate::middleware::csrf::{self, CsrfToken};
+use crate::middleware::language::Lang;
 use crate::middleware::session::AdminUser;
 use crate::models::legal_page::LegalPageType;
 use crate::routes::ctx::{LegalCtx, LegalEditCtx, LegalListCtx};
@@ -18,15 +19,15 @@ use super::{get_field, parse_form_fields, redirect};
 
 // ── Public routes ────────────────────────────────────────────────────────────
 
-pub async fn imprint(State(state): State<Arc<AppState>>) -> Result<Response, AppError> {
-    render_public(&state, "imprint", &state.i18n.legal_imprint_title).await
+pub async fn imprint(State(state): State<Arc<AppState>>, lang: Lang) -> Result<Response, AppError> {
+    render_public(&state, "imprint", &state.locales.get(&lang.tag).legal_imprint_title, &lang.tag).await
 }
 
-pub async fn privacy(State(state): State<Arc<AppState>>) -> Result<Response, AppError> {
-    render_public(&state, "privacy", &state.i18n.legal_privacy_title).await
+pub async fn privacy(State(state): State<Arc<AppState>>, lang: Lang) -> Result<Response, AppError> {
+    render_public(&state, "privacy", &state.locales.get(&lang.tag).legal_privacy_title, &lang.tag).await
 }
 
-async fn render_public(state: &AppState, page_type: &str, title: &str) -> Result<Response, AppError> {
+async fn render_public(state: &AppState, page_type: &str, title: &str, lang: &str) -> Result<Response, AppError> {
     let page = state.legal_pages.find_by_type(page_type).await?
         .ok_or_else(|| AppError::NotFound("Page not found".into()))?;
 
@@ -35,7 +36,8 @@ async fn render_public(state: &AppState, page_type: &str, title: &str) -> Result
     }
 
     let ctx = Context::from_serialize(LegalCtx {
-        t: &state.i18n,
+        t: state.locales.get(lang),
+        lang,
         css_hash: &state.css_hash,
         js_hash: &state.js_hash,
         page_title: title,
@@ -51,10 +53,12 @@ pub async fn legal_pages_list(
     State(state): State<Arc<AppState>>,
     _admin: AdminUser,
     csrf: CsrfToken,
+    lang: Lang,
 ) -> Result<Response, AppError> {
     let pages = state.legal_pages.list().await?;
     let ctx = Context::from_serialize(LegalListCtx {
-        t: &state.i18n,
+        t: state.locales.get(&lang.tag),
+        lang: &lang.tag,
         css_hash: &state.css_hash,
         js_hash: &state.js_hash,
         active_page: "legal_pages",
@@ -70,6 +74,7 @@ pub async fn legal_page_edit_form(
     _admin: AdminUser,
     Path(page_type): Path<String>,
     csrf: CsrfToken,
+    lang: Lang,
 ) -> Result<Response, AppError> {
     LegalPageType::from_str(&page_type)
         .ok_or_else(|| AppError::NotFound("Page type not found".into()))?;
@@ -81,7 +86,8 @@ pub async fn legal_page_edit_form(
         crate::routes::ui::static_files::email_editor_hashes();
 
     let ctx = Context::from_serialize(LegalEditCtx {
-        t: &state.i18n,
+        t: state.locales.get(&lang.tag),
+        lang: &lang.tag,
         css_hash: &state.css_hash,
         js_hash: &state.js_hash,
         active_page: "legal_pages",
@@ -101,6 +107,7 @@ pub async fn legal_page_edit_submit(
     cookies: Cookies,
     _admin: AdminUser,
     Path(page_type): Path<String>,
+    lang: Lang,
     body: Bytes,
 ) -> Result<Response, AppError> {
     LegalPageType::from_str(&page_type)
@@ -111,7 +118,7 @@ pub async fn legal_page_edit_submit(
     let body_html = get_field(&fields, "body_html");
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
-        return Err(AppError::BadRequest("CSRF-Token ungültig".into()));
+        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
     }
 
     state.legal_pages.update(&page_type, &body_html).await?;

@@ -11,6 +11,7 @@ use tower_cookies::Cookies;
 use crate::crypto::password;
 use crate::errors::AppError;
 use crate::middleware::csrf::{self, CsrfToken};
+use crate::middleware::language::Lang;
 use crate::middleware::session::AdminUser;
 use crate::routes::ctx::{ClientCreateCtx, ClientEditCtx, ClientsListCtx};
 use crate::AppState;
@@ -21,10 +22,12 @@ pub async fn clients_list(
     State(state): State<Arc<AppState>>,
     _admin: AdminUser,
     csrf: CsrfToken,
+    lang: Lang,
 ) -> Result<Response, AppError> {
     let clients = state.clients.list().await?;
     let ctx = Context::from_serialize(ClientsListCtx {
-        t: &state.i18n,
+        t: state.locales.get(&lang.tag),
+        lang: &lang.tag,
         css_hash: &state.css_hash,
         js_hash: &state.js_hash,
         active_page: "clients",
@@ -39,9 +42,11 @@ pub async fn client_create_form(
     State(state): State<Arc<AppState>>,
     _admin: AdminUser,
     csrf: CsrfToken,
+    lang: Lang,
 ) -> Result<Response, AppError> {
     let ctx = Context::from_serialize(ClientCreateCtx {
-        t: &state.i18n,
+        t: state.locales.get(&lang.tag),
+        lang: &lang.tag,
         css_hash: &state.css_hash,
         js_hash: &state.js_hash,
         active_page: "create_client",
@@ -60,6 +65,7 @@ pub async fn client_create_submit(
     State(state): State<Arc<AppState>>,
     cookies: Cookies,
     _admin: AdminUser,
+    lang: Lang,
     body: Bytes,
 ) -> Result<Response, AppError> {
     let fields = parse_form_fields(&body);
@@ -70,12 +76,13 @@ pub async fn client_create_submit(
     let post_logout_uri = get_field_opt(&fields, "client_post_logout_redirect_uri");
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
-        return Err(AppError::BadRequest("CSRF-Token ungültig".into()));
+        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
     }
 
     let render_error = |msg: &str| -> Result<Response, AppError> {
         let ctx = Context::from_serialize(ClientCreateCtx {
-            t: &state.i18n,
+            t: state.locales.get(&lang.tag),
+            lang: &lang.tag,
             css_hash: &state.css_hash,
             js_hash: &state.js_hash,
             active_page: "create_client",
@@ -93,7 +100,7 @@ pub async fn client_create_submit(
     if client_id.is_empty() {
         return render_error("Client-ID is required");
     }
-    if let Err(msg) = validate_client_secret(&client_secret, &state.i18n) {
+    if let Err(msg) = validate_client_secret(&client_secret, state.locales.get(&lang.tag)) {
         return render_error(&msg);
     }
     if let Err(msg) = validate_redirect_uri(&redirect_uri) {
@@ -105,7 +112,7 @@ pub async fn client_create_submit(
         }
     }
     if state.clients.find_by_id(&client_id).await?.is_some() {
-        return render_error(&state.i18n.client_create_error_id_exists);
+        return render_error(&state.locales.get(&lang.tag).client_create_error_id_exists);
     }
 
     let hash = password::hash_password(&client_secret)?;
@@ -126,12 +133,14 @@ pub async fn client_edit_form(
     _admin: AdminUser,
     Path(id): Path<String>,
     csrf: CsrfToken,
+    lang: Lang,
 ) -> Result<Response, AppError> {
     let client = state.clients.find_by_id(&id).await?
         .ok_or_else(|| AppError::NotFound("Client not found".into()))?;
 
     let ctx = Context::from_serialize(ClientEditCtx {
-        t: &state.i18n,
+        t: state.locales.get(&lang.tag),
+        lang: &lang.tag,
         css_hash: &state.css_hash,
         js_hash: &state.js_hash,
         active_page: "clients",
@@ -151,6 +160,7 @@ pub async fn client_edit_submit(
     cookies: Cookies,
     _admin: AdminUser,
     Path(id): Path<String>,
+    lang: Lang,
     body: Bytes,
 ) -> Result<Response, AppError> {
     let fields = parse_form_fields(&body);
@@ -160,7 +170,7 @@ pub async fn client_edit_submit(
     let post_logout_uri = get_field_opt(&fields, "client_post_logout_redirect_uri");
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
-        return Err(AppError::BadRequest("CSRF-Token ungültig".into()));
+        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
     }
 
     if let Err(msg) = validate_redirect_uri(&redirect_uri) {
@@ -177,7 +187,8 @@ pub async fn client_edit_submit(
 
     let render_error = |msg: &str| -> Result<Response, AppError> {
         let ctx = Context::from_serialize(ClientEditCtx {
-            t: &state.i18n,
+            t: state.locales.get(&lang.tag),
+            lang: &lang.tag,
             css_hash: &state.css_hash,
             js_hash: &state.js_hash,
             active_page: "clients",
@@ -193,7 +204,7 @@ pub async fn client_edit_submit(
     };
 
     if !client_secret.is_empty() {
-        if let Err(msg) = validate_client_secret(&client_secret, &state.i18n) {
+        if let Err(msg) = validate_client_secret(&client_secret, state.locales.get(&lang.tag)) {
             return render_error(&msg);
         }
         let hash = password::hash_password(&client_secret)?;
@@ -217,10 +228,11 @@ pub async fn client_delete(
     cookies: Cookies,
     _admin: AdminUser,
     Path(id): Path<String>,
+    lang: Lang,
     axum::Form(form): axum::Form<DeleteForm>,
 ) -> Result<Response, AppError> {
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
-        return Err(AppError::BadRequest("CSRF-Token ungültig".into()));
+        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
     }
 
     state.clients.delete(&id).await?;

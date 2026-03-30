@@ -52,7 +52,7 @@ pub struct AppState {
     pub pending_redirects: PendingRedirectStore,
     pub bot_trap: BotTrap,
     pub tera: tera::Tera,
-    pub i18n: i18n::I18n,
+    pub locales: i18n::Locales,
     pub key_store: Arc<crypto::keys::KeyStore>,
     pub config: AppConfig,
     pub css_hash: String,
@@ -118,8 +118,7 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16) {
         ("admin/legal_page_edit.html", include_str!("../static/admin/legal_page_edit.html")),
     ]).expect("Failed to load embedded templates");
 
-    let i18n: i18n::I18n =
-        serde_json::from_str(include_str!("../static/i18n.json")).expect("Failed to parse embedded i18n.json");
+    let locales = i18n::build_locales();
 
     let users = UserRepository::new(db.clone());
     let clients = ClientRepository::new(db.clone());
@@ -156,7 +155,7 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16) {
         pending_redirects: PendingRedirectStore::new(),
         bot_trap: BotTrap::new(),
         tera,
-        i18n,
+        locales,
         key_store: key_store.clone(),
         config: config.clone(),
         css_hash,

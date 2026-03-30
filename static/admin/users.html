@@ -30,7 +30,7 @@
                             <td>
                                 <span class="email">{{ user.email }}</span>
                                 {% if locked_until[user.id] %}
-                                <span class="lock-icon utc-time" title="{{ t.users_locked_tooltip }}" data-utc="{{ locked_until[user.id] }}">&#x26A0;</span>
+                                <span class="lock-icon utc-time" title="{{ t.users_locked_tooltip }}" data-utc="{{ locked_until[user.id] }}">&#10071;</span>
                                 {% endif %}
                             </td>
                             <td>

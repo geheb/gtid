@@ -35,6 +35,8 @@ hyper-util = { version = "0.1", features = ["tokio", "http1", "http2", "server",
 arc-swap = "1.9.0"
 dashmap = "6.1.0"
 static_init = "1"
+fluent-bundle = "0.16"
+unic-langid = "0.9"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }
