@@ -127,7 +127,7 @@ Ed25519 keys are held in memory. On rotation the current key becomes the previou
 
 ### Security Measures
 
-For detailed security patterns and guidelines for contributors, see [SECURITY_PATTERNS.md](SECURITY_PATTERNS.md).
+For detailed security patterns and guidelines for contributors, see [SECURITY.md](SECURITY.md).
 
 | Attack | Protection |
 |--------|------------|
