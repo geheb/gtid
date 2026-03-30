@@ -167,3 +167,31 @@ legal-pages-status-empty = Leer
 csrf-token-invalid = CSRF-Token ungültig
 confirm-delete = Wirklich löschen?
 copied = Kopiert
+
+language-label = Sprache
+language-de = Deutsch
+language-en = Englisch
+
+email-default-confirm-registration-subject = Registrierung bestätigen
+email-default-confirm-registration-body =
+    <p>Hallo {"{{name}}"},</p>
+    <p>Klicke auf den folgenden Link, um deine E-Mail-Adresse zu bestätigen.</p>
+    <p><a href="{"{{link}}"}">Registrierung bestätigen</a></p>
+    <p>Herzliche Grüße</p>
+    <p>GT Id Team</p>
+
+email-default-change-email-subject = E-Mail-Adresse ändern
+email-default-change-email-body =
+    <p>Hallo {"{{name}}"},</p>
+    <p>Du hast eine Änderung deiner E-Mail-Adresse angefordert.  Klicke auf den folgenden Link, um die neue E-Mail-Adresse zu bestätigen:</p>
+    <p><a href="{"{{link}}"}">E-Mail-Adresse bestätigen</a></p>
+    <p>Herzliche Grüße</p>
+    <p>GT Id Team</p>
+
+email-default-reset-password-subject = Passwort zurücksetzen
+email-default-reset-password-body =
+    <p>Hallo {"{{name}}"},</p>
+    <p>Du hast das Zurücksetzen deines Passworts angefordert. Klicke auf den folgenden Link, um ein neues Passwort zu vergeben:</p>
+    <p><a href="{"{{link}}"}">Passwort zurücksetzen</a></p>
+    <p>Herzliche Grüße</p>
+    <p>GT Id Team</p>

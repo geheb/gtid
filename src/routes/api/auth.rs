@@ -310,9 +310,5 @@ pub async fn logout(
 }
 
 async fn has_legal_content(state: &AppState, page_type: &str) -> bool {
-    state.legal_pages.find_by_type(page_type).await
-        .ok()
-        .flatten()
-        .map(|p| !p.body_html.trim().is_empty())
-        .unwrap_or(false)
+    state.legal_pages.has_any_content(page_type).await.unwrap_or(false)
 }

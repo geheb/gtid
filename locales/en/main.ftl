@@ -167,3 +167,31 @@ legal-pages-status-empty = Empty
 csrf-token-invalid = Invalid CSRF token
 confirm-delete = Really delete?
 copied = Copied
+
+language-label = Language
+language-de = German
+language-en = English
+
+email-default-confirm-registration-subject = Confirm registration
+email-default-confirm-registration-body =
+    <p>Hello {"{{name}}"},</p>
+    <p>Please confirm your email address by clicking the following link:</p>
+    <p><a href="{"{{link}}"}">Confirm registration</a></p>
+    <p>Best regards,</p>
+    <p>GT Id Team</p>
+
+email-default-change-email-subject = Change email address
+email-default-change-email-body =
+    <p>Hello {"{{name}}"},</p>
+    <p>You have requested to change your email address. Please confirm the new address by clicking the following link:</p>
+    <p><a href="{"{{link}}"}">Confirm email address</a></p>
+    <p>Best regards,</p>
+    <p>GT Id Team</p>
+
+email-default-reset-password-subject = Reset password
+email-default-reset-password-body =
+    <p>Hello {"{{name}}"},</p>
+    <p>You have requested to reset your password. Click the following link to set a new password:</p>
+    <p><a href="{"{{link}}"}">Reset password</a></p>
+    <p>Best regards,</p>
+    <p>GT Id Team</p>

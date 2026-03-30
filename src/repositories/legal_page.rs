@@ -1,5 +1,6 @@
 use sqlx::SqlitePool;
 
+use crate::middleware::language::SUPPORTED_LANGS;
 use crate::models::legal_page::{LegalPage, LegalPageType};
 
 #[derive(Clone)]
@@ -12,44 +13,64 @@ impl LegalPageRepository {
         Self { pool }
     }
 
-    pub async fn list(&self) -> Result<Vec<LegalPage>, sqlx::Error> {
+    pub async fn list_by_lang(&self, lang: &str) -> Result<Vec<LegalPage>, sqlx::Error> {
         sqlx::query_as::<_, LegalPage>(
-            "SELECT * FROM legal_pages ORDER BY page_type",
+            "SELECT * FROM legal_pages WHERE lang = ? ORDER BY page_type",
         )
+        .bind(lang)
         .fetch_all(&self.pool)
         .await
     }
 
-    pub async fn find_by_type(&self, page_type: &str) -> Result<Option<LegalPage>, sqlx::Error> {
+    pub async fn find_by_type_and_lang(
+        &self,
+        page_type: &str,
+        lang: &str,
+    ) -> Result<Option<LegalPage>, sqlx::Error> {
         sqlx::query_as::<_, LegalPage>(
-            "SELECT * FROM legal_pages WHERE page_type = ?",
+            "SELECT * FROM legal_pages WHERE page_type = ? AND lang = ?",
         )
         .bind(page_type)
+        .bind(lang)
         .fetch_optional(&self.pool)
         .await
     }
 
-    pub async fn update(&self, page_type: &str, body_html: &str) -> Result<(), sqlx::Error> {
+    pub async fn has_any_content(&self, page_type: &str) -> Result<bool, sqlx::Error> {
+        let row: Option<(i32,)> = sqlx::query_as(
+            "SELECT 1 FROM legal_pages WHERE page_type = ? AND trim(body_html) != '' LIMIT 1",
+        )
+        .bind(page_type)
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.is_some())
+    }
+
+    pub async fn update(&self, page_type: &str, lang: &str, body_html: &str) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "UPDATE legal_pages SET body_html = ?, updated_at = datetime('now') WHERE page_type = ?",
+            "UPDATE legal_pages SET body_html = ?, updated_at = datetime('now') WHERE page_type = ? AND lang = ?",
         )
         .bind(body_html)
         .bind(page_type)
+        .bind(lang)
         .execute(&self.pool)
         .await?;
         Ok(())
     }
 
     pub async fn seed(&self) -> Result<(), sqlx::Error> {
-        for lt in LegalPageType::all() {
-            let id = crate::crypto::id::new_id();
-            sqlx::query(
-                "INSERT OR IGNORE INTO legal_pages (id, page_type, body_html) VALUES (?, ?, '')",
-            )
-            .bind(&id)
-            .bind(lt.as_str())
-            .execute(&self.pool)
-            .await?;
+        for lang in SUPPORTED_LANGS {
+            for lt in LegalPageType::all() {
+                let id = crate::crypto::id::new_id();
+                sqlx::query(
+                    "INSERT OR IGNORE INTO legal_pages (id, page_type, lang, body_html) VALUES (?, ?, ?, '')",
+                )
+                .bind(&id)
+                .bind(lt.as_str())
+                .bind(lang)
+                .execute(&self.pool)
+                .await?;
+            }
         }
         tracing::info!("Legal pages seeded");
         Ok(())
@@ -69,9 +90,11 @@ mod tests {
     async fn seed_creates_all_pages() {
         let repo = test_repo().await;
         repo.seed().await.unwrap();
-        let pages = repo.list().await.unwrap();
-        assert_eq!(pages.len(), 2);
-        let types: Vec<&str> = pages.iter().map(|p| p.page_type.as_str()).collect();
+        let de = repo.list_by_lang("de").await.unwrap();
+        let en = repo.list_by_lang("en").await.unwrap();
+        assert_eq!(de.len(), 2);
+        assert_eq!(en.len(), 2);
+        let types: Vec<&str> = de.iter().map(|p| p.page_type.as_str()).collect();
         assert!(types.contains(&"imprint"));
         assert!(types.contains(&"privacy"));
     }
@@ -81,25 +104,40 @@ mod tests {
         let repo = test_repo().await;
         repo.seed().await.unwrap();
         repo.seed().await.unwrap();
-        assert_eq!(repo.list().await.unwrap().len(), 2);
+        assert_eq!(repo.list_by_lang("de").await.unwrap().len(), 2);
+        assert_eq!(repo.list_by_lang("en").await.unwrap().len(), 2);
     }
 
     #[tokio::test]
-    async fn find_by_type() {
+    async fn find_by_type_and_lang() {
         let repo = test_repo().await;
         repo.seed().await.unwrap();
-        let page = repo.find_by_type("imprint").await.unwrap().unwrap();
+        let page = repo.find_by_type_and_lang("imprint", "de").await.unwrap().unwrap();
         assert_eq!(page.page_type, "imprint");
-        assert!(page.body_html.is_empty());
-        assert!(repo.find_by_type("nonexistent").await.unwrap().is_none());
+        assert_eq!(page.lang, "de");
+        assert!(repo.find_by_type_and_lang("nonexistent", "de").await.unwrap().is_none());
     }
 
     #[tokio::test]
     async fn update_page() {
         let repo = test_repo().await;
         repo.seed().await.unwrap();
-        repo.update("imprint", "<p>Test content</p>").await.unwrap();
-        let page = repo.find_by_type("imprint").await.unwrap().unwrap();
-        assert_eq!(page.body_html, "<p>Test content</p>");
+        repo.update("imprint", "de", "<p>Deutsches Impressum</p>").await.unwrap();
+        let de = repo.find_by_type_and_lang("imprint", "de").await.unwrap().unwrap();
+        assert_eq!(de.body_html, "<p>Deutsches Impressum</p>");
+
+        // EN should still be empty
+        let en = repo.find_by_type_and_lang("imprint", "en").await.unwrap().unwrap();
+        assert!(en.body_html.is_empty());
+    }
+
+    #[tokio::test]
+    async fn has_any_content_works() {
+        let repo = test_repo().await;
+        repo.seed().await.unwrap();
+        assert!(!repo.has_any_content("imprint").await.unwrap());
+
+        repo.update("imprint", "en", "<p>English imprint</p>").await.unwrap();
+        assert!(repo.has_any_content("imprint").await.unwrap());
     }
 }

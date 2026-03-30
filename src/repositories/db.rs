@@ -105,16 +105,20 @@ async fn run_migrations(pool: &SqlitePool) {
         )",
         "CREATE TABLE IF NOT EXISTS email_templates (
             id              TEXT PRIMARY KEY,
-            template_type   TEXT NOT NULL UNIQUE,
+            template_type   TEXT NOT NULL,
+            lang            TEXT NOT NULL DEFAULT 'de',
             subject         TEXT NOT NULL,
             body_html       TEXT NOT NULL,
-            updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+            updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(template_type, lang)
         )",
         "CREATE TABLE IF NOT EXISTS legal_pages (
             id              TEXT PRIMARY KEY,
-            page_type       TEXT NOT NULL UNIQUE,
+            page_type       TEXT NOT NULL,
+            lang            TEXT NOT NULL DEFAULT 'de',
             body_html       TEXT NOT NULL DEFAULT '',
-            updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+            updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(page_type, lang)
         )",
     ];
 

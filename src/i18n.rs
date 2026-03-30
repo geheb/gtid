@@ -176,6 +176,17 @@ pub struct I18n {
     pub csrf_token_invalid: String,
     pub confirm_delete: String,
     pub copied: String,
+
+    pub language_label: String,
+    pub language_de: String,
+    pub language_en: String,
+
+    pub email_default_confirm_registration_subject: String,
+    pub email_default_confirm_registration_body: String,
+    pub email_default_change_email_subject: String,
+    pub email_default_change_email_body: String,
+    pub email_default_reset_password_subject: String,
+    pub email_default_reset_password_body: String,
 }
 
 impl I18n {
@@ -400,6 +411,15 @@ fn resolve_i18n(bundle: &FluentBundle<FluentResource>) -> Result<I18n, String> {
         csrf_token_invalid,
         confirm_delete,
         copied,
+        language_label,
+        language_de,
+        language_en,
+        email_default_confirm_registration_subject,
+        email_default_confirm_registration_body,
+        email_default_change_email_subject,
+        email_default_change_email_body,
+        email_default_reset_password_subject,
+        email_default_reset_password_body,
     )
 }
 

@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 pub struct LegalPage {
     pub id: String,
     pub page_type: String,
+    pub lang: String,
     pub body_html: String,
     pub updated_at: String,
 }

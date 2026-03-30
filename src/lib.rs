@@ -131,7 +131,7 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16) {
 
     seed_admin(&users, &config).await;
     config.admin_password = String::new();
-    email_templates.seed().await.expect("Failed to seed email templates");
+    email_templates.seed(&locales).await.expect("Failed to seed email templates");
     legal_pages.seed().await.expect("Failed to seed legal pages");
 
     let initial_clients = clients.list().await.unwrap_or_default();

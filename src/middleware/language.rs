@@ -3,7 +3,7 @@ use axum::{
     http::{header, request::Parts},
 };
 
-const SUPPORTED: &[&str] = &["de", "en"];
+pub const SUPPORTED_LANGS: &[&str] = &["de", "en"];
 const DEFAULT_LANG: &str = "de";
 
 pub struct Lang {
@@ -36,7 +36,7 @@ fn negotiate(header: &str) -> String {
                 (entry, 1000)
             };
             let primary = lang.split('-').next().unwrap_or(lang);
-            if SUPPORTED.contains(&primary) {
+            if SUPPORTED_LANGS.contains(&primary) {
                 Some((primary, q))
             } else {
                 None

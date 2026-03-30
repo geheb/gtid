@@ -16,9 +16,16 @@
             <h1>{{ t.legal_page_edit_title }}: {% if page_type == "imprint" %}{{ t.legal_imprint_title }}{% elif page_type == "privacy" %}{{ t.legal_privacy_title }}{% endif %}</h1>
         </div>
         <div class="content">
+            <div class="lang-switcher">
+                <span class="lang-switcher-label">{{ t.language_label }}:</span>
+                {% for sl in supported_langs %}
+                <a href="/admin/legal-pages/{{ page_type }}/edit?lang={{ sl }}" class="lang-tab {% if sl == edit_lang %}lang-tab-active{% endif %}">{% if sl == "de" %}{{ t.language_de }}{% elif sl == "en" %}{{ t.language_en }}{% else %}{{ sl | upper }}{% endif %}</a>
+                {% endfor %}
+            </div>
             <div class="card">
                 <form method="POST" action="/admin/legal-pages/{{ page_type }}/edit">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="edit_lang" value="{{ edit_lang }}">
 
                     <div class="form-group">
                         <textarea id="body_html" name="body_html" class="hidden">{{ body_html }}</textarea>

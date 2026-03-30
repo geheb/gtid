@@ -15,7 +15,6 @@
                     <thead>
                         <tr>
                             <th>Typ</th>
-                            <th>{{ t.email_template_subject }}</th>
                             <th>{{ t.email_template_updated }}</th>
                             <th class="col-actions"></th>
                         </tr>
@@ -34,7 +33,6 @@
                                     {{ tpl.template_type }}
                                 {% endif %}
                             </td>
-                            <td>{{ tpl.subject }}</td>
                             <td><span class="utc-time" data-utc="{{ tpl.updated_at }}">{{ tpl.updated_at }}</span></td>
                             <td>
                                 <div class="action-group">

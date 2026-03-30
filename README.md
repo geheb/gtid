@@ -42,6 +42,8 @@ GT Id is the alternative when you don't need any of that: a single binary, one S
 - **email_verified claim** - included in ID token per OIDC Core
 - **Security event logging** - structured tracing for failed logins, lockouts, token replay, admin operations
 - **Redirect URI validation** - only http/https schemes allowed on client creation
+- **i18n (DE/EN)** - UI language auto-detected from `Accept-Language` header, powered by Mozilla Project Fluent
+- **Per-language content** - email templates and legal pages (imprint, privacy) editable per language in the admin panel, public pages served in the visitor's language with German fallback
 
 ## What it doesn't do (by design)
 

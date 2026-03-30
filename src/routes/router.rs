@@ -78,6 +78,10 @@ pub fn build_ui_router() -> Router<Arc<AppState>> {
             get(ui::user_edit_form).post(ui::user_edit_submit),
         )
         .route("/admin/users/{id}/delete", axum::routing::post(ui::user_delete))
+        .route("/favicon.ico", get(ui::static_files::favicon_ico))
+        .route("/favicon.svg", get(ui::static_files::favicon_svg))
+        .route("/apple-touch-icon.png", get(ui::static_files::apple_touch_icon))
+        .route("/apple-touch-icon-precomposed.png", get(ui::static_files::apple_touch_icon_precomposed))
         .route("/imprint", get(ui::legal::imprint))
         .route("/privacy", get(ui::legal::privacy))
         .route("/admin/email-templates", get(ui::email_templates_list))

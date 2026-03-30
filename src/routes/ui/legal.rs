@@ -1,21 +1,32 @@
 use axum::{
     body::Bytes,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     response::{Html, IntoResponse, Response},
 };
+use serde::Deserialize;
 use std::sync::Arc;
 use tera::Context;
 use tower_cookies::Cookies;
 
 use crate::errors::AppError;
 use crate::middleware::csrf::{self, CsrfToken};
-use crate::middleware::language::Lang;
+use crate::middleware::language::{Lang, SUPPORTED_LANGS};
 use crate::middleware::session::AdminUser;
 use crate::models::legal_page::LegalPageType;
 use crate::routes::ctx::{LegalCtx, LegalEditCtx, LegalListCtx};
 use crate::AppState;
 
 use super::{get_field, parse_form_fields, redirect};
+
+#[derive(Deserialize)]
+pub struct EditLangQuery {
+    #[serde(default = "default_lang")]
+    pub lang: String,
+}
+
+fn default_lang() -> String {
+    "de".to_string()
+}
 
 // ── Public routes ────────────────────────────────────────────────────────────
 
@@ -28,12 +39,19 @@ pub async fn privacy(State(state): State<Arc<AppState>>, lang: Lang) -> Result<R
 }
 
 async fn render_public(state: &AppState, page_type: &str, title: &str, lang: &str) -> Result<Response, AppError> {
-    let page = state.legal_pages.find_by_type(page_type).await?
-        .ok_or_else(|| AppError::NotFound("Page not found".into()))?;
+    // Try the visitor's language first, then fall back to "de"
+    let page = state.legal_pages.find_by_type_and_lang(page_type, lang).await?
+        .filter(|p| !p.body_html.trim().is_empty());
 
-    if page.body_html.trim().is_empty() {
+    let page = if let Some(p) = page {
+        p
+    } else if lang != "de" {
+        state.legal_pages.find_by_type_and_lang(page_type, "de").await?
+            .filter(|p| !p.body_html.trim().is_empty())
+            .ok_or_else(|| AppError::NotFound("Page not found".into()))?
+    } else {
         return Err(AppError::NotFound("Page not found".into()));
-    }
+    };
 
     let ctx = Context::from_serialize(LegalCtx {
         t: state.locales.get(lang),
@@ -55,7 +73,7 @@ pub async fn legal_pages_list(
     csrf: CsrfToken,
     lang: Lang,
 ) -> Result<Response, AppError> {
-    let pages = state.legal_pages.list().await?;
+    let pages = state.legal_pages.list_by_lang("de").await?;
     let ctx = Context::from_serialize(LegalListCtx {
         t: state.locales.get(&lang.tag),
         lang: &lang.tag,
@@ -64,6 +82,7 @@ pub async fn legal_pages_list(
         active_page: "legal_pages",
         csrf_token: &csrf.form_token,
         pages: &pages,
+        supported_langs: SUPPORTED_LANGS,
     })?;
     let rendered = state.tera.render("admin/legal_pages.html", &ctx)?;
     Ok(Html(rendered).into_response())
@@ -73,13 +92,20 @@ pub async fn legal_page_edit_form(
     State(state): State<Arc<AppState>>,
     _admin: AdminUser,
     Path(page_type): Path<String>,
+    Query(query): Query<EditLangQuery>,
     csrf: CsrfToken,
     lang: Lang,
 ) -> Result<Response, AppError> {
+    let edit_lang = &query.lang;
+
     LegalPageType::from_str(&page_type)
         .ok_or_else(|| AppError::NotFound("Page type not found".into()))?;
 
-    let page = state.legal_pages.find_by_type(&page_type).await?
+    if !SUPPORTED_LANGS.contains(&edit_lang.as_str()) {
+        return Err(AppError::NotFound("Unsupported language".into()));
+    }
+
+    let page = state.legal_pages.find_by_type_and_lang(&page_type, edit_lang).await?
         .ok_or_else(|| AppError::NotFound("Page not found".into()))?;
 
     let (quill_js_hash, quill_css_hash, editor_js_hash) =
@@ -93,6 +119,8 @@ pub async fn legal_page_edit_form(
         active_page: "legal_pages",
         csrf_token: &csrf.form_token,
         page_type: &page_type,
+        edit_lang,
+        supported_langs: SUPPORTED_LANGS,
         body_html: &page.body_html,
         quill_js_hash,
         quill_css_hash,
@@ -115,13 +143,18 @@ pub async fn legal_page_edit_submit(
 
     let fields = parse_form_fields(&body);
     let csrf_token = get_field(&fields, "csrf_token");
+    let edit_lang = get_field(&fields, "edit_lang");
     let body_html = get_field(&fields, "body_html");
+
+    if !SUPPORTED_LANGS.contains(&edit_lang.as_str()) {
+        return Err(AppError::NotFound("Unsupported language".into()));
+    }
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
         return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
     }
 
-    state.legal_pages.update(&page_type, &body_html).await?;
+    state.legal_pages.update(&page_type, &edit_lang, &body_html).await?;
 
     Ok(redirect("/admin/legal-pages"))
 }

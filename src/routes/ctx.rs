@@ -115,6 +115,7 @@ pub struct EmailTemplatesListCtx<'a> {
     pub active_page: &'a str,
     pub csrf_token: &'a str,
     pub templates: &'a [EmailTemplate],
+    pub supported_langs: &'a [&'a str],
 }
 
 #[derive(Serialize)]
@@ -126,6 +127,8 @@ pub struct EmailTemplateEditCtx<'a> {
     pub active_page: &'a str,
     pub csrf_token: &'a str,
     pub template_type: &'a str,
+    pub edit_lang: &'a str,
+    pub supported_langs: &'a [&'a str],
     pub subject: &'a str,
     pub body_html: &'a str,
     pub variables: Vec<&'static str>,
@@ -172,6 +175,8 @@ pub struct LegalEditCtx<'a> {
     pub active_page: &'a str,
     pub csrf_token: &'a str,
     pub page_type: &'a str,
+    pub edit_lang: &'a str,
+    pub supported_langs: &'a [&'a str],
     pub body_html: &'a str,
     pub quill_js_hash: String,
     pub quill_css_hash: String,
@@ -187,6 +192,7 @@ pub struct LegalListCtx<'a> {
     pub active_page: &'a str,
     pub csrf_token: &'a str,
     pub pages: &'a [crate::models::legal_page::LegalPage],
+    pub supported_langs: &'a [&'a str],
 }
 
 // ── OAuth2 authorize ──────────────────────────────────────────────────────────

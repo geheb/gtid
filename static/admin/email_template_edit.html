@@ -16,9 +16,16 @@
             <h1>{{ t.email_template_edit_title }}</h1>
         </div>
         <div class="content">
+            <div class="lang-switcher">
+                <span class="lang-switcher-label">{{ t.language_label }}:</span>
+                {% for sl in supported_langs %}
+                <a href="/admin/email-templates/{{ template_type }}/edit?lang={{ sl }}" class="lang-tab {% if sl == edit_lang %}lang-tab-active{% endif %}">{% if sl == "de" %}{{ t.language_de }}{% elif sl == "en" %}{{ t.language_en }}{% else %}{{ sl | upper }}{% endif %}</a>
+                {% endfor %}
+            </div>
             <div class="card">
                 <form method="POST" action="/admin/email-templates/{{ template_type }}/edit">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <input type="hidden" name="edit_lang" value="{{ edit_lang }}">
 
                     <div class="form-group">
                         <label for="subject">{{ t.email_template_subject }}</label>
