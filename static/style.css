@@ -15,7 +15,7 @@
     --color-success-bg: #f0fdf4;
     --color-success-text: #166534;
     --color-success-border: #bbf7d0;
-    --font-primary: Segoe UI,Roboto,Oxygen,Ubuntu,Helvetica Neue,Helvetica,Arial,sans-serif;
+    --font-primary: "Segoe UI",Roboto,Oxygen,Ubuntu,"Helvetica Neue",Helvetica,Arial,sans-serif;
     --radius: 8px;
     --radius-lg: 10px;
     --radius-xl: 12px;
@@ -233,10 +233,9 @@ body { font-family: var(--font-primary); background: var(--color-bg); color: var
 }
 .centered-card h1 { font-size: 1.5rem; font-weight: 700; color: var(--color-text-dark); margin-bottom: 0.25rem; }
 .centered-card .subtitle { font-size: 0.875rem; color: var(--color-text-muted); margin-bottom: 1.5rem; }
-.centered-card .logo { font-size: 1.75rem; font-weight: 800; color: var(--color-primary); letter-spacing: 1px; margin-bottom: 1.5rem; }
+.centered-card .logo, .page-card .logo { font-size: 1.75rem; font-weight: 800; color: var(--color-primary); letter-spacing: 1px; margin-bottom: 1.5rem; }
 
 .page-card { padding: 2.5rem; width: 100%; }
-.page-card .logo { font-size: 1.75rem; font-weight: 800; color: var(--color-primary); letter-spacing: 1px; margin-bottom: 1.5rem; }
 
 /* --- Alert --- */
 .alert { padding: 0.75rem 1rem; border-radius: var(--radius); font-size: 0.875rem; margin-bottom: 1rem; }
@@ -301,6 +300,5 @@ body { font-family: var(--font-primary); background: var(--color-bg); color: var
 }
 .toast-visible { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-/* --- Utilities --- */
 .hidden { display: none; }
 .editor-area { min-height: 250px; }
