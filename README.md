@@ -11,6 +11,7 @@ Your options:
 - **Authentik** - Python, Redis, PostgreSQL, Docker Compose with five services. Nice UI, but you just wanted login.
 - **Zitadel** - Go, CockroachDB. Enterprise features you'll never need.
 - **Auth0/Clerk** - Cloud, vendor lock-in, costs from user X.
+- and many others
 
 GT Id is the alternative when you don't need any of that: a single binary, one SQLite file, one `.env`. Done. Multiple clients are managed through the admin panel.
 
