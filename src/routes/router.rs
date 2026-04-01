@@ -1,9 +1,4 @@
-use axum::{
-    http::{header, StatusCode},
-    response::IntoResponse,
-    routing::get,
-    Router,
-};
+use axum::{routing::get, Router};
 use std::sync::Arc;
 
 use crate::AppState;
@@ -45,9 +40,8 @@ pub fn build_api_router() -> Router<Arc<AppState>> {
 
 pub fn build_ui_router() -> Router<Arc<AppState>> {
     Router::new()
-        .route("/", get(|| async {
-            (StatusCode::SEE_OTHER, [(header::LOCATION, "/login")]).into_response()
-        }))
+        .route("/", get(ui::root_redirect))
+        .route("/setup", get(ui::setup_form).post(ui::setup_submit))
         .route("/static/{*path}", get(ui::static_files::serve))
         .route("/login", get(api::auth::login_page).post(api::auth::login_submit))
         .route("/logout", axum::routing::post(api::auth::logout).get(api::auth::rp_initiated_logout))

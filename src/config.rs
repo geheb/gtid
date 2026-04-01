@@ -1,14 +1,12 @@
 use std::env;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AppConfig {
     pub issuer_uri: String,
     pub public_ui_uri: String,
     pub ui_listen_port: u16,
     pub api_listen_port: u16,
     pub database_uri: String,
-    pub admin_email: String,
-    pub admin_password: String,
     pub roles: Vec<String>,
     pub lockout_max_attempts: u32,
     pub lockout_duration_secs: u64,
@@ -41,8 +39,6 @@ impl AppConfig {
                 .unwrap_or(3000),
             database_uri: get("DATABASE_URI")
                 .unwrap_or_else(|| "sqlite:gtid.db".into()),
-            admin_email: get("ADMIN_EMAIL").expect("ADMIN_EMAIL must be set"),
-            admin_password: get("ADMIN_PASSWORD").expect("ADMIN_PASSWORD must be set"),
             roles: {
                 let mut roles = vec!["admin".to_string()];
                 if let Some(val) = get("ROLES") {
@@ -102,33 +98,6 @@ impl AppConfig {
     }
 }
 
-impl std::fmt::Debug for AppConfig {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AppConfig")
-            .field("issuer_uri", &self.issuer_uri)
-            .field("public_ui_uri", &self.public_ui_uri)
-            .field("ui_listen_port", &self.ui_listen_port)
-            .field("api_listen_port", &self.api_listen_port)
-            .field("database_uri", &"[REDACTED]")
-            .field("admin_email", &self.admin_email)
-            .field("admin_password", &"[REDACTED]")
-            .field("roles", &self.roles)
-            .field("lockout_max_attempts", &self.lockout_max_attempts)
-            .field("lockout_duration_secs", &self.lockout_duration_secs)
-            .field("secure_cookies", &self.secure_cookies)
-            .field("session_lifetime_secs", &self.session_lifetime_secs)
-            .field("allowed_grant_types", &self.allowed_grant_types)
-            .field("key_rotation_interval_secs", &self.key_rotation_interval_secs)
-            .field("cors_allowed_origins", &self.cors_allowed_origins)
-            .field("max_request_body_bytes", &self.max_request_body_bytes)
-            .field("trusted_proxies", &self.trusted_proxies)
-            .field("access_token_expiry_secs", &self.access_token_expiry_secs)
-            .field("id_token_expiry_secs", &self.id_token_expiry_secs)
-            .field("refresh_token_expiry_days", &self.refresh_token_expiry_days)
-            .finish()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -140,7 +109,7 @@ mod tests {
     }
 
     fn minimal() -> AppConfig {
-        config_from(&[("ADMIN_EMAIL", "a@b.c"), ("ADMIN_PASSWORD", "secret")])
+        config_from(&[])
     }
 
     #[test]
@@ -167,21 +136,8 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "ADMIN_EMAIL must be set")]
-    fn missing_admin_email_panics() {
-        config_from(&[("ADMIN_PASSWORD", "secret")]);
-    }
-
-    #[test]
-    #[should_panic(expected = "ADMIN_PASSWORD must be set")]
-    fn missing_admin_password_panics() {
-        config_from(&[("ADMIN_EMAIL", "a@b.c")]);
-    }
-
-    #[test]
     fn custom_ports() {
         let c = config_from(&[
-            ("ADMIN_EMAIL", "a@b.c"), ("ADMIN_PASSWORD", "s"),
             ("API_LISTEN_PORT", "8080"), ("UI_LISTEN_PORT", "9090"),
         ]);
         assert_eq!(c.api_listen_port, 8080);
@@ -191,7 +147,6 @@ mod tests {
     #[test]
     fn invalid_port_falls_back_to_default() {
         let c = config_from(&[
-            ("ADMIN_EMAIL", "a@b.c"), ("ADMIN_PASSWORD", "s"),
             ("API_LISTEN_PORT", "not_a_number"),
         ]);
         assert_eq!(c.api_listen_port, 3000);
@@ -200,7 +155,6 @@ mod tests {
     #[test]
     fn roles_always_includes_admin() {
         let c = config_from(&[
-            ("ADMIN_EMAIL", "a@b.c"), ("ADMIN_PASSWORD", "s"),
             ("ROLES", "editor,viewer"),
         ]);
         assert_eq!(c.roles, vec!["admin", "editor", "viewer"]);
@@ -209,7 +163,6 @@ mod tests {
     #[test]
     fn roles_deduplicates_admin() {
         let c = config_from(&[
-            ("ADMIN_EMAIL", "a@b.c"), ("ADMIN_PASSWORD", "s"),
             ("ROLES", "Admin,editor"),
         ]);
         assert_eq!(c.roles, vec!["admin", "editor"]);
@@ -218,7 +171,6 @@ mod tests {
     #[test]
     fn roles_trims_whitespace_and_lowercases() {
         let c = config_from(&[
-            ("ADMIN_EMAIL", "a@b.c"), ("ADMIN_PASSWORD", "s"),
             ("ROLES", " Editor , VIEWER "),
         ]);
         assert_eq!(c.roles, vec!["admin", "editor", "viewer"]);
@@ -227,7 +179,6 @@ mod tests {
     #[test]
     fn roles_ignores_empty_segments() {
         let c = config_from(&[
-            ("ADMIN_EMAIL", "a@b.c"), ("ADMIN_PASSWORD", "s"),
             ("ROLES", "editor,,, ,viewer"),
         ]);
         assert_eq!(c.roles, vec!["admin", "editor", "viewer"]);
@@ -237,8 +188,7 @@ mod tests {
     fn secure_cookies_variants() {
         let check = |val: &str, expected: bool| {
             let c = config_from(&[
-                ("ADMIN_EMAIL", "a@b.c"), ("ADMIN_PASSWORD", "s"),
-                ("SECURE_COOKIES", val),
+                    ("SECURE_COOKIES", val),
             ]);
             assert_eq!(c.secure_cookies, expected, "SECURE_COOKIES={val}");
         };
@@ -252,7 +202,6 @@ mod tests {
     #[test]
     fn grant_type_allowed_checks_list() {
         let c = config_from(&[
-            ("ADMIN_EMAIL", "a@b.c"), ("ADMIN_PASSWORD", "s"),
             ("ALLOWED_GRANT_TYPES", "authorization_code"),
         ]);
         assert!(c.grant_type_allowed("authorization_code"));
@@ -262,7 +211,6 @@ mod tests {
     #[test]
     fn custom_lockout_settings() {
         let c = config_from(&[
-            ("ADMIN_EMAIL", "a@b.c"), ("ADMIN_PASSWORD", "s"),
             ("LOCKOUT_MAX_ATTEMPTS", "5"), ("LOCKOUT_DURATION_SECS", "7200"),
         ]);
         assert_eq!(c.lockout_max_attempts, 5);
@@ -272,7 +220,6 @@ mod tests {
     #[test]
     fn custom_session_lifetime() {
         let c = config_from(&[
-            ("ADMIN_EMAIL", "a@b.c"), ("ADMIN_PASSWORD", "s"),
             ("SESSION_LIFETIME_SECS", "3600"),
         ]);
         assert_eq!(c.session_lifetime_secs, 3600);
@@ -281,7 +228,6 @@ mod tests {
     #[test]
     fn custom_key_rotation_interval() {
         let c = config_from(&[
-            ("ADMIN_EMAIL", "a@b.c"), ("ADMIN_PASSWORD", "s"),
             ("KEY_ROTATION_INTERVAL_SECS", "43200"),
         ]);
         assert_eq!(c.key_rotation_interval_secs, 43200);
@@ -290,7 +236,6 @@ mod tests {
     #[test]
     fn cors_allowed_origins_parsed() {
         let c = config_from(&[
-            ("ADMIN_EMAIL", "a@b.c"), ("ADMIN_PASSWORD", "s"),
             ("CORS_ALLOWED_ORIGINS", "https://app.example.com, https://other.example.com"),
         ]);
         assert_eq!(c.cors_allowed_origins, vec!["https://app.example.com", "https://other.example.com"]);
@@ -305,7 +250,6 @@ mod tests {
     #[test]
     fn trusted_proxies_enabled() {
         let c = config_from(&[
-            ("ADMIN_EMAIL", "a@b.c"), ("ADMIN_PASSWORD", "s"),
             ("TRUSTED_PROXIES", "true"),
         ]);
         assert!(c.trusted_proxies);
@@ -314,7 +258,6 @@ mod tests {
     #[test]
     fn custom_token_expiry() {
         let c = config_from(&[
-            ("ADMIN_EMAIL", "a@b.c"), ("ADMIN_PASSWORD", "s"),
             ("ACCESS_TOKEN_EXPIRY_SECS", "300"),
             ("ID_TOKEN_EXPIRY_SECS", "120"),
             ("REFRESH_TOKEN_EXPIRY_DAYS", "7"),
@@ -327,7 +270,6 @@ mod tests {
     #[test]
     fn custom_max_request_body_bytes() {
         let c = config_from(&[
-            ("ADMIN_EMAIL", "a@b.c"), ("ADMIN_PASSWORD", "s"),
             ("MAX_REQUEST_BODY_BYTES", "131072"),
         ]);
         assert_eq!(c.max_request_body_bytes, 131072);

@@ -22,45 +22,31 @@ pub enum PasswordError {
     TooWeak,
 }
 
-impl std::fmt::Display for PasswordError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::TooShort => write!(f, "too short"),
-            Self::NoUppercase => write!(f, "missing uppercase letter"),
-            Self::NoLowercase => write!(f, "missing lowercase letter"),
-            Self::TooFewDigits => write!(f, "requires at least 2 digits"),
-            Self::TooFewSpecial => write!(f, "requires at least 2 special characters"),
-            Self::TooWeak => write!(f, "too weak or too common"),
-        }
+
+pub fn validate_password_strength(password: &str) -> Result<(), PasswordError> {
+    if password.len() < 10 {
+        return Err(PasswordError::TooShort);
     }
+    if !password.chars().any(|c| c.is_ascii_uppercase()) {
+        return Err(PasswordError::NoUppercase);
+    }
+    if !password.chars().any(|c| c.is_ascii_lowercase()) {
+        return Err(PasswordError::NoLowercase);
+    }
+    if password.chars().filter(|c| c.is_ascii_digit()).count() < 1 {
+        return Err(PasswordError::TooFewDigits);
+    }
+    if password.chars().filter(|c| !c.is_alphanumeric()).count() < 1 {
+        return Err(PasswordError::TooFewSpecial);
+    }
+    if password_strength::estimate_strength(password) < 0.7 {
+        return Err(PasswordError::TooWeak);
+    }
+    Ok(())
 }
 
-impl PasswordError {
-    pub fn i18n_key(self) -> &'static str {
-        match self {
-            Self::TooShort => "password_error_too_short",
-            Self::NoUppercase => "password_error_no_uppercase",
-            Self::NoLowercase => "password_error_no_lowercase",
-            Self::TooFewDigits => "password_error_too_few_digits",
-            Self::TooFewSpecial => "password_error_too_few_special",
-            Self::TooWeak => "password_error_too_weak",
-        }
-    }
-
-    pub fn client_secret_i18n_key(self) -> &'static str {
-        match self {
-            Self::TooShort => "secret_error_too_short",
-            Self::NoUppercase => "secret_error_no_uppercase",
-            Self::NoLowercase => "secret_error_no_lowercase",
-            Self::TooFewDigits => "secret_error_too_few_digits",
-            Self::TooFewSpecial => "secret_error_too_few_special",
-            Self::TooWeak => "secret_error_too_weak",
-        }
-    }
-}
-
-pub fn validate_strength(password: &str, min_len: usize) -> Result<(), PasswordError> {
-    if password.len() < min_len {
+pub fn validate_secret_strength(password: &str) -> Result<(), PasswordError> {
+    if password.len() < 16 {
         return Err(PasswordError::TooShort);
     }
     if !password.chars().any(|c| c.is_ascii_uppercase()) {
@@ -106,41 +92,39 @@ pub fn dummy_verify(password: &str) {
 mod tests {
     use super::*;
 
-    // -- validate_strength -------------------------------------------------
-
     #[test]
     fn valid_password() {
-        assert!(validate_strength("Str0ng!!Pass99", 10).is_ok());
+        assert!(validate_password_strength("Str0ng!!Pass99").is_ok());
     }
 
     #[test]
     fn too_short() {
-        assert_eq!(validate_strength("Ab1!x", 10), Err(PasswordError::TooShort));
+        assert_eq!(validate_password_strength("Ab1!x"), Err(PasswordError::TooShort));
     }
 
     #[test]
     fn no_uppercase() {
-        assert_eq!(validate_strength("abcdef12!!", 8), Err(PasswordError::NoUppercase));
+        assert_eq!(validate_password_strength("abcdef12!!"), Err(PasswordError::NoUppercase));
     }
 
     #[test]
     fn no_lowercase() {
-        assert_eq!(validate_strength("ABCDEF12!!", 8), Err(PasswordError::NoLowercase));
+        assert_eq!(validate_password_strength("ABCDEF12!!"), Err(PasswordError::NoLowercase));
     }
 
     #[test]
     fn too_few_digits() {
-        assert_eq!(validate_strength("Abcdefgh!!", 8), Err(PasswordError::TooFewDigits));
+        assert_eq!(validate_password_strength("Abcdefgh!!"), Err(PasswordError::TooFewDigits));
     }
 
     #[test]
     fn too_few_special() {
-        assert_eq!(validate_strength("Abcdefg123", 8), Err(PasswordError::TooFewSpecial));
+        assert_eq!(validate_password_strength("Abcdefg123"), Err(PasswordError::TooFewSpecial));
     }
 
     #[test]
     fn exact_min_len() {
-        assert!(validate_strength("Xk92!m@Zq7", 10).is_ok());
+        assert!(validate_password_strength("Xk92!m@Zq7").is_ok());
     }
 
     // -- hash + verify -----------------------------------------------------

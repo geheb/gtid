@@ -137,6 +137,22 @@ pub struct EmailTemplateEditCtx<'a> {
     pub editor_js_hash: String,
 }
 
+// ── Setup ────────────────────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+pub struct SetupCtx<'a> {
+    pub t: &'a I18n,
+    pub lang: &'a str,
+    pub css_hash: &'a str,
+    pub js_hash: &'a str,
+    pub csrf_token: &'a str,
+    pub error: bool,
+    pub error_message: &'a str,
+    pub form_email: &'a str,
+    pub form_display_name: &'a str,
+    pub form_token: &'a str,
+}
+
 // ── Auth / login ──────────────────────────────────────────────────────────────
 
 #[derive(Serialize)]

@@ -57,7 +57,7 @@ GT Id is the alternative when you don't need any of that: a single binary, one S
 ```bash
 # Create .env (see Configuration)
 nano .env
-# Adjust: ADMIN_EMAIL, ADMIN_PASSWORD, PUBLIC_UI_URI
+# Adjust: PUBLIC_UI_URI, SECURE_COOKIES, etc.
 
 # Start
 cargo run
@@ -65,7 +65,8 @@ cargo run
 # UI:  http://localhost:3001 (Login, Consent, Admin)
 # API: http://localhost:3000 (OIDC endpoints)
 
-# Create a client in the admin panel: http://localhost:3001/admin/clients/create
+# On first launch, open http://localhost:3001 to create the initial admin account.
+# Then create a client in the admin panel: http://localhost:3001/admin/clients/create
 ```
 
 ## OIDC Endpoints
@@ -90,8 +91,6 @@ cargo run
 | `API_LISTEN_PORT` | Port for API (OIDC) | `3000` |
 | `UI_LISTEN_PORT` | Port for UI (Login, Admin) | `3001` |
 | `DATABASE_URI` | SQLite path | `sqlite:gtid.db` |
-| `ADMIN_EMAIL` | Initial admin account | *Required* |
-| `ADMIN_PASSWORD` | Initial admin password | *Required* |
 | `ROLES` | Comma-separated roles | `member` |
 | `LOCKOUT_MAX_ATTEMPTS` | Failed attempts before lockout | `3` |
 | `LOCKOUT_DURATION_SECS` | Lockout duration in seconds | `3600` |

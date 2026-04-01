@@ -1,6 +1,6 @@
 use axum::{
     extract::{ConnectInfo, Query, State},
-    http::{header, StatusCode},
+    http::StatusCode,
     response::{Html, IntoResponse, Response},
 };
 use serde::Deserialize;
@@ -16,6 +16,7 @@ use crate::middleware::language::Lang;
 use crate::middleware::session::OptionalSessionUser;
 use crate::models::client::Client;
 use crate::routes::ctx::{AuthorizeCtx, ErrorCtx};
+use crate::routes::ui::redirect;
 use crate::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -60,7 +61,7 @@ pub async fn authorize_get(
             let rid = state.pending_redirects.store(redirect_url)
                 .ok_or_else(|| AppError::Internal("Server overloaded, please try again".into()))?;
             let login_url = format!("/login?rid={rid}");
-            return Ok((StatusCode::SEE_OTHER, [(header::LOCATION, login_url)]).into_response());
+            return Ok(redirect(&login_url));
         }
     };
 
@@ -93,7 +94,7 @@ pub async fn authorize_get(
         if let Some(ref s) = params.state {
             redirect_url.push_str(&format!("&state={}", crate::routes::urlencoding(s)));
         }
-        return Ok((StatusCode::SEE_OTHER, [(header::LOCATION, redirect_url)]).into_response());
+        return Ok(redirect(&redirect_url));
     }
 
     // No grant → render the consent page
@@ -202,12 +203,12 @@ pub async fn authorize_post(
         let state_encoded = form.state.as_deref()
             .map(|s| crate::routes::urlencoding(s))
             .unwrap_or_default();
-        let redirect = format!(
+        let deny_url = format!(
             "{}?error=access_denied&state={}",
             form.redirect_uri,
             state_encoded
         );
-        return Ok((StatusCode::SEE_OTHER, [(header::LOCATION, redirect)]).into_response());
+        return Ok(redirect(&deny_url));
     }
 
     let code = crate::crypto::id::new_id();
@@ -239,7 +240,7 @@ pub async fn authorize_post(
         redirect_url.push_str(&format!("&state={}", crate::routes::urlencoding(s)));
     }
 
-    Ok((StatusCode::SEE_OTHER, [(header::LOCATION, redirect_url)]).into_response())
+    Ok(redirect(&redirect_url))
 }
 
 async fn validate_authorize_params(params: &AuthorizeParams, state: &AppState) -> Result<Client, String> {

@@ -12,7 +12,7 @@ async fn main() {
 
     tracing::info!("Starting GT Id - UI on localhost:{}, API on localhost:{}", config.ui_listen_port, config.api_listen_port);
 
-    gtid::start_server(config).await;
+    let _ = gtid::start_server(config).await;
 
     // Keep the main task alive forever
     std::future::pending::<()>().await;

@@ -1,20 +1,17 @@
 use axum::{
     extract::FromRequestParts,
-    http::{header, request::Parts, StatusCode},
-    response::{IntoResponse, Response},
+    http::request::Parts,
+    response::Response,
 };
 use std::sync::Arc;
 use tower_cookies::Cookies;
 
 use crate::errors::AppError;
 use crate::models::user::User;
+use crate::routes::ui::redirect;
 
 fn login_redirect() -> Response {
-    (
-        StatusCode::SEE_OTHER,
-        [(header::LOCATION, "/login")],
-    )
-        .into_response()
+    redirect("/login")
 }
 
 /// Extracts the current session user from the session cookie.

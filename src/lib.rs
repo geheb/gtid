@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
 
 use axum::extract::ConnectInfo;
@@ -58,6 +59,8 @@ pub struct AppState {
     pub css_hash: String,
     pub js_hash: String,
     pub csp: Arc<std::sync::RwLock<String>>,
+    pub setup_needed: Arc<AtomicBool>,
+    pub setup_token: Option<String>,
 }
 
 
@@ -65,7 +68,7 @@ pub struct AppState {
 /// Returns the actual (api_port, ui_port) the listeners bound to.
 /// The server runs in background tokio tasks and will keep running
 /// as long as the tokio runtime is alive.
-pub async fn start_server(mut config: AppConfig) -> (u16, u16) {
+pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
     // Bind listeners first so we know actual ports (important when port=0)
     let api_addr = format!("127.0.0.1:{}", config.api_listen_port);
     let ui_addr = format!("127.0.0.1:{}", config.ui_listen_port);
@@ -116,6 +119,7 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16) {
         ("legal.html", include_str!("../static/legal.html")),
         ("admin/legal_pages.html", include_str!("../static/admin/legal_pages.html")),
         ("admin/legal_page_edit.html", include_str!("../static/admin/legal_page_edit.html")),
+        ("setup.html", include_str!("../static/setup.html")),
     ]).expect("Failed to load embedded templates");
 
     let locales = i18n::build_locales();
@@ -129,8 +133,16 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16) {
     let legal_pages = LegalPageRepository::new(db.clone());
     let refresh_tokens = RefreshTokenRepository::new(db);
 
-    seed_admin(&users, &config).await;
-    config.admin_password = String::new();
+    let has_admin = users.has_admin().await.expect("Failed to check for admin users");
+    let setup_needed = Arc::new(AtomicBool::new(!has_admin));
+    let setup_token = if !has_admin {
+        let token = crypto::id::new_id();
+        tracing::info!(event = "setup_token", token = %token, "No admin user found. Use this token on the setup page.");
+        Some(token)
+    } else {
+        None
+    };
+
     email_templates.seed(&locales).await.expect("Failed to seed email templates");
     legal_pages.seed().await.expect("Failed to seed legal pages");
 
@@ -161,6 +173,8 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16) {
         css_hash,
         js_hash,
         csp,
+        setup_needed,
+        setup_token: setup_token.clone(),
     });
 
     let cors_layer = build_cors_layer(&config.cors_allowed_origins);
@@ -218,7 +232,7 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16) {
         serve_h2c(ui_listener, ui_app).await;
     });
 
-    (actual_api_port, actual_ui_port)
+    (actual_api_port, actual_ui_port, setup_token)
 }
 
 fn build_cors_layer(allowed_origins: &[String]) -> CorsLayer {
@@ -349,24 +363,3 @@ fn validate_issuer_uri(uri: &str) {
     }
 }
 
-async fn seed_admin(users: &UserRepository, config: &AppConfig) {
-    if let Ok(Some(_)) = users.find_by_email(&config.admin_email).await {
-        tracing::info!("Admin user already exists");
-        return;
-    }
-
-    if let Err(e) = crypto::password::validate_strength(&config.admin_password, 10) {
-        panic!("ADMIN_PASSWORD is invalid: {e}");
-    }
-
-    let id = crypto::id::new_id();
-    let hash = crypto::password::hash_password(&config.admin_password)
-        .expect("Failed to hash admin password");
-
-    users
-        .create(&id, &config.admin_email, &hash, Some("Admin"), "admin")
-        .await
-        .expect("Failed to seed admin user");
-
-    tracing::info!("Admin user seeded: {}", config.admin_email);
-}

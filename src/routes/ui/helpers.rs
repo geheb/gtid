@@ -41,12 +41,12 @@ pub fn validate_redirect_uri(uri: &str) -> Result<(), String> {
 }
 
 pub fn validate_password(password: &str, i18n: &crate::i18n::I18n) -> Result<(), String> {
-    crate::crypto::password::validate_strength(password, 10)
+    crate::crypto::password::validate_password_strength(password)
         .map_err(|e| i18n.password_msg(e).to_string())
 }
 
 pub fn validate_client_secret(secret: &str, i18n: &crate::i18n::I18n) -> Result<(), String> {
-    crate::crypto::password::validate_strength(secret, 16)
+    crate::crypto::password::validate_secret_strength(secret)
         .map_err(|e| i18n.secret_msg(e).to_string())
 }
 

@@ -33,6 +33,15 @@ impl UserRepository {
         Ok(())
     }
 
+    pub async fn has_admin(&self) -> Result<bool, sqlx::Error> {
+        let row: Option<(String,)> = sqlx::query_as(
+            "SELECT id FROM users WHERE roles = 'admin' OR roles LIKE 'admin,%' OR roles LIKE '%,admin,%' OR roles LIKE '%,admin' LIMIT 1",
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+        Ok(row.is_some())
+    }
+
     pub async fn find_by_email(&self, email: &str) -> Result<Option<User>, sqlx::Error> {
         sqlx::query_as::<_, User>("SELECT * FROM users WHERE email = ?")
             .bind(email)
@@ -129,6 +138,33 @@ mod tests {
 
     async fn test_repo() -> UserRepository {
         UserRepository::new(crate::repositories::test_helpers::make_pool().await)
+    }
+
+    #[tokio::test]
+    async fn has_admin_empty_db() {
+        let repo = test_repo().await;
+        assert!(!repo.has_admin().await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn has_admin_with_admin_user() {
+        let repo = test_repo().await;
+        repo.create("u1", "a@b.com", "h", None, "admin").await.unwrap();
+        assert!(repo.has_admin().await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn has_admin_with_non_admin_user() {
+        let repo = test_repo().await;
+        repo.create("u1", "a@b.com", "h", None, "member").await.unwrap();
+        assert!(!repo.has_admin().await.unwrap());
+    }
+
+    #[tokio::test]
+    async fn has_admin_with_multiple_roles() {
+        let repo = test_repo().await;
+        repo.create("u1", "a@b.com", "h", None, "member,admin").await.unwrap();
+        assert!(repo.has_admin().await.unwrap());
     }
 
     #[tokio::test]

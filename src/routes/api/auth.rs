@@ -1,10 +1,11 @@
 use axum::{
     extract::{ConnectInfo, Query, State},
-    http::{header, StatusCode},
+    http::StatusCode,
     response::{Html, IntoResponse, Response},
 };
 use serde::Deserialize;
 use std::net::SocketAddr;
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use tera::Context;
 use tower_cookies::cookie::time::Duration;
@@ -17,6 +18,7 @@ use crate::middleware::csrf::{self, CsrfToken};
 use crate::middleware::language::Lang;
 use crate::middleware::session::{OptionalSessionUser, SessionUser};
 use crate::routes::ctx::LoginCtx;
+use crate::routes::ui::redirect;
 use crate::AppState;
 
 /// RP-Initiated Logout per OpenID Connect RP-Initiated Logout 1.0.
@@ -98,7 +100,7 @@ pub async fn rp_initiated_logout(
     }
     cookies.remove(Cookie::from("session"));
 
-    Ok((StatusCode::SEE_OTHER, [(header::LOCATION, redirect_to)]).into_response())
+    Ok(redirect(&redirect_to))
 }
 
 #[derive(Deserialize)]
@@ -124,10 +126,14 @@ pub async fn login_page(
     csrf: CsrfToken,
     lang: Lang,
 ) -> Result<Response, AppError> {
+    if state.setup_needed.load(Ordering::Acquire) {
+        return Ok(redirect("/setup"));
+    }
+
     // Already logged in → redirect to appropriate page
     if let Some(user) = optional_user.0 {
         let target = if user.is_admin() { "/admin" } else { "/profile" };
-        return Ok((StatusCode::SEE_OTHER, [(header::LOCATION, target)]).into_response());
+        return Ok(redirect(target));
     }
 
     let rid = query.rid.as_deref().unwrap_or("");
@@ -271,11 +277,7 @@ pub async fn login_submit(
         }
     };
 
-    Ok((
-        StatusCode::SEE_OTHER,
-        [(header::LOCATION, redirect_to)],
-    )
-        .into_response())
+    Ok(redirect(&redirect_to))
 }
 
 #[derive(Deserialize)]
@@ -302,11 +304,7 @@ pub async fn logout(
 
     cookies.remove(Cookie::from("session"));
 
-    Ok((
-        StatusCode::SEE_OTHER,
-        [(header::LOCATION, "/login")],
-    )
-        .into_response())
+    Ok(redirect("/login"))
 }
 
 async fn has_legal_content(state: &AppState, page_type: &str) -> bool {

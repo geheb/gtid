@@ -29,8 +29,6 @@ impl TestServer {
             ui_listen_port: 0, // random port
             api_listen_port: 0,
             database_uri: format!("sqlite:{}?mode=rwc", db_path),
-            admin_email: ADMIN_EMAIL.to_string(),
-            admin_password: ADMIN_PASSWORD.to_string(),
             roles: vec!["admin".to_string()],
             lockout_max_attempts: 100,
             lockout_duration_secs: 3600,
@@ -46,7 +44,7 @@ impl TestServer {
             refresh_token_expiry_days: 30,
         };
 
-        let (api_port, ui_port) = gtid::start_server(config).await;
+        let (api_port, ui_port, setup_token) = gtid::start_server(config).await;
 
         // Wait for server to be ready
         let client = reqwest::Client::builder()
@@ -67,6 +65,31 @@ impl TestServer {
             }
             tokio::time::sleep(std::time::Duration::from_millis(100)).await;
         }
+
+        // Create initial admin via setup page
+        let setup_page = client
+            .get(format!("http://127.0.0.1:{ui_port}/setup"))
+            .send()
+            .await
+            .unwrap()
+            .text()
+            .await
+            .unwrap();
+        let csrf = extract_csrf(&setup_page).expect("No CSRF token on setup page");
+        let token = setup_token.as_deref().expect("Setup token should be present for fresh DB");
+        let resp = client
+            .post(format!("http://127.0.0.1:{ui_port}/setup"))
+            .form(&[
+                ("setup_token", token),
+                ("email", ADMIN_EMAIL),
+                ("password", ADMIN_PASSWORD),
+                ("display_name", "Admin"),
+                ("csrf_token", csrf.as_str()),
+            ])
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp.status().as_u16(), 303, "Setup should redirect to /login");
 
         Self {
             api_port,

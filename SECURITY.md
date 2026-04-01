@@ -15,7 +15,7 @@ I ask that you show some common decency and empathy by contacting me before taki
 `expect()` is acceptable when failure means a programming error or broken environment - never for anything that depends on user input or runtime state.
 
 **Allowed** (startup/compile-time invariants):
-- Environment config: `get("ADMIN_EMAIL").expect("ADMIN_EMAIL must be set")`
+- Startup checks: `users.has_admin().await.expect("Failed to check for admin users")`
 - Embedded resources: `serde_json::from_str(include_str!(...)).expect(...)`
 - Database setup: migrations, WAL mode, foreign keys
 - Key generation at startup
@@ -174,10 +174,15 @@ The attacker cannot forge the form token because:
 - **Parameters:** 64 MB memory, 3 iterations, 4 parallelism (`crypto/password.rs:8`)
 - **Salt:** Random per hash via `OsRng` - same password produces different hashes
 
-### Password strength validation
+### Password & Secret strength validation
 
-`validate_strength()` enforces before hashing:
-- Minimum length (10 for user passwords, 16 for client secrets)
+`validate_password_strength()` enforces before hashing:
+- Minimum length 10
+- At least 1 uppercase, 1 lowercase, 1 digit, 1 special character
+- Entropy check via `password_strength::estimate_strength() >= 0.7`
+
+`validate_secret_strength()` enforces before hashing:
+- Minimum length 16
 - At least 1 uppercase, 1 lowercase, 2 digits, 2 special characters
 - Entropy check via `password_strength::estimate_strength() >= 0.7`
 
@@ -187,7 +192,7 @@ The attacker cannot forge the form token because:
 - **Hash collision attacks:** Attacker cannot predict bucket distribution without knowing the seed
 - **Cross-restart correlation:** Keys hash differently after restart
 
-**Rule:** Never store passwords or client secrets in plaintext. Always use `hash_password()` from `crypto::password`. Never weaken `validate_strength()` requirements. New in-memory key hashing must use a runtime-random seed, never a fixed one (except in tests).
+**Rule:** Never store passwords or client secrets in plaintext. Always use `hash_password()` from `crypto::password`. Never weaken `validate_password_strength()` or `validate_secret_strength()` requirements. New in-memory key hashing must use a runtime-random seed, never a fixed one (except in tests).
 
 ---
 
@@ -316,10 +321,9 @@ Never include field names, SQL errors, or stack traces in HTTP responses.
 
 Implement `Debug` manually for types that hold secrets. Replace sensitive fields with `[REDACTED]`:
 ```rust
-// config.rs - AppConfig::Debug
-.field("database_uri", &"[REDACTED]")
-.field("admin_password", &"[REDACTED]")
+.field("secret_field", &"[REDACTED]")
 ```
+If a struct has no sensitive fields (like `AppConfig` after removing admin credentials), a derived `#[derive(Debug)]` is sufficient.
 
 **Rule:** Every new log statement must be reviewed for secret leakage. Every new error variant must return a generic message to the client. Every struct holding secrets must implement `Debug` manually with `[REDACTED]` fields.
 

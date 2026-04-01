@@ -1,6 +1,6 @@
 use axum::{
     extract::State,
-    http::{header, StatusCode},
+    http::StatusCode,
     response::{Html, IntoResponse, Response},
 };
 use serde::Deserialize;
@@ -14,6 +14,7 @@ use crate::middleware::csrf::{self, CsrfToken};
 use crate::middleware::language::Lang;
 use crate::middleware::session::SessionUser;
 use crate::routes::ctx::ProfileCtx;
+use crate::routes::ui::redirect;
 use crate::AppState;
 
 #[derive(Deserialize)]
@@ -102,11 +103,7 @@ pub async fn profile_submit(
         .update_display_name(&session_user.0.id, display_name)
         .await?;
 
-    Ok((
-        StatusCode::SEE_OTHER,
-        [(header::LOCATION, "/profile?saved=1".to_string())],
-    )
-        .into_response())
+    Ok(redirect("/profile?saved=1"))
 }
 
 #[derive(Deserialize)]
@@ -162,9 +159,5 @@ pub async fn password_submit(
     let hash = password::hash_password(&form.new_password)?;
     state.users.update_password(&user.id, &hash).await?;
 
-    Ok((
-        StatusCode::SEE_OTHER,
-        [(header::LOCATION, "/profile?pw_saved=1".to_string())],
-    )
-        .into_response())
+    Ok(redirect("/profile?pw_saved=1"))
 }
