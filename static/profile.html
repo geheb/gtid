@@ -5,7 +5,7 @@
 {% block body %}
 <div class="centered">
     <div class="centered-card card-narrow">
-        <div class="logo"><img src="/favicon.svg" alt="" class="logo-icon">Id</div>
+        <div class="logo"><img src="/favicon.svg" alt="GT Id" class="logo-icon">Id</div>
         <h1>{{ t.profile_title }}</h1>
 
         {% if saved %}
@@ -85,8 +85,8 @@
             </div>
 
             <div class="flex-row-mt">
-                <a href="/profile" class="btn btn-secondary flex-1">{{ t.profile_password_cancel }}</a>
                 <button type="submit" class="btn btn-primary flex-1">{{ t.profile_password_submit }}</button>
+                <a href="/profile" class="btn btn-secondary flex-1">{{ t.profile_password_cancel }}</a>
             </div>
         </form>
     </div>

@@ -47,11 +47,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
     document.querySelectorAll("form[method='POST']:not(.no-spinner)").forEach(function (form) {
         form.addEventListener("submit", function () {
-            var btn = form.querySelector("button[type='submit']:focus") || form.querySelector("button[type='submit'].btn-primary") || form.querySelector("button[type='submit']");
-            if (!btn || btn.disabled) return;
-            btn.disabled = true;
-            var label = btn.textContent;
-            btn.innerHTML = '<span class="btn-spinner"></span> ' + label.trim();
+            form.querySelectorAll("button[type='submit']").forEach(function (btn) {
+                btn.disabled = true;
+                var label = btn.textContent;
+                btn.innerHTML = '<span class="btn-spinner"></span> ' + label.trim();
+            });
         });
     });
 
