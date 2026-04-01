@@ -52,7 +52,7 @@
 
         <a href="#change-password" class="btn btn-secondary btn-block mt-1">{{ t.profile_password_title }}</a>
 
-        <form method="POST" action="/logout" class="mt-1">
+        <form method="POST" action="/logout" class="logout-form no-spinner mt-1">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
             <button type="submit" class="btn btn-secondary btn-block">{{ t.sidebar_logout }}</button>
         </form>
