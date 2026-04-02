@@ -188,7 +188,7 @@ The attacker cannot forge the form token because:
 
 ### Keyed hashing for in-memory stores
 
-`TrackedStore` uses `rapidhash_seeded` with a **random seed per process start** for hashing IP/User-Agent keys. This prevents:
+`TrackedStore` uses `RapidHasher` with a **random seed per process start** for hashing IP/User-Agent keys. This prevents:
 - **Hash collision attacks:** Attacker cannot predict bucket distribution without knowing the seed
 - **Cross-restart correlation:** Keys hash differently after restart
 
