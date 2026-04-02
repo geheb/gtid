@@ -1,5 +1,7 @@
 use dashmap::DashMap;
 use rand::Rng;
+use rapidhash::fast::RapidHasher;
+use std::hash::Hasher;
 use std::sync::Arc;
 
 /// Capacity-bounded, hashed-key store backed by DashMap.
@@ -26,7 +28,9 @@ impl<V> TrackedStore<V> {
 
     /// Rapidhash of a single string with the runtime seed.
     pub fn key_str(&self, s: &str) -> u64 {
-        rapidhash::rapidhash_seeded(s.as_bytes(), self.seed)
+        let mut h = RapidHasher::new(self.seed);
+        h.write(s.as_bytes());
+        h.finish()
     }
 
     /// Rapidhash of `prefix|ip|ua` with a runtime seed - returns u64, used as DashMap key.
@@ -38,7 +42,9 @@ impl<V> TrackedStore<V> {
         buf.extend_from_slice(ip.as_bytes());
         buf.push(b'|');
         buf.extend_from_slice(ua.as_bytes());
-        rapidhash::rapidhash_seeded(&buf, self.seed)
+        let mut h = RapidHasher::new(self.seed);
+        h.write(&buf);
+        h.finish()
     }
 
     /// Returns true if inserting `key` is allowed (within capacity or key already tracked).
