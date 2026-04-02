@@ -150,6 +150,8 @@ curl -X POST http://localhost:3000/token \
   -d client_secret=a-secure-secret
 ```
 
+Note: The refresh response returns `access_token`, `refresh_token`, `expires_in` and `scope` but **no `id_token`** (per OIDC spec, `id_token` is only issued on the initial authorization_code exchange).
+
 ### 5. Revoke Token (RFC 7009)
 
 ```bash
