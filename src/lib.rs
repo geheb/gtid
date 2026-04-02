@@ -97,7 +97,18 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
     tracing::info!("API listening on 127.0.0.1:{actual_api_port}");
     tracing::info!("UI listening on 127.0.0.1:{actual_ui_port}");
 
-    let db = repositories::db::init_pool(&config.database_uri).await;
+    let users_db = repositories::db::init_pool(&config.database_uri_users).await;
+    repositories::db::run_users_migrations(&users_db).await;
+
+    let clients_db = repositories::db::init_pool(&config.database_uri_clients).await;
+    repositories::db::run_clients_migrations(&clients_db).await;
+
+    let emails_db = repositories::db::init_pool(&config.database_uri_emails).await;
+    repositories::db::run_emails_migrations(&emails_db).await;
+
+    let config_db = repositories::db::init_pool(&config.database_uri_config).await;
+    repositories::db::run_config_migrations(&config_db).await;
+
     let key_store = Arc::new(crypto::keys::generate_keys().expect("Failed to generate initial keys"));
     let mut tera = tera::Tera::default();
     tera.add_raw_templates(vec![
@@ -124,14 +135,16 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
 
     let locales = i18n::build_locales();
 
-    let users = UserRepository::new(db.clone());
-    let clients = ClientRepository::new(db.clone());
-    let sessions = SessionRepository::new(db.clone());
-    let auth_codes = AuthCodeRepository::new(db.clone());
-    let consents = ConsentRepository::new(db.clone());
-    let email_templates = EmailTemplateRepository::new(db.clone());
-    let legal_pages = LegalPageRepository::new(db.clone());
-    let refresh_tokens = RefreshTokenRepository::new(db);
+    let users = UserRepository::new(users_db.clone());
+    let sessions = SessionRepository::new(users_db);
+
+    let clients = ClientRepository::new(clients_db.clone());
+    let auth_codes = AuthCodeRepository::new(clients_db.clone());
+    let consents = ConsentRepository::new(clients_db.clone());
+    let refresh_tokens = RefreshTokenRepository::new(clients_db);
+
+    let email_templates = EmailTemplateRepository::new(emails_db);
+    let legal_pages = LegalPageRepository::new(config_db);
 
     let has_admin = users.has_admin().await.expect("Failed to check for admin users");
     let setup_needed = Arc::new(AtomicBool::new(!has_admin));

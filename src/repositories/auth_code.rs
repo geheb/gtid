@@ -90,29 +90,33 @@ impl AuthCodeRepository {
             _ => Ok(ConsumeResult::NotFound),
         }
     }
+
+    pub async fn delete_by_user_id(&self, user_id: &str) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM authorization_codes WHERE user_id = ?")
+            .bind(user_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::repositories::client::ClientRepository;
-    use crate::repositories::test_helpers::{future_time, make_pool, past_time};
-    use crate::repositories::user::UserRepository;
+    use crate::repositories::test_helpers::{future_time, make_clients_pool, past_time};
 
-    async fn setup() -> (AuthCodeRepository, ClientRepository, UserRepository) {
-        let pool = make_pool().await;
-        let users = UserRepository::new(pool.clone());
+    async fn setup() -> (AuthCodeRepository, ClientRepository) {
+        let pool = make_clients_pool().await;
         let clients = ClientRepository::new(pool.clone());
         let auth_codes = AuthCodeRepository::new(pool);
-        // Seed required FK data
-        users.create("u1", "a@b.com", "hash", None, "").await.unwrap();
         clients.create("c1", "hash", "http://cb", None).await.unwrap();
-        (auth_codes, clients, users)
+        (auth_codes, clients)
     }
 
     #[tokio::test]
     async fn create_and_consume() {
-        let (repo, _, _) = setup().await;
+        let (repo, _) = setup().await;
         repo.create("code1", "c1", "u1", "http://cb", "openid", "chall", None, &future_time())
             .await.unwrap();
         match repo.consume("code1").await.unwrap() {
@@ -123,7 +127,7 @@ mod tests {
 
     #[tokio::test]
     async fn replay_detected() {
-        let (repo, _, _) = setup().await;
+        let (repo, _) = setup().await;
         repo.create("code1", "c1", "u1", "http://cb", "openid", "chall", None, &future_time())
             .await.unwrap();
         // First consume succeeds
@@ -134,13 +138,13 @@ mod tests {
 
     #[tokio::test]
     async fn unknown_code_not_found() {
-        let (repo, _, _) = setup().await;
+        let (repo, _) = setup().await;
         assert!(matches!(repo.consume("nonexistent").await.unwrap(), ConsumeResult::NotFound));
     }
 
     #[tokio::test]
     async fn expired_code_not_found() {
-        let (repo, _, _) = setup().await;
+        let (repo, _) = setup().await;
         repo.create("code1", "c1", "u1", "http://cb", "openid", "chall", None, &past_time())
             .await.unwrap();
         assert!(matches!(repo.consume("code1").await.unwrap(), ConsumeResult::NotFound));

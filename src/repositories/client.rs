@@ -100,7 +100,7 @@ mod tests {
     use super::*;
 
     async fn test_repo() -> ClientRepository {
-        ClientRepository::new(crate::repositories::test_helpers::make_pool().await)
+        ClientRepository::new(crate::repositories::test_helpers::make_clients_pool().await)
     }
 
     #[tokio::test]

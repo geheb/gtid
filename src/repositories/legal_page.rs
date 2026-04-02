@@ -82,7 +82,7 @@ mod tests {
     use super::*;
 
     async fn test_repo() -> LegalPageRepository {
-        let pool = crate::repositories::db::init_pool("sqlite::memory:").await;
+        let pool = crate::repositories::test_helpers::make_config_pool().await;
         LegalPageRepository::new(pool)
     }
 

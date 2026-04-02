@@ -84,7 +84,7 @@ mod tests {
     use crate::i18n::build_locales;
 
     async fn test_repo() -> (EmailTemplateRepository, Locales) {
-        let pool = crate::repositories::db::init_pool("sqlite::memory:").await;
+        let pool = crate::repositories::test_helpers::make_emails_pool().await;
         (EmailTemplateRepository::new(pool), build_locales())
     }
 

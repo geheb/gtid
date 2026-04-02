@@ -229,6 +229,11 @@ pub async fn user_delete(
         return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
     }
 
+    // Clean up cross-DB references before deleting the user
+    state.auth_codes.delete_by_user_id(&id).await?;
+    state.refresh_tokens.delete_by_user_id(&id).await?;
+    state.consents.delete_by_user_id(&id).await?;
+
     state.users.delete(&id).await?;
     tracing::info!(event = "user_deleted", user_id = %id, "Admin deleted user");
 

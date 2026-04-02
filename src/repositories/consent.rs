@@ -37,6 +37,14 @@ impl ConsentRepository {
     }
 
     /// Saves or updates a consent grant (INSERT OR REPLACE).
+    pub async fn delete_by_user_id(&self, user_id: &str) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM consent_grants WHERE user_id = ?")
+            .bind(user_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     pub async fn save_grant(
         &self,
         user_id: &str,
@@ -59,13 +67,11 @@ impl ConsentRepository {
 mod tests {
     use super::*;
     use crate::repositories::client::ClientRepository;
-    use crate::repositories::user::UserRepository;
+    use crate::repositories::test_helpers::make_clients_pool;
 
     async fn setup() -> ConsentRepository {
-        let pool = crate::repositories::db::init_pool("sqlite::memory:").await;
-        let users = UserRepository::new(pool.clone());
+        let pool = make_clients_pool().await;
         let clients = ClientRepository::new(pool.clone());
-        users.create("u1", "a@b.com", "hash", None, "").await.unwrap();
         clients.create("c1", "hash", "http://cb", None).await.unwrap();
         ConsentRepository::new(pool)
     }

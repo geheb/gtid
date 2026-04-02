@@ -116,14 +116,6 @@ impl UserRepository {
             .bind(id)
             .execute(&self.pool)
             .await?;
-        sqlx::query("DELETE FROM authorization_codes WHERE user_id = ?")
-            .bind(id)
-            .execute(&self.pool)
-            .await?;
-        sqlx::query("DELETE FROM refresh_tokens WHERE user_id = ?")
-            .bind(id)
-            .execute(&self.pool)
-            .await?;
         sqlx::query("DELETE FROM users WHERE id = ?")
             .bind(id)
             .execute(&self.pool)
@@ -137,7 +129,7 @@ mod tests {
     use super::*;
 
     async fn test_repo() -> UserRepository {
-        UserRepository::new(crate::repositories::test_helpers::make_pool().await)
+        UserRepository::new(crate::repositories::test_helpers::make_users_pool().await)
     }
 
     #[tokio::test]

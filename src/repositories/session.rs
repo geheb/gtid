@@ -66,11 +66,11 @@ impl SessionRepository {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repositories::test_helpers::{future_time, make_pool, past_time};
+    use crate::repositories::test_helpers::{future_time, make_users_pool, past_time};
     use crate::repositories::user::UserRepository;
 
     async fn setup() -> (SessionRepository, UserRepository) {
-        let pool = make_pool().await;
+        let pool = make_users_pool().await;
         let users = UserRepository::new(pool.clone());
         users.create("u1", "a@b.com", "hash", None, "").await.unwrap();
         (SessionRepository::new(pool), users)

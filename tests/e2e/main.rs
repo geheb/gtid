@@ -15,20 +15,28 @@ pub struct TestServer {
     pub api_port: u16,
     pub ui_port: u16,
     pub client: reqwest::Client,
-    _db_file: tempfile::NamedTempFile,
+    _db_users: tempfile::NamedTempFile,
+    _db_clients: tempfile::NamedTempFile,
+    _db_emails: tempfile::NamedTempFile,
+    _db_config: tempfile::NamedTempFile,
 }
 
 impl TestServer {
     pub async fn start() -> Self {
-        let db_file = tempfile::NamedTempFile::new().expect("Failed to create temp DB file");
-        let db_path = db_file.path().to_str().unwrap().to_string();
+        let db_users = tempfile::NamedTempFile::new().expect("Failed to create temp DB file");
+        let db_clients = tempfile::NamedTempFile::new().expect("Failed to create temp DB file");
+        let db_emails = tempfile::NamedTempFile::new().expect("Failed to create temp DB file");
+        let db_config = tempfile::NamedTempFile::new().expect("Failed to create temp DB file");
 
         let config = AppConfig {
             issuer_uri: String::new(), // will be set after port is known
             public_ui_uri: String::new(),
             ui_listen_port: 0, // random port
             api_listen_port: 0,
-            database_uri: format!("sqlite:{}?mode=rwc", db_path),
+            database_uri_users: format!("sqlite:{}?mode=rwc", db_users.path().to_str().unwrap()),
+            database_uri_clients: format!("sqlite:{}?mode=rwc", db_clients.path().to_str().unwrap()),
+            database_uri_emails: format!("sqlite:{}?mode=rwc", db_emails.path().to_str().unwrap()),
+            database_uri_config: format!("sqlite:{}?mode=rwc", db_config.path().to_str().unwrap()),
             roles: vec!["admin".to_string()],
             lockout_max_attempts: 100,
             lockout_duration_secs: 3600,
@@ -95,7 +103,10 @@ impl TestServer {
             api_port,
             ui_port,
             client,
-            _db_file: db_file,
+            _db_users: db_users,
+            _db_clients: db_clients,
+            _db_emails: db_emails,
+            _db_config: db_config,
         }
     }
 

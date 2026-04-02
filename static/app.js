@@ -19,31 +19,35 @@ document.addEventListener("DOMContentLoaded", function () {
         });
     });
 
-    const genBtn = document.getElementById("btn-generate-secret");
-    if (genBtn) {
-        genBtn.addEventListener("click", function () {
-            const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*_.-/()[]<>+~?=";
-            const arr = new Uint8Array(32);
-            crypto.getRandomValues(arr);
-            var secret = "";
-            for (var i = 0; i < arr.length; i++) {
-                secret += chars[arr[i] % chars.length];
-            }
-            document.getElementById("client_secret").value = secret;
-        });
+    function setupGenerateAndCopy(genBtnId, copyBtnId, inputId, size) {
+        var genBtn = document.getElementById(genBtnId);
+        if (genBtn) {
+            genBtn.addEventListener("click", function () {
+                var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*_.-/()[]<>+~?=";
+                var arr = new Uint8Array(size);
+                crypto.getRandomValues(arr);
+                var val = "";
+                for (var i = 0; i < arr.length; i++) {
+                    val += chars[arr[i] % chars.length];
+                }
+                document.getElementById(inputId).value = val;
+            });
+        }
+        var copyBtn = document.getElementById(copyBtnId);
+        if (copyBtn) {
+            copyBtn.addEventListener("click", function () {
+                var input = document.getElementById(inputId);
+                if (input && input.value) {
+                    navigator.clipboard.writeText(input.value).then(function () {
+                        showToast(copyBtn.dataset.toast || "Kopiert");
+                    });
+                }
+            });
+        }
     }
 
-    const copyBtn = document.getElementById("btn-copy-secret");
-    if (copyBtn) {
-        copyBtn.addEventListener("click", function () {
-            const input = document.getElementById("client_secret");
-            if (input && input.value) {
-                navigator.clipboard.writeText(input.value).then(function () {
-                    showToast(copyBtn.dataset.toast || "Kopiert");
-                });
-            }
-        });
-    }
+    setupGenerateAndCopy("btn-generate-secret", "btn-copy-secret", "client_secret", 32);
+    setupGenerateAndCopy("btn-generate-password", "btn-copy-password", "password", 16);
 
     document.querySelectorAll("form[method='POST']:not(.no-spinner)").forEach(function (form) {
         form.addEventListener("submit", function () {

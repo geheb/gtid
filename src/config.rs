@@ -6,7 +6,10 @@ pub struct AppConfig {
     pub public_ui_uri: String,
     pub ui_listen_port: u16,
     pub api_listen_port: u16,
-    pub database_uri: String,
+    pub database_uri_users: String,
+    pub database_uri_clients: String,
+    pub database_uri_emails: String,
+    pub database_uri_config: String,
     pub roles: Vec<String>,
     pub lockout_max_attempts: u32,
     pub lockout_duration_secs: u64,
@@ -37,8 +40,14 @@ impl AppConfig {
             api_listen_port: get("API_LISTEN_PORT")
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(3000),
-            database_uri: get("DATABASE_URI")
-                .unwrap_or_else(|| "sqlite:gtid.db".into()),
+            database_uri_users: get("DATABASE_URI_USERS")
+                .unwrap_or_else(|| "sqlite:gtid_users.db".into()),
+            database_uri_clients: get("DATABASE_URI_CLIENTS")
+                .unwrap_or_else(|| "sqlite:gtid_clients.db".into()),
+            database_uri_emails: get("DATABASE_URI_EMAILS")
+                .unwrap_or_else(|| "sqlite:gtid_emails.db".into()),
+            database_uri_config: get("DATABASE_URI_CONFIG")
+                .unwrap_or_else(|| "sqlite:gtid_config.db".into()),
             roles: {
                 let mut roles = vec!["admin".to_string()];
                 if let Some(val) = get("ROLES") {
@@ -119,7 +128,10 @@ mod tests {
         assert_eq!(c.public_ui_uri, "http://localhost:3001");
         assert_eq!(c.api_listen_port, 3000);
         assert_eq!(c.ui_listen_port, 3001);
-        assert_eq!(c.database_uri, "sqlite:gtid.db");
+        assert_eq!(c.database_uri_users, "sqlite:gtid_users.db");
+        assert_eq!(c.database_uri_clients, "sqlite:gtid_clients.db");
+        assert_eq!(c.database_uri_emails, "sqlite:gtid_emails.db");
+        assert_eq!(c.database_uri_config, "sqlite:gtid_config.db");
         assert_eq!(c.lockout_max_attempts, 3);
         assert_eq!(c.lockout_duration_secs, 3600);
         assert!(c.secure_cookies);

@@ -89,6 +89,14 @@ impl RefreshTokenRepository {
         Ok(result.rows_affected())
     }
 
+    pub async fn delete_by_user_id(&self, user_id: &str) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM refresh_tokens WHERE user_id = ?")
+            .bind(user_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     fn is_expired(&self, expires_at: &str) -> bool {
         chrono::NaiveDateTime::parse_from_str(expires_at, "%Y-%m-%d %H:%M:%S")
             .map(|dt| dt < chrono::Utc::now().naive_utc())
@@ -100,14 +108,11 @@ impl RefreshTokenRepository {
 mod tests {
     use super::*;
     use crate::repositories::client::ClientRepository;
-    use crate::repositories::test_helpers::{future_time, make_pool};
-    use crate::repositories::user::UserRepository;
+    use crate::repositories::test_helpers::{future_time, make_clients_pool};
 
     async fn setup() -> RefreshTokenRepository {
-        let pool = make_pool().await;
-        let users = UserRepository::new(pool.clone());
+        let pool = make_clients_pool().await;
         let clients = ClientRepository::new(pool.clone());
-        users.create("u1", "a@b.com", "hash", None, "").await.unwrap();
         clients.create("c1", "hash", "http://cb", None).await.unwrap();
         RefreshTokenRepository::new(pool)
     }
