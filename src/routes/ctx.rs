@@ -18,6 +18,8 @@ pub struct DashboardCtx<'a> {
     pub user_count: usize,
     pub active_users: i64,
     pub locked_users: usize,
+    pub pending_emails: i64,
+    pub unconfirmed_users: usize,
 }
 
 #[derive(Serialize)]
@@ -249,6 +251,17 @@ pub struct ProfileCtx<'a> {
     pub pw_error: bool,
     pub pw_error_message: &'a str,
     pub form_display_name: &'a str,
+}
+
+// ── Confirm email success ─────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+pub struct ConfirmEmailSuccessCtx<'a> {
+    pub t: &'a I18n,
+    pub lang: &'a str,
+    pub css_hash: &'a str,
+    pub js_hash: &'a str,
+    pub anonymized_email: &'a str,
 }
 
 // ── Error page ────────────────────────────────────────────────────────────────

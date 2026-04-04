@@ -36,11 +36,18 @@ pub async fn run_users_migrations(pool: &SqlitePool) {
             password_hash   TEXT NOT NULL,
             display_name    TEXT,
             roles           TEXT NOT NULL DEFAULT '',
+            is_confirmed    INTEGER NOT NULL DEFAULT 0,
             created_at      TEXT NOT NULL DEFAULT (datetime('now')),
             last_login_at   TEXT
         )",
         "CREATE TABLE IF NOT EXISTS sessions (
             id              TEXT PRIMARY KEY,
+            user_id         TEXT NOT NULL REFERENCES users(id),
+            expires_at      TEXT NOT NULL,
+            created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+        )",
+        "CREATE TABLE IF NOT EXISTS email_confirmations (
+            token           TEXT PRIMARY KEY,
             user_id         TEXT NOT NULL REFERENCES users(id),
             expires_at      TEXT NOT NULL,
             created_at      TEXT NOT NULL DEFAULT (datetime('now'))
@@ -117,6 +124,17 @@ pub async fn run_emails_migrations(pool: &SqlitePool) {
             body_html       TEXT NOT NULL,
             updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
             UNIQUE(template_type, lang)
+        )",
+        "CREATE TABLE IF NOT EXISTS email_queue (
+            id              TEXT PRIMARY KEY,
+            recipient       TEXT NOT NULL,
+            subject         TEXT NOT NULL,
+            body_html       TEXT NOT NULL,
+            retry_count     INTEGER NOT NULL DEFAULT 0,
+            last_error      TEXT,
+            sent_on         TEXT,
+            next_schedule   TEXT NOT NULL DEFAULT (datetime('now')),
+            created_at      TEXT NOT NULL DEFAULT (datetime('now'))
         )",
     ];
 

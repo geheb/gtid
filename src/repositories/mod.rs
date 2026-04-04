@@ -1,9 +1,11 @@
 pub mod client;
+pub mod email_confirmation_token;
 pub mod db;
 pub mod user;
 pub mod session;
 pub mod auth_code;
 pub mod consent;
+pub mod email_queue;
 pub mod email_template;
 pub mod legal_page;
 pub mod refresh_token;
@@ -35,14 +37,12 @@ pub(super) mod test_helpers {
     }
 
     pub fn future_time() -> String {
-        (chrono::Utc::now() + chrono::Duration::hours(1))
-            .format("%Y-%m-%d %H:%M:%S")
-            .to_string()
+        use crate::datetime::SqliteDateTimeExt;
+        (chrono::Utc::now() + chrono::Duration::hours(1)).to_sqlite()
     }
 
     pub fn past_time() -> String {
-        (chrono::Utc::now() - chrono::Duration::hours(1))
-            .format("%Y-%m-%d %H:%M:%S")
-            .to_string()
+        use crate::datetime::SqliteDateTimeExt;
+        (chrono::Utc::now() - chrono::Duration::hours(1)).to_sqlite()
     }
 }

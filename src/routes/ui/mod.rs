@@ -1,4 +1,5 @@
 pub mod clients;
+pub mod confirm_email;
 pub mod dashboard;
 pub mod email_templates;
 pub mod legal;
@@ -8,6 +9,7 @@ pub mod users;
 mod helpers;
 
 pub use clients::{client_create_form, client_create_submit, client_delete, client_edit_form, client_edit_submit, clients_list};
+pub use confirm_email::confirm_email;
 pub use dashboard::dashboard;
 pub use email_templates::{email_template_edit_form, email_template_edit_submit, email_templates_list};
 pub use legal::{legal_pages_list, legal_page_edit_form, legal_page_edit_submit};

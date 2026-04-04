@@ -59,6 +59,8 @@ dashboard-title = Dashboard
 dashboard-total-users = Total Users
 dashboard-active-users = Active Sessions
 dashboard-locked-users = Locked Accounts
+dashboard-pending-emails = Pending Emails
+dashboard-unconfirmed-users = Unconfirmed Users
 dashboard-quick-actions = Quick Actions
 dashboard-manage-users = Manage Users
 dashboard-manage-clients = Manage Clients
@@ -99,8 +101,13 @@ user-edit-name-placeholder = Name
 user-edit-password-label = New Password
 user-edit-password-placeholder = Leave empty to keep current password
 user-edit-submit = Save
+user-edit-delete = Delete user
 user-edit-locked-notice = Locked until
 user-edit-unlock-label = Unlock account
+user-edit-confirm-label = Manually confirm
+user-edit-resend-confirmation-label = Resend confirmation email
+user-edit-confirmed-notice = Email confirmed
+user-edit-unconfirmed-notice = Email not confirmed
 
 profile-title = My Profile
 profile-email-label = Email
@@ -155,6 +162,7 @@ client-edit-redirect-uri-label = Redirect URI
 client-edit-post-logout-uri-label = Post-Logout Redirect URI
 client-edit-submit = Save
 client-edit-cancel = Cancel
+client-edit-delete = Delete client
 
 password-error-too-short = Password must be at least 10 characters long
 password-error-no-uppercase = Password must contain at least one uppercase letter
@@ -182,9 +190,17 @@ legal-pages-col-status = Status
 legal-pages-status-active = Active
 legal-pages-status-empty = Empty
 
+confirm-email-invalid = Invalid or expired confirmation link.
+confirm-email-success-title = Email confirmed
+confirm-email-success-message = Your email address has been confirmed:
+confirm-email-back = Back to start page
 csrf-token-invalid = Invalid CSRF token
 confirm-delete = Really delete?
 copied = Copied
+
+users-col-status = Status
+users-badge-confirmed = Confirmed
+users-badge-unconfirmed = Unconfirmed
 
 language-label = Language
 language-de = German

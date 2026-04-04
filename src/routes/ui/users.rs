@@ -118,8 +118,11 @@ pub async fn user_create_submit(
     let id = crate::crypto::id::new_id();
     let hash = password::hash_password(&pw)?;
     let roles_str = roles.join(",");
-    state.users.create(&id, &email, &hash, display_name.as_deref(), &roles_str).await?;
+    state.users.create(&id, &email, &hash, display_name.as_deref(), &roles_str, false).await?;
     tracing::info!(event = "user_created", user_id = %id, email = %email, roles = %roles_str, "Admin created user");
+
+    // Enqueue confirmation email
+    enqueue_confirmation_email(&state, &id, &email, display_name.as_deref(), &lang.tag).await;
 
     Ok(redirect("/admin/users"))
 }
@@ -210,6 +213,19 @@ pub async fn user_edit_submit(
         state.account_lockout.clear(&user.email);
     }
 
+    // Manual confirm
+    if get_field_opt(&fields, "manual_confirm").is_some() && !user.is_confirmed {
+        state.users.confirm(&id).await?;
+        state.confirmation_tokens.delete_for_user(&id).await?;
+        tracing::info!(event = "user_confirmed_manually", user_id = %id, "Admin manually confirmed user");
+    }
+
+    // Resend confirmation email
+    if get_field_opt(&fields, "resend_confirmation").is_some() && !user.is_confirmed {
+        enqueue_confirmation_email(&state, &id, &user.email, user.display_name.as_deref(), &lang.tag).await;
+        tracing::info!(event = "confirmation_resent", user_id = %id, "Admin resent confirmation email");
+    }
+
     let roles_str = roles.join(",");
     state.users.update(&id, display_name.as_deref(), &roles_str).await?;
     tracing::info!(event = "user_updated", user_id = %id, roles = %roles_str, "Admin updated user");
@@ -238,4 +254,60 @@ pub async fn user_delete(
     tracing::info!(event = "user_deleted", user_id = %id, "Admin deleted user");
 
     Ok(redirect("/admin/users"))
+}
+
+async fn enqueue_confirmation_email(
+    state: &AppState,
+    user_id: &str,
+    email: &str,
+    display_name: Option<&str>,
+    lang: &str,
+) {
+    let expiry_hours = state.config.email_confirm_token_expiry_hours;
+    let expires_at = match chrono::Utc::now()
+        .checked_add_signed(chrono::Duration::hours(expiry_hours as i64))
+    {
+        Some(t) => {
+            use crate::datetime::SqliteDateTimeExt;
+            t.to_sqlite()
+        }
+        None => return,
+    };
+
+    // Delete old tokens and create a new one
+    let _ = state.confirmation_tokens.delete_for_user(user_id).await;
+    let token = match state.confirmation_tokens.create(user_id, &expires_at).await {
+        Ok(t) => t,
+        Err(e) => {
+            tracing::error!(event = "confirmation_token_failed", error = %e, "Failed to create confirmation token");
+            return;
+        }
+    };
+
+    let link = format!("{}/confirm-email?token={}", state.config.public_ui_uri, token);
+    let name = display_name.unwrap_or(email);
+
+    // Load template and enqueue email
+    let template = state.email_templates
+        .find_by_type_and_lang("confirm_registration", lang)
+        .await
+        .ok()
+        .flatten();
+
+    let (subject, body_html) = match template {
+        Some(t) => {
+            let body = t.body_html.replace("{{name}}", name).replace("{{link}}", &link);
+            let subject = t.subject.replace("{{name}}", name);
+            (subject, body)
+        }
+        None => {
+            let subject = "Confirm your email".to_string();
+            let body = format!("<p>Hi {name},</p><p>Please confirm your email: <a href=\"{link}\">{link}</a></p>");
+            (subject, body)
+        }
+    };
+
+    if let Err(e) = state.email_queue.enqueue(email, &subject, &body_html).await {
+        tracing::error!(event = "confirmation_email_failed", error = %e, "Failed to enqueue confirmation email");
+    }
 }

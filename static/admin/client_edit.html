@@ -37,6 +37,11 @@
                         <a href="/admin/clients" class="btn btn-secondary">{{ t.client_edit_cancel }}</a>
                     </div>
                 </form>
+                <hr class="divider">
+                <form method="POST" action="/admin/clients/{{ client.client_id }}/delete" class="delete-form no-spinner" data-confirm="{{ t.confirm_delete }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-danger btn-block">{{ t.client_edit_delete }}</button>
+                </form>
             </div>
         </div>
     </div>

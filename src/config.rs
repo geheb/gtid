@@ -23,6 +23,13 @@ pub struct AppConfig {
     pub access_token_expiry_secs: i64,
     pub id_token_expiry_secs: i64,
     pub refresh_token_expiry_days: i64,
+    pub smtp_host: Option<String>,
+    pub smtp_port: u16,
+    pub smtp_username: Option<String>,
+    pub smtp_password: Option<String>,
+    pub smtp_from: String,
+    pub smtp_starttls: bool,
+    pub email_confirm_token_expiry_hours: u64,
 }
 
 impl AppConfig {
@@ -99,6 +106,20 @@ impl AppConfig {
             refresh_token_expiry_days: get("REFRESH_TOKEN_EXPIRY_DAYS")
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(30),
+            smtp_host: get("SMTP_HOST"),
+            smtp_port: get("SMTP_PORT")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(587),
+            smtp_username: get("SMTP_USERNAME"),
+            smtp_password: get("SMTP_PASSWORD"),
+            smtp_from: get("SMTP_FROM")
+                .unwrap_or_else(|| "noreply@localhost".into()),
+            smtp_starttls: get("SMTP_STARTTLS")
+                .map(|v| v != "false" && v != "0")
+                .unwrap_or(true),
+            email_confirm_token_expiry_hours: get("EMAIL_CONFIRM_TOKEN_EXPIRY_HOURS")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(24),
         }
     }
 
@@ -145,6 +166,13 @@ mod tests {
         assert_eq!(c.access_token_expiry_secs, 900);
         assert_eq!(c.id_token_expiry_secs, 600);
         assert_eq!(c.refresh_token_expiry_days, 30);
+        assert!(c.smtp_host.is_none());
+        assert_eq!(c.smtp_port, 587);
+        assert!(c.smtp_username.is_none());
+        assert!(c.smtp_password.is_none());
+        assert_eq!(c.smtp_from, "noreply@localhost");
+        assert!(c.smtp_starttls);
+        assert_eq!(c.email_confirm_token_expiry_hours, 24);
     }
 
     #[test]
@@ -277,6 +305,32 @@ mod tests {
         assert_eq!(c.access_token_expiry_secs, 300);
         assert_eq!(c.id_token_expiry_secs, 120);
         assert_eq!(c.refresh_token_expiry_days, 7);
+    }
+
+    #[test]
+    fn smtp_config_custom() {
+        let c = config_from(&[
+            ("SMTP_HOST", "smtp.example.com"),
+            ("SMTP_PORT", "465"),
+            ("SMTP_USERNAME", "user@example.com"),
+            ("SMTP_PASSWORD", "secret"),
+            ("SMTP_FROM", "noreply@example.com"),
+            ("SMTP_STARTTLS", "false"),
+        ]);
+        assert_eq!(c.smtp_host.as_deref(), Some("smtp.example.com"));
+        assert_eq!(c.smtp_port, 465);
+        assert_eq!(c.smtp_username.as_deref(), Some("user@example.com"));
+        assert_eq!(c.smtp_password.as_deref(), Some("secret"));
+        assert_eq!(c.smtp_from, "noreply@example.com");
+        assert!(!c.smtp_starttls);
+    }
+
+    #[test]
+    fn custom_email_confirm_token_expiry() {
+        let c = config_from(&[
+            ("EMAIL_CONFIRM_TOKEN_EXPIRY_HOURS", "48"),
+        ]);
+        assert_eq!(c.email_confirm_token_expiry_hours, 48);
     }
 
     #[test]

@@ -98,7 +98,7 @@ impl RefreshTokenRepository {
     }
 
     fn is_expired(&self, expires_at: &str) -> bool {
-        chrono::NaiveDateTime::parse_from_str(expires_at, "%Y-%m-%d %H:%M:%S")
+        crate::datetime::parse_sqlite(expires_at)
             .map(|dt| dt < chrono::Utc::now().naive_utc())
             .unwrap_or(true)
     }

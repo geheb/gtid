@@ -18,6 +18,8 @@ pub async fn dashboard(
     let users = state.users.list().await?;
     let active_users = state.sessions.count_active_users().await.unwrap_or(0);
     let locked_users = state.account_lockout.locked_count();
+    let pending_emails = state.email_queue.count_pending().await.unwrap_or(0);
+    let unconfirmed_users = users.iter().filter(|u| !u.is_confirmed).count();
     let ctx = Context::from_serialize(DashboardCtx {
         t: state.locales.get(&lang.tag),
         lang: &lang.tag,
@@ -28,6 +30,8 @@ pub async fn dashboard(
         user_count: users.len(),
         active_users,
         locked_users,
+        pending_emails,
+        unconfirmed_users,
     })?;
     let rendered = state.tera.render("admin/dashboard.html", &ctx)?;
     Ok(Html(rendered).into_response())

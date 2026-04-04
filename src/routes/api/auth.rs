@@ -13,6 +13,7 @@ use tower_cookies::cookie::SameSite;
 use tower_cookies::{Cookie, Cookies};
 
 use crate::crypto::{jwt, password};
+use crate::datetime::SqliteDateTimeExt;
 use crate::errors::AppError;
 use crate::middleware::csrf::{self, CsrfToken};
 use crate::middleware::language::Lang;
@@ -227,6 +228,12 @@ pub async fn login_submit(
         }
     };
 
+    // Block unconfirmed users with same generic error (prevent account enumeration)
+    if !user.is_confirmed {
+        tracing::warn!(event = "login_unconfirmed", ip = %ip, email = %form.email, "Login attempt with unconfirmed email");
+        return render_login_error(&t.login_error_invalid, StatusCode::UNAUTHORIZED, rid, &csrf_form_token, &form.email);
+    }
+
     // Successful login - clear rate limit and lockout, update last login
     state.login_rate_limiter.clear(rl_key);
     state.account_lockout.clear(&form.email);
@@ -240,8 +247,7 @@ pub async fn login_submit(
     let expires_at = chrono::Utc::now()
         .checked_add_signed(chrono::Duration::seconds(lifetime))
         .ok_or_else(|| AppError::Internal("session expiry overflow".into()))?
-        .format("%Y-%m-%d %H:%M:%S")
-        .to_string();
+        .to_sqlite();
 
     state
         .sessions

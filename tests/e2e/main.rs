@@ -50,6 +50,13 @@ impl TestServer {
             access_token_expiry_secs: 900,
             id_token_expiry_secs: 600,
             refresh_token_expiry_days: 30,
+            smtp_host: None,
+            smtp_port: 587,
+            smtp_username: None,
+            smtp_password: None,
+            smtp_from: "noreply@localhost".to_string(),
+            smtp_starttls: true,
+            email_confirm_token_expiry_hours: 24,
         };
 
         let (api_port, ui_port, setup_token) = gtid::start_server(config).await;

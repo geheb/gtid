@@ -7,6 +7,7 @@ pub struct User {
     pub password_hash: String,
     pub display_name: Option<String>,
     pub roles: String,
+    pub is_confirmed: bool,
     pub created_at: String,
     pub last_login_at: Option<String>,
 }
@@ -36,6 +37,7 @@ mod tests {
             password_hash: "hash".into(),
             display_name: None,
             roles: roles.into(),
+            is_confirmed: true,
             created_at: "2024-01-01".into(),
             last_login_at: None,
         }

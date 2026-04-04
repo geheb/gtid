@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.confirm_email_success_title }} - GT Id{% endblock %}
+
+{% block body %}
+<div class="centered">
+    <div class="centered-card">
+        <div class="logo"><img src="/favicon.svg" alt="GT Id" class="logo-icon">Id</div>
+        <h1>{{ t.confirm_email_success_title }}</h1>
+        <p class="mt-1">{{ t.confirm_email_success_message }}</p>
+        <p class="mt-1"><strong>{{ anonymized_email }}</strong></p>
+        <a href="/" class="btn btn-primary btn-block mt-1">{{ t.confirm_email_back }}</a>
+    </div>
+</div>
+{% endblock %}

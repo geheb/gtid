@@ -59,6 +59,8 @@ dashboard-title = Dashboard
 dashboard-total-users = Benutzer gesamt
 dashboard-active-users = Aktive Sitzungen
 dashboard-locked-users = Gesperrte Konten
+dashboard-pending-emails = Ausstehende E-Mails
+dashboard-unconfirmed-users = Unbestätigte Benutzer
 dashboard-quick-actions = Schnellzugriff
 dashboard-manage-users = Benutzer verwalten
 dashboard-manage-clients = Clients verwalten
@@ -99,8 +101,13 @@ user-edit-name-placeholder = Name
 user-edit-password-label = Neues Passwort
 user-edit-password-placeholder = Leer lassen um Passwort nicht zu ändern
 user-edit-submit = Speichern
+user-edit-delete = Benutzer löschen
 user-edit-locked-notice = Gesperrt bis
 user-edit-unlock-label = Konto entsperren
+user-edit-confirm-label = Manuell bestätigen
+user-edit-resend-confirmation-label = Bestätigungs-E-Mail erneut senden
+user-edit-confirmed-notice = E-Mail bestätigt
+user-edit-unconfirmed-notice = E-Mail nicht bestätigt
 
 profile-title = Mein Profil
 profile-email-label = E-Mail
@@ -155,6 +162,7 @@ client-edit-redirect-uri-label = Redirect URI
 client-edit-post-logout-uri-label = Post-Logout Redirect URI
 client-edit-submit = Speichern
 client-edit-cancel = Abbrechen
+client-edit-delete = Client löschen
 
 password-error-too-short = Das Passwort muss mindestens 10 Zeichen lang sein
 password-error-no-uppercase = Das Passwort muss mindestens einen Grossbuchstaben enthalten
@@ -182,9 +190,17 @@ legal-pages-col-status = Status
 legal-pages-status-active = Aktiv
 legal-pages-status-empty = Leer
 
+confirm-email-invalid = Ungültiger oder abgelaufener Bestätigungslink.
+confirm-email-success-title = E-Mail bestätigt
+confirm-email-success-message = Deine E-Mail-Adresse wurde erfolgreich bestätigt:
+confirm-email-back = Zurück zur Startseite
 csrf-token-invalid = CSRF-Token ungültig
 confirm-delete = Wirklich löschen?
 copied = Kopiert
+
+users-col-status = Status
+users-badge-confirmed = Bestätigt
+users-badge-unconfirmed = Unbestätigt
 
 language-label = Sprache
 language-de = Deutsch

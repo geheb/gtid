@@ -72,7 +72,7 @@ mod tests {
     async fn setup() -> (SessionRepository, UserRepository) {
         let pool = make_users_pool().await;
         let users = UserRepository::new(pool.clone());
-        users.create("u1", "a@b.com", "hash", None, "").await.unwrap();
+        users.create("u1", "a@b.com", "hash", None, "", true).await.unwrap();
         (SessionRepository::new(pool), users)
     }
 
@@ -112,7 +112,7 @@ mod tests {
     #[tokio::test]
     async fn count_active_users() {
         let (repo, users) = setup().await;
-        users.create("u2", "b@b.com", "hash", None, "").await.unwrap();
+        users.create("u2", "b@b.com", "hash", None, "", true).await.unwrap();
         repo.create("s1", "u1", &future_time()).await.unwrap();
         repo.create("s2", "u2", &future_time()).await.unwrap();
         repo.create("s3", "u1", &future_time()).await.unwrap(); // same user, different session

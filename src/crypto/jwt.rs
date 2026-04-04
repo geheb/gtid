@@ -78,6 +78,7 @@ pub fn issue_id_token(
     client_id: &str,
     user_id: &str,
     email: &str,
+    email_verified: bool,
     display_name: Option<&str>,
     nonce: Option<&str>,
     access_token: &str,
@@ -92,7 +93,7 @@ pub fn issue_id_token(
         exp: now + expiry_secs,
         iat: now,
         email: email.to_string(),
-        email_verified: false,
+        email_verified,
         name: display_name.map(|s| s.to_string()),
         nonce: nonce.map(|s| s.to_string()),
         at_hash: Some(compute_at_hash(access_token)),
@@ -179,7 +180,7 @@ mod tests {
         let at = issue_access_token(&enc, &kid, ISSUER, CLIENT, USER, "openid", 900).unwrap();
         let id_token = issue_id_token(
             &enc, &kid, ISSUER, CLIENT, USER,
-            "user@test.com", Some("Test User"), Some("nonce-1"), &at,
+            "user@test.com", true, Some("Test User"), Some("nonce-1"), &at,
             vec!["admin".to_string()], 600,
         ).unwrap();
 

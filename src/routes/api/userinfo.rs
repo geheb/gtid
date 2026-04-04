@@ -97,6 +97,7 @@ pub async fn userinfo(
 
     if claims.scope.contains("email") || claims.scope.contains("openid") {
         response["email"] = serde_json::json!(user.email);
+        response["email_verified"] = serde_json::json!(user.is_confirmed);
     }
     if claims.scope.contains("profile") {
         if let Some(ref name) = user.display_name {

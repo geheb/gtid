@@ -76,6 +76,7 @@ pub fn build_ui_router() -> Router<Arc<AppState>> {
         .route("/favicon.svg", get(ui::static_files::favicon_svg))
         .route("/apple-touch-icon.png", get(ui::static_files::apple_touch_icon))
         .route("/apple-touch-icon-precomposed.png", get(ui::static_files::apple_touch_icon_precomposed))
+        .route("/confirm-email", get(ui::confirm_email))
         .route("/imprint", get(ui::legal::imprint))
         .route("/privacy", get(ui::legal::privacy))
         .route("/admin/email-templates", get(ui::email_templates_list))

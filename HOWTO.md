@@ -6,6 +6,18 @@ GT Id runs on **two ports** (always localhost):
 - **UI** (`UI_LISTEN_PORT`, default `3001`) - Login, Consent, Admin Panel
 - **API** (`API_LISTEN_PORT`, default `3000`) - OIDC Endpoints
 
+## Development
+
+```bash
+# Linux / macOS
+bash dev/run.sh
+
+# Windows (PowerShell)
+.\dev\run.ps1
+```
+
+Starts Mailpit (if not already running) and runs the application. Mailpit UI is available at `http://localhost:8025`.
+
 ## OIDC Discovery
 
 ```
@@ -172,3 +184,24 @@ GT Id generates a new Ed25519 key on each start. Frameworks typically cache the 
 ROLES=member           # Comma-separated, e.g. ROLES=member,editor,viewer
                        # "admin" is always included and doesn't need to be specified
 ```
+
+## .env Configuration (SMTP / Email Queue)
+
+GT Id includes a background email queue that processes pending emails every 30 seconds. Emails are sent via SMTP. If `SMTP_HOST` is not set, email sending is disabled and the worker exits silently.
+
+```env
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587                      # Default: 587
+SMTP_USERNAME=user@example.com
+SMTP_PASSWORD=secret
+SMTP_FROM=noreply@example.com      # Default: noreply@localhost
+SMTP_STARTTLS=true                 # Default: true
+```
+
+**Backoff on failure:** If an email fails to send, it is retried with exponential backoff (60s, 120s, 240s, ... capped at 1 hour). The error is stored in `last_error` for inspection.
+
+**Local testing with Mailpit:**
+```bash
+docker compose -f dev/mailpit/docker-compose.yml up -d
+```
+Then set `SMTP_HOST=localhost`, `SMTP_PORT=1025`, `SMTP_STARTTLS=false`. Emails appear in the Mailpit UI at `http://localhost:8025`.

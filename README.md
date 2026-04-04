@@ -45,6 +45,7 @@ GT Id is the alternative when you don't need any of that: a single binary, one S
 - **Redirect URI validation** - only http/https schemes allowed on client creation
 - **i18n (DE/EN)** - UI language auto-detected from `Accept-Language` header, powered by Mozilla Project Fluent
 - **Per-language content** - email templates and legal pages (imprint, privacy) editable per language in the admin panel, public pages served in the visitor's language with German fallback
+- **Email queue** - background worker sends queued emails every 30 seconds via SMTP, with exponential backoff on failure (60s, 120s, ... max 1h)
 
 ## What it doesn't do (by design)
 
@@ -91,7 +92,10 @@ cargo run
 | `PUBLIC_UI_URI` | Public UI URL (for authorize redirects) | `http://localhost:3001` |
 | `API_LISTEN_PORT` | Port for API (OIDC) | `3000` |
 | `UI_LISTEN_PORT` | Port for UI (Login, Admin) | `3001` |
-| `DATABASE_URI` | SQLite path | `sqlite:gtid.db` |
+| `DATABASE_URI_USERS` | SQLite path (users) | `sqlite:gtid_users.db` |
+| `DATABASE_URI_CLIENTS` | SQLite path (clients) | `sqlite:gtid_clients.db` |
+| `DATABASE_URI_EMAILS` | SQLite path (emails + queue) | `sqlite:gtid_emails.db` |
+| `DATABASE_URI_CONFIG` | SQLite path (config) | `sqlite:gtid_config.db` |
 | `ROLES` | Comma-separated roles | `member` |
 | `LOCKOUT_MAX_ATTEMPTS` | Failed attempts before lockout | `3` |
 | `LOCKOUT_DURATION_SECS` | Lockout duration in seconds | `3600` |
@@ -105,6 +109,12 @@ cargo run
 | `ACCESS_TOKEN_EXPIRY_SECS` | Access token lifetime in seconds | `900` (15 min) |
 | `ID_TOKEN_EXPIRY_SECS` | ID token lifetime in seconds | `600` (10 min) |
 | `REFRESH_TOKEN_EXPIRY_DAYS` | Refresh token lifetime in days | `30` |
+| `SMTP_HOST` | SMTP server hostname (unset = email disabled) | *none* |
+| `SMTP_PORT` | SMTP server port | `587` |
+| `SMTP_USERNAME` | SMTP authentication username | *none* |
+| `SMTP_PASSWORD` | SMTP authentication password | *none* |
+| `SMTP_FROM` | Sender address for outgoing emails | `noreply@localhost` |
+| `SMTP_STARTTLS` | Use STARTTLS for SMTP connection | `true` |
 
 ## Security Architecture
 
@@ -159,7 +169,7 @@ gtid (single binary, ~3 MB)
   |
   +-- API (:3000) --- OIDC endpoints, JWKS, Token, UserInfo, Revoke, Introspect
   |
-  +-- SQLite -------- Users, Clients, Sessions, Auth Codes, Refresh Tokens (with client_id + token_family)
+  +-- SQLite -------- Users, Clients, Sessions, Auth Codes, Refresh Tokens, Email Queue
   |
   +-- Ed25519 ------- KeyStore with rotation (current + previous key)
 ```

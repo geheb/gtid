@@ -10,6 +10,7 @@ use tera::Context;
 use tower_cookies::Cookies;
 
 use crate::crypto::constant_time;
+use crate::datetime::SqliteDateTimeExt;
 use crate::errors::AppError;
 use crate::middleware::csrf::{self, CsrfToken};
 use crate::middleware::language::Lang;
@@ -75,8 +76,7 @@ pub async fn authorize_get(
         let expires_at = chrono::Utc::now()
             .checked_add_signed(chrono::Duration::seconds(60))
             .ok_or_else(|| AppError::Internal("auth code expiry overflow".into()))?
-            .format("%Y-%m-%d %H:%M:%S")
-            .to_string();
+            .to_sqlite();
         state
             .auth_codes
             .create(
@@ -215,8 +215,7 @@ pub async fn authorize_post(
     let expires_at = chrono::Utc::now()
         .checked_add_signed(chrono::Duration::seconds(60))
         .ok_or_else(|| AppError::Internal("auth code expiry overflow".into()))?
-        .format("%Y-%m-%d %H:%M:%S")
-        .to_string();
+        .to_sqlite();
 
     state
         .auth_codes

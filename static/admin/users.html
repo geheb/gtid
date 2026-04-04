@@ -18,6 +18,7 @@
                             <th>{{ t.users_col_name }}</th>
                             <th>{{ t.users_col_email }}</th>
                             <th>{{ t.users_col_access_level }}</th>
+                            <th>{{ t.users_col_status }}</th>
                             <th>{{ t.users_col_last_login }}</th>
                             <th>{{ t.users_col_date_added }}</th>
                             <th class="col-actions"></th>
@@ -49,16 +50,17 @@
                                 <span class="badge badge-user">-</span>
                                 {% endif %}
                             </td>
+                            <td>
+                                {% if user.is_confirmed %}
+                                <span class="badge badge-confirmed">{{ t.users_badge_confirmed }}</span>
+                                {% else %}
+                                <span class="badge badge-unconfirmed">{{ t.users_badge_unconfirmed }}</span>
+                                {% endif %}
+                            </td>
                             <td><span class="utc-time" data-utc="{{ user.last_login_at | default(value='') }}">{{ user.last_login_at | default(value="-") }}</span></td>
                             <td><span class="utc-time" data-utc="{{ user.created_at }}">{{ user.created_at }}</span></td>
                             <td>
-                                <div class="action-group">
-                                    <a href="/admin/users/{{ user.id }}/edit" class="btn-icon btn-icon-edit" title="Edit">&#x270E;</a>
-                                    <form method="POST" action="/admin/users/{{ user.id }}/delete" class="inline-form delete-form no-spinner" data-confirm="{{ t.users_delete_confirm }}">
-                                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-                                        <button type="submit" class="btn-icon" title="Delete">&#x2715;</button>
-                                    </form>
-                                </div>
+                                <a href="/admin/users/{{ user.id }}/edit" class="btn-icon btn-icon-edit" title="Edit">&#x270E;</a>
                             </td>
                         </tr>
                         {% endfor %}

@@ -119,7 +119,7 @@ pub async fn setup_submit(
     let hash = password::hash_password(&pw)?;
     state
         .users
-        .create(&id, &email, &hash, display_name.as_deref(), "admin")
+        .create(&id, &email, &hash, display_name.as_deref(), "admin", true)
         .await?;
 
     state.setup_needed.store(false, Ordering::Release);

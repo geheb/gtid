@@ -37,6 +37,7 @@ dashmap = "6.1.0"
 static_init = "1"
 fluent-bundle = "0.16"
 unic-langid = "0.9"
+lettre = { version = "0.11", features = ["tokio1-native-tls", "smtp-transport", "builder"] }
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }

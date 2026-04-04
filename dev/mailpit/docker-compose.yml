@@ -1,0 +1,10 @@
+services:
+  mailpit:
+    image: axllent/mailpit
+    ports:
+      - "8025:8025" # Web UI
+      - "1025:1025" # SMTP
+    volumes:
+      - ./data:/data
+    environment:
+      - MP_DATABASE=/data/mailpit.db

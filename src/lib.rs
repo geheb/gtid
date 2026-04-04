@@ -17,6 +17,8 @@ use tower_http::trace::TraceLayer;
 
 pub mod config;
 pub mod crypto;
+pub mod datetime;
+pub mod email;
 pub mod errors;
 pub mod i18n;
 pub mod middleware;
@@ -36,6 +38,7 @@ use repositories::email_template::EmailTemplateRepository;
 use repositories::legal_page::LegalPageRepository;
 use repositories::refresh_token::RefreshTokenRepository;
 use repositories::session::SessionRepository;
+use repositories::email_confirmation_token::EmailConfirmationTokenRepository;
 use repositories::user::UserRepository;
 
 #[derive(Clone)]
@@ -46,7 +49,9 @@ pub struct AppState {
     pub auth_codes: AuthCodeRepository,
     pub consents: ConsentRepository,
     pub refresh_tokens: RefreshTokenRepository,
+    pub confirmation_tokens: EmailConfirmationTokenRepository,
     pub email_templates: EmailTemplateRepository,
+    pub email_queue: repositories::email_queue::EmailQueueRepository,
     pub legal_pages: LegalPageRepository,
     pub login_rate_limiter: LoginRateLimiter,
     pub account_lockout: AccountLockout,
@@ -131,11 +136,13 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
         ("admin/legal_pages.html", include_str!("../static/admin/legal_pages.html")),
         ("admin/legal_page_edit.html", include_str!("../static/admin/legal_page_edit.html")),
         ("setup.html", include_str!("../static/setup.html")),
+        ("confirm_email_success.html", include_str!("../static/confirm_email_success.html")),
     ]).expect("Failed to load embedded templates");
 
     let locales = i18n::build_locales();
 
     let users = UserRepository::new(users_db.clone());
+    let confirmation_tokens = EmailConfirmationTokenRepository::new(users_db.clone());
     let sessions = SessionRepository::new(users_db);
 
     let clients = ClientRepository::new(clients_db.clone());
@@ -143,7 +150,8 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
     let consents = ConsentRepository::new(clients_db.clone());
     let refresh_tokens = RefreshTokenRepository::new(clients_db);
 
-    let email_templates = EmailTemplateRepository::new(emails_db);
+    let email_templates = EmailTemplateRepository::new(emails_db.clone());
+    let email_queue = repositories::email_queue::EmailQueueRepository::new(emails_db);
     let legal_pages = LegalPageRepository::new(config_db);
 
     let has_admin = users.has_admin().await.expect("Failed to check for admin users");
@@ -173,7 +181,9 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
         auth_codes,
         consents,
         refresh_tokens,
+        confirmation_tokens,
         email_templates,
+        email_queue: email_queue.clone(),
         legal_pages,
         login_rate_limiter: LoginRateLimiter::new(),
         account_lockout: AccountLockout::new(config.lockout_max_attempts, config.lockout_duration_secs),
@@ -235,6 +245,11 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
                 tracing::error!("Key rotation failed: {e}");
             }
         }
+    });
+
+    let smtp_sender = email::sender::SmtpSender::new(&config);
+    tokio::spawn(async move {
+        email::worker::run_email_worker(email_queue, smtp_sender).await;
     });
 
     tokio::spawn(async move {

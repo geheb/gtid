@@ -2,3 +2,4 @@
 .env
 .db/
 .keys/
+/dev/**/data

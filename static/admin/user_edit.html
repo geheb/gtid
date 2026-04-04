@@ -36,6 +36,19 @@
                         </label>
                         {% endfor %}
                     </div>
+                    <div class="form-group">
+                        {% if user.is_confirmed %}
+                        <div class="alert alert-success">{{ t.user_edit_confirmed_notice }}</div>
+                        {% else %}
+                        <div class="alert alert-warning">{{ t.user_edit_unconfirmed_notice }}</div>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="manual_confirm" value="1"> {{ t.user_edit_confirm_label }}
+                        </label>
+                        <label class="checkbox-label">
+                            <input type="checkbox" name="resend_confirmation" value="1"> {{ t.user_edit_resend_confirmation_label }}
+                        </label>
+                        {% endif %}
+                    </div>
                     {% if locked_until %}
                     <div class="form-group">
                         <div class="alert alert-error">{{ t.user_edit_locked_notice }} <span class="utc-time" data-utc="{{ locked_until }}">{{ locked_until }}</span></div>
@@ -48,6 +61,11 @@
                         <button type="submit" class="btn btn-primary">{{ t.user_edit_submit }}</button>
                         <a href="/admin/users" class="btn btn-secondary">{{ t.user_create_cancel }}</a>
                     </div>
+                </form>
+                <hr class="divider">
+                <form method="POST" action="/admin/users/{{ user.id }}/delete" class="delete-form no-spinner" data-confirm="{{ t.confirm_delete }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-danger btn-block">{{ t.user_edit_delete }}</button>
                 </form>
             </div>
         </div>

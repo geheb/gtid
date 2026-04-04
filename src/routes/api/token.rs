@@ -9,6 +9,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 
 use crate::crypto::{constant_time, jwt, pkce};
+use crate::datetime::SqliteDateTimeExt;
 use crate::repositories::auth_code::ConsumeResult;
 use crate::repositories::refresh_token::RefreshResult;
 use crate::AppState;
@@ -134,6 +135,7 @@ async fn handle_authorization_code(
         &client.client_id,
         &user.id,
         &user.email,
+        user.is_confirmed,
         user.display_name.as_deref(),
         auth_code.nonce.as_deref(),
         &access_token,
@@ -147,8 +149,7 @@ async fn handle_authorization_code(
     let refresh_expires = chrono::Utc::now()
         .checked_add_signed(chrono::Duration::days(state.config.refresh_token_expiry_days))
         .ok_or_else(|| crate::routes::oauth_error("server_error", "Token expiry overflow"))?
-        .format("%Y-%m-%d %H:%M:%S")
-        .to_string();
+        .to_sqlite();
 
     state
         .refresh_tokens
@@ -262,8 +263,7 @@ async fn handle_refresh_token(
     let refresh_expires = chrono::Utc::now()
         .checked_add_signed(chrono::Duration::days(state.config.refresh_token_expiry_days))
         .ok_or_else(|| crate::routes::oauth_error("server_error", "Token expiry overflow"))?
-        .format("%Y-%m-%d %H:%M:%S")
-        .to_string();
+        .to_sqlite();
 
     state
         .refresh_tokens
