@@ -122,6 +122,10 @@ impl UserRepository {
     }
 
     pub async fn delete(&self, id: &str) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM password_resets WHERE user_id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
         sqlx::query("DELETE FROM email_confirmations WHERE user_id = ?")
             .bind(id)
             .execute(&self.pool)

@@ -190,6 +190,29 @@ legal-pages-col-status = Status
 legal-pages-status-active = Active
 legal-pages-status-empty = Empty
 
+forgot-password-title = Forgot password
+forgot-password-subtitle = Enter your email address and we will send you a link to reset your password.
+forgot-password-email-label = Email
+forgot-password-email-placeholder = name@email.com
+forgot-password-submit = Request link
+forgot-password-sent-title = Email sent
+forgot-password-sent-message = If an account with this email address exists, we have sent a password reset link. Please check your inbox.
+forgot-password-back = Back to sign in
+forgot-password-link = Forgot password?
+
+reset-password-title = Set new password
+reset-password-subtitle = Please enter your new password.
+reset-password-new-label = New password
+reset-password-new-placeholder = New password
+reset-password-confirm-label = Confirm password
+reset-password-confirm-placeholder = Repeat new password
+reset-password-submit = Reset password
+reset-password-invalid-token = Invalid or expired password reset link.
+reset-password-error-mismatch = Passwords do not match.
+reset-password-success-title = Password reset
+reset-password-success-message = Your password has been reset successfully. You can now sign in with your new password.
+reset-password-success-login = Sign in
+
 confirm-email-invalid = Invalid or expired confirmation link.
 confirm-email-success-title = Email confirmed
 confirm-email-success-message = Your email address has been confirmed:

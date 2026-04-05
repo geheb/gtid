@@ -39,6 +39,7 @@ use repositories::legal_page::LegalPageRepository;
 use repositories::refresh_token::RefreshTokenRepository;
 use repositories::session::SessionRepository;
 use repositories::email_confirmation_token::EmailConfirmationTokenRepository;
+use repositories::password_reset_token::PasswordResetTokenRepository;
 use repositories::user::UserRepository;
 
 #[derive(Clone)]
@@ -50,6 +51,7 @@ pub struct AppState {
     pub consents: ConsentRepository,
     pub refresh_tokens: RefreshTokenRepository,
     pub confirmation_tokens: EmailConfirmationTokenRepository,
+    pub password_reset_tokens: PasswordResetTokenRepository,
     pub email_templates: EmailTemplateRepository,
     pub email_queue: repositories::email_queue::EmailQueueRepository,
     pub legal_pages: LegalPageRepository,
@@ -137,12 +139,17 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
         ("admin/legal_page_edit.html", include_str!("../static/admin/legal_page_edit.html")),
         ("setup.html", include_str!("../static/setup.html")),
         ("confirm_email_success.html", include_str!("../static/confirm_email_success.html")),
+        ("forgot_password.html", include_str!("../static/forgot_password.html")),
+        ("forgot_password_sent.html", include_str!("../static/forgot_password_sent.html")),
+        ("reset_password.html", include_str!("../static/reset_password.html")),
+        ("reset_password_success.html", include_str!("../static/reset_password_success.html")),
     ]).expect("Failed to load embedded templates");
 
     let locales = i18n::build_locales();
 
     let users = UserRepository::new(users_db.clone());
     let confirmation_tokens = EmailConfirmationTokenRepository::new(users_db.clone());
+    let password_reset_tokens = PasswordResetTokenRepository::new(users_db.clone());
     let sessions = SessionRepository::new(users_db);
 
     let clients = ClientRepository::new(clients_db.clone());
@@ -182,6 +189,7 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
         consents,
         refresh_tokens,
         confirmation_tokens,
+        password_reset_tokens,
         email_templates,
         email_queue: email_queue.clone(),
         legal_pages,

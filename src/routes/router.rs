@@ -77,6 +77,8 @@ pub fn build_ui_router() -> Router<Arc<AppState>> {
         .route("/apple-touch-icon.png", get(ui::static_files::apple_touch_icon))
         .route("/apple-touch-icon-precomposed.png", get(ui::static_files::apple_touch_icon_precomposed))
         .route("/confirm-email", get(ui::confirm_email))
+        .route("/forgot-password", get(ui::forgot_password_form).post(ui::forgot_password_submit))
+        .route("/reset-password", get(ui::reset_password_form).post(ui::reset_password_submit))
         .route("/imprint", get(ui::legal::imprint))
         .route("/privacy", get(ui::legal::privacy))
         .route("/admin/email-templates", get(ui::email_templates_list))

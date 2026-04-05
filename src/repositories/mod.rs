@@ -1,5 +1,6 @@
 pub mod client;
 pub mod email_confirmation_token;
+pub mod password_reset_token;
 pub mod db;
 pub mod user;
 pub mod session;

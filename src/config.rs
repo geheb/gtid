@@ -30,6 +30,7 @@ pub struct AppConfig {
     pub smtp_from: String,
     pub smtp_starttls: bool,
     pub email_confirm_token_expiry_hours: u64,
+    pub password_reset_token_expiry_hours: u64,
 }
 
 impl AppConfig {
@@ -120,6 +121,9 @@ impl AppConfig {
             email_confirm_token_expiry_hours: get("EMAIL_CONFIRM_TOKEN_EXPIRY_HOURS")
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(24),
+            password_reset_token_expiry_hours: get("PASSWORD_RESET_TOKEN_EXPIRY_HOURS")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(1),
         }
     }
 
@@ -173,6 +177,7 @@ mod tests {
         assert_eq!(c.smtp_from, "noreply@localhost");
         assert!(c.smtp_starttls);
         assert_eq!(c.email_confirm_token_expiry_hours, 24);
+        assert_eq!(c.password_reset_token_expiry_hours, 1);
     }
 
     #[test]

@@ -3,6 +3,7 @@ pub mod confirm_email;
 pub mod dashboard;
 pub mod email_templates;
 pub mod legal;
+pub mod password_reset;
 pub mod setup;
 pub mod static_files;
 pub mod users;
@@ -13,6 +14,7 @@ pub use confirm_email::confirm_email;
 pub use dashboard::dashboard;
 pub use email_templates::{email_template_edit_form, email_template_edit_submit, email_templates_list};
 pub use legal::{legal_pages_list, legal_page_edit_form, legal_page_edit_submit};
+pub use password_reset::{forgot_password_form, forgot_password_submit, reset_password_form, reset_password_submit};
 pub use setup::{root_redirect, setup_form, setup_submit};
 pub use users::{user_create_form, user_create_submit, user_delete, user_edit_form, user_edit_submit, users_list};
 

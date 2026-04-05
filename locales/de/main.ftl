@@ -190,6 +190,29 @@ legal-pages-col-status = Status
 legal-pages-status-active = Aktiv
 legal-pages-status-empty = Leer
 
+forgot-password-title = Passwort vergessen
+forgot-password-subtitle = Geben Sie Ihre E-Mail-Adresse ein, um einen Link zum Zurücksetzen Ihres Passworts zu erhalten.
+forgot-password-email-label = E-Mail
+forgot-password-email-placeholder = name@email.de
+forgot-password-submit = Link anfordern
+forgot-password-sent-title = E-Mail gesendet
+forgot-password-sent-message = Falls ein Konto mit dieser E-Mail-Adresse existiert, haben wir Ihnen einen Link zum Zurücksetzen des Passworts gesendet. Bitte prüfen Sie Ihr Postfach.
+forgot-password-back = Zurück zur Anmeldung
+forgot-password-link = Passwort vergessen?
+
+reset-password-title = Neues Passwort setzen
+reset-password-subtitle = Bitte geben Sie Ihr neues Passwort ein.
+reset-password-new-label = Neues Passwort
+reset-password-new-placeholder = Neues Passwort
+reset-password-confirm-label = Passwort bestätigen
+reset-password-confirm-placeholder = Neues Passwort wiederholen
+reset-password-submit = Passwort zurücksetzen
+reset-password-invalid-token = Ungültiger oder abgelaufener Link zum Zurücksetzen des Passworts.
+reset-password-error-mismatch = Die Passwörter stimmen nicht überein.
+reset-password-success-title = Passwort zurückgesetzt
+reset-password-success-message = Ihr Passwort wurde erfolgreich zurückgesetzt. Sie können sich jetzt mit Ihrem neuen Passwort anmelden.
+reset-password-success-login = Zur Anmeldung
+
 confirm-email-invalid = Ungültiger oder abgelaufener Bestätigungslink.
 confirm-email-success-title = E-Mail bestätigt
 confirm-email-success-message = Deine E-Mail-Adresse wurde erfolgreich bestätigt:

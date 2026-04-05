@@ -264,6 +264,50 @@ pub struct ConfirmEmailSuccessCtx<'a> {
     pub anonymized_email: &'a str,
 }
 
+// ── Forgot password ──────────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+pub struct ForgotPasswordCtx<'a> {
+    pub t: &'a I18n,
+    pub lang: &'a str,
+    pub css_hash: &'a str,
+    pub js_hash: &'a str,
+    pub csrf_token: &'a str,
+    pub error: bool,
+    pub error_message: &'a str,
+    pub form_email: &'a str,
+}
+
+#[derive(Serialize)]
+pub struct ForgotPasswordSentCtx<'a> {
+    pub t: &'a I18n,
+    pub lang: &'a str,
+    pub css_hash: &'a str,
+    pub js_hash: &'a str,
+}
+
+// ── Reset password ──────────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+pub struct ResetPasswordCtx<'a> {
+    pub t: &'a I18n,
+    pub lang: &'a str,
+    pub css_hash: &'a str,
+    pub js_hash: &'a str,
+    pub csrf_token: &'a str,
+    pub token: &'a str,
+    pub error: bool,
+    pub error_message: &'a str,
+}
+
+#[derive(Serialize)]
+pub struct ResetPasswordSuccessCtx<'a> {
+    pub t: &'a I18n,
+    pub lang: &'a str,
+    pub css_hash: &'a str,
+    pub js_hash: &'a str,
+}
+
 // ── Error page ────────────────────────────────────────────────────────────────
 
 #[derive(Serialize)]

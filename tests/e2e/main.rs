@@ -57,6 +57,7 @@ impl TestServer {
             smtp_from: "noreply@localhost".to_string(),
             smtp_starttls: true,
             email_confirm_token_expiry_hours: 24,
+            password_reset_token_expiry_hours: 1,
         };
 
         let (api_port, ui_port, setup_token) = gtid::start_server(config).await;
