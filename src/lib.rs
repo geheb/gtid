@@ -1,3 +1,5 @@
+rust_i18n::i18n!("locales");
+
 use std::net::SocketAddr;
 use std::sync::atomic::AtomicBool;
 use std::sync::Arc;

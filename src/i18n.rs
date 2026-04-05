@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 
-use fluent_bundle::{FluentBundle, FluentResource};
 use serde::Serialize;
-use unic_langid::LanguageIdentifier;
 
 use crate::crypto::password::PasswordError;
 
@@ -281,43 +279,17 @@ impl Locales {
     }
 }
 
-fn resolve_msg(bundle: &FluentBundle<FluentResource>, key: &str) -> Result<String, String> {
-    let msg = bundle
-        .get_message(key)
-        .ok_or_else(|| format!("Missing Fluent message: {key}"))?;
-    let pattern = msg
-        .value()
-        .ok_or_else(|| format!("Fluent message has no value: {key}"))?;
-    let mut errors = vec![];
-    let result = bundle.format_pattern(pattern, None, &mut errors);
-    if !errors.is_empty() {
-        return Err(format!("Fluent format errors for {key}: {errors:?}"));
-    }
-    Ok(result.into_owned())
-}
-
-fn build_bundle(lang: &str, ftl_source: &str) -> FluentBundle<FluentResource> {
-    let langid: LanguageIdentifier = lang.parse().expect("Invalid language identifier");
-    let resource =
-        FluentResource::try_new(ftl_source.to_string()).expect("Failed to parse FTL resource");
-    let mut bundle = FluentBundle::new(vec![langid]);
-    bundle
-        .add_resource(resource)
-        .expect("Failed to add FTL resource to bundle");
-    bundle
-}
-
 macro_rules! resolve_all {
-    ($bundle:expr, $( $field:ident ),+ $(,)?) => {
-        Ok(I18n {
-            $( $field: resolve_msg($bundle, &stringify!($field).replace('_', "-"))?, )+
-        })
+    ($lang:expr, $( $field:ident ),+ $(,)?) => {
+        I18n {
+            $( $field: rust_i18n::t!(stringify!($field), locale = $lang).to_string(), )+
+        }
     };
 }
 
-fn resolve_i18n(bundle: &FluentBundle<FluentResource>) -> Result<I18n, String> {
+fn resolve_i18n(lang: &str) -> I18n {
     resolve_all!(
-        bundle,
+        lang,
         admin_panel,
         setup_title,
         setup_subtitle,
@@ -534,12 +506,9 @@ fn resolve_i18n(bundle: &FluentBundle<FluentResource>) -> Result<I18n, String> {
 }
 
 pub fn build_locales() -> Locales {
-    let de_bundle = build_bundle("de", include_str!("../locales/de/main.ftl"));
-    let en_bundle = build_bundle("en", include_str!("../locales/en/main.ftl"));
-
     let mut map = HashMap::new();
-    map.insert("de".to_string(), resolve_i18n(&de_bundle).expect("Failed to resolve German locale"));
-    map.insert("en".to_string(), resolve_i18n(&en_bundle).expect("Failed to resolve English locale"));
+    map.insert("de".to_string(), resolve_i18n("de"));
+    map.insert("en".to_string(), resolve_i18n("en"));
 
     Locales { map }
 }
