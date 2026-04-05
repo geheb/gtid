@@ -1,3 +1,4 @@
+use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 
 use crate::models::email_confirmation_token::EmailConfirmationToken;
@@ -5,6 +6,11 @@ use crate::models::email_confirmation_token::EmailConfirmationToken;
 #[derive(Clone)]
 pub struct EmailConfirmationTokenRepository {
     pool: SqlitePool,
+}
+
+fn hash_token(token: &str) -> String {
+    let hash = Sha256::digest(token.as_bytes());
+    hash.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 impl EmailConfirmationTokenRepository {
@@ -17,11 +23,15 @@ impl EmailConfirmationTokenRepository {
         user_id: &str,
         expires_at: &str,
     ) -> Result<String, sqlx::Error> {
+        // Opportunistically clean up expired tokens
+        self.delete_expired().await?;
+
         let token = crate::crypto::id::new_secure_token();
+        let token_hash = hash_token(&token);
         sqlx::query(
-            "INSERT INTO email_confirmations (token, user_id, expires_at) VALUES (?, ?, ?)",
+            "INSERT INTO email_confirmations (token_hash, user_id, expires_at) VALUES (?, ?, ?)",
         )
-        .bind(&token)
+        .bind(&token_hash)
         .bind(user_id)
         .bind(expires_at)
         .execute(&self.pool)
@@ -33,10 +43,11 @@ impl EmailConfirmationTokenRepository {
         &self,
         token: &str,
     ) -> Result<Option<EmailConfirmationToken>, sqlx::Error> {
+        let token_hash = hash_token(token);
         sqlx::query_as::<_, EmailConfirmationToken>(
-            "SELECT * FROM email_confirmations WHERE token = ? AND expires_at > datetime('now')",
+            "SELECT * FROM email_confirmations WHERE token_hash = ? AND expires_at > datetime('now')",
         )
-        .bind(token)
+        .bind(&token_hash)
         .fetch_optional(&self.pool)
         .await
     }
@@ -44,6 +55,13 @@ impl EmailConfirmationTokenRepository {
     pub async fn delete_for_user(&self, user_id: &str) -> Result<(), sqlx::Error> {
         sqlx::query("DELETE FROM email_confirmations WHERE user_id = ?")
             .bind(user_id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn delete_expired(&self) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM email_confirmations WHERE expires_at <= datetime('now')")
             .execute(&self.pool)
             .await?;
         Ok(())
@@ -74,6 +92,18 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn token_stored_as_hash() {
+        let (repo, users) = test_repo().await;
+        users.create("u1", "a@b.com", "h", None, "", true).await.unwrap();
+        let expires = crate::repositories::test_helpers::future_time();
+        let token = repo.create("u1", &expires).await.unwrap();
+        let found = repo.find_valid(&token).await.unwrap().unwrap();
+        // DB stores hash, not the plaintext token
+        assert_ne!(found.token_hash, token);
+        assert_eq!(found.token_hash, hash_token(&token));
+    }
+
+    #[tokio::test]
     async fn expired_token_not_found() {
         let (repo, users) = test_repo().await;
         users.create("u1", "a@b.com", "h", None, "", true).await.unwrap();
@@ -98,5 +128,18 @@ mod tests {
         repo.delete_for_user("u1").await.unwrap();
         assert!(repo.find_valid(&t1).await.unwrap().is_none());
         assert!(repo.find_valid(&t2).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn delete_expired_cleans_old_tokens() {
+        let (repo, users) = test_repo().await;
+        users.create("u1", "a@b.com", "h", None, "", true).await.unwrap();
+        let past = crate::repositories::test_helpers::past_time();
+        let future = crate::repositories::test_helpers::future_time();
+        let _expired = repo.create("u1", &past).await.unwrap();
+        let valid = repo.create("u1", &future).await.unwrap();
+        repo.delete_expired().await.unwrap();
+        // Valid token still exists
+        assert!(repo.find_valid(&valid).await.unwrap().is_some());
     }
 }
