@@ -7,5 +7,6 @@ pub struct RefreshToken {
     pub token_family: String,
     pub expires_at: String,
     pub revoked: i32,
+    pub rotated_at: Option<String>,
     pub created_at: String,
 }

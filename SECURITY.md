@@ -95,6 +95,8 @@ now.duration_since(earlier)
 - **Token family tracking:** All refresh tokens derived from the same auth code form a family. Reuse of a revoked refresh token triggers cascade revocation of the entire family
 - **Auth code replay detection:** If an already redeemed auth code is presented again, all derived tokens are immediately revoked
 - **Scope downscoping:** Clients may request a subset of scopes on refresh - upscoping is rejected
+- **Refresh token rotation:** On each refresh, the old token is revoked and a new one is issued. `rotated_at` records when the old token was consumed - this creates an audit trail and distinguishes "revoked because rotated" from "revoked because of detected theft". Only tokens with `rotated_at IS NULL` are eligible for rotation (idempotency guard)
+- **Expired token cleanup:** Revoked and expired refresh tokens are opportunistically deleted on each new `create()` call (`WHERE expires_at < datetime('now') AND revoked = 1`)
 
 **Rule:** Never accept an algorithm from the token itself. Never skip issuer or audience validation. New token types must follow the same claim validation pattern. Never allow scope escalation on token refresh.
 
@@ -154,13 +156,16 @@ The attacker cannot forge the form token because:
 
 ## 8. Database
 
-**Pattern:** Type-safe queries with parameterized inputs.
+**Pattern:** Type-safe queries with parameterized inputs. Harden storage at the SQLite level.
 
 - All models use `#[derive(sqlx::FromRow)]` - no dynamic deserialization
 - All queries use `sqlx::query!` with bind parameters - no string interpolation
 - Schema enforces field types and constraints
+- **`secure_delete = 1`:** Overwritten pages are zeroed before reuse - prevents recovery of deleted secrets (tokens, password hashes) from the database file
+- **`temp_store = 2`:** Temporary tables and indices are kept in memory, never written to disk - prevents leaking intermediate query results to the filesystem
+- **File permissions (Unix):** Database files are set to `0o600` (owner-only read/write) on startup
 
-**Rule:** Never construct SQL from user input. Never deserialize database rows into untyped structures.
+**Rule:** Never construct SQL from user input. Never deserialize database rows into untyped structures. Never weaken `secure_delete` or `temp_store` pragmas.
 
 ---
 
@@ -196,7 +201,38 @@ The attacker cannot forge the form token because:
 
 ---
 
-## 10. Security Headers & CSP
+## 10. Email Confirmation Tokens
+
+**Pattern:** Confirm user email addresses via single-use, time-limited tokens. Never store the plaintext token in the database.
+
+### Token generation
+
+- **CSPRNG:** 32 bytes from `OsRng` via `rand::random()`, hex-encoded (64 characters, 256 bits entropy)
+- **Hashed storage:** Only the SHA-256 hash of the token is stored in the database (`token_hash` column). The plaintext token is sent to the user via email and never persisted
+- **If the database leaks,** an attacker cannot use the stored hashes to confirm accounts
+
+### Token lifecycle
+
+- **Expiry:** Configurable via `EMAIL_CONFIRM_TOKEN_EXPIRY_HOURS` (default 24h). Validated server-side with `expires_at > datetime('now')`
+- **Single use:** After successful confirmation, all tokens for the user are deleted (`delete_for_user`)
+- **Expired token cleanup:** Opportunistic - expired tokens are pruned on every `create()` call. No separate background job needed
+- **Resend:** Admin can trigger a resend, which deletes existing tokens before creating a new one
+
+### Abuse prevention
+
+- **Rate limiting:** The `/confirm-email` endpoint shares the login rate limiter (IP + User-Agent based). Failed attempts count against the limit
+- **Account enumeration:** Unconfirmed users receive the same generic login error as invalid credentials - an attacker cannot distinguish "wrong password" from "not confirmed"
+- **Login block:** Users with `is_confirmed = false` cannot log in. The initial admin user (setup flow) is auto-confirmed
+
+### JWT integration
+
+- `email_verified` claim in ID tokens and `/userinfo` reflects the actual `is_confirmed` status - never hardcoded
+
+**Rule:** Never store plaintext confirmation tokens in the database. New token types (password reset, etc.) must follow the same pattern: CSPRNG generation, SHA-256 hashed storage, configurable expiry, opportunistic cleanup.
+
+---
+
+## 11. Security Headers & CSP
 
 **Pattern:** Apply security headers on every response. Use a strict Content-Security-Policy that only whitelists what is actually needed.
 
@@ -218,7 +254,7 @@ The attacker cannot forge the form token because:
 
 ---
 
-## 11. Cache Control
+## 12. Cache Control
 
 **Pattern:** Prevent browsers and proxies from caching sensitive responses. Allow caching only for static, non-sensitive assets with cache-busting.
 
@@ -242,7 +278,7 @@ Applied via middleware (`security_headers.rs`) - every response gets cache heade
 
 ---
 
-## 12. Timing Side-Channels
+## 13. Timing Side-Channels
 
 **Pattern:** Ensure every authentication/authorization code path takes the same amount of time regardless of whether the input is valid - both at the comparison level and the execution-flow level.
 
@@ -270,7 +306,7 @@ Authentication failures must return the same HTTP status and response structure 
 
 ---
 
-## 13. CORS
+## 14. CORS
 
 **Pattern:** Default-deny - no cross-origin access unless explicitly configured. Never use wildcards.
 
@@ -285,7 +321,7 @@ Authentication failures must return the same HTTP status and response structure 
 
 ---
 
-## 14. Output Escaping (XSS Prevention)
+## 15. Output Escaping (XSS Prevention)
 
 **Pattern:** All user-controlled values must be HTML-escaped before rendering. Never build HTML from raw user input.
 
@@ -297,7 +333,7 @@ Authentication failures must return the same HTTP status and response structure 
 
 ---
 
-## 15. Redacted Output
+## 16. Redacted Output
 
 **Pattern:** Never leak secrets, internal state, or distinguishing details in logs, error responses, or debug output.
 
@@ -351,3 +387,5 @@ Before merging, verify:
 - [ ] No secrets (passwords, tokens, client secrets) in log output
 - [ ] Error responses return generic messages, details only in server logs
 - [ ] Structs holding secrets implement `Debug` with `[REDACTED]`
+- [ ] New token types use CSPRNG generation + SHA-256 hashed storage + configurable expiry
+- [ ] No plaintext tokens stored in the database

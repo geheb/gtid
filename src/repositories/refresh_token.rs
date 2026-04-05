@@ -71,7 +71,7 @@ impl RefreshTokenRepository {
     }
 
     pub async fn revoke(&self, token: &str) -> Result<(), sqlx::Error> {
-        sqlx::query("UPDATE refresh_tokens SET revoked = 1 WHERE token = ?")
+        sqlx::query("UPDATE refresh_tokens SET revoked = 1, rotated_at = datetime('now') WHERE token = ? AND rotated_at IS NULL")
             .bind(token)
             .execute(&self.pool)
             .await?;

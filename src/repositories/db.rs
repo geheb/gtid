@@ -10,6 +10,12 @@ pub async fn init_pool(database_uri: &str) -> SqlitePool {
                 std::fs::create_dir_all(parent).expect("Failed to create database directory");
             }
         }
+        // Restrict file permissions to owner-only (Unix)
+        #[cfg(unix)]
+        if std::path::Path::new(path).exists() {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+        }
     }
 
     let options = SqliteConnectOptions::from_str(database_uri)
@@ -20,7 +26,9 @@ pub async fn init_pool(database_uri: &str) -> SqlitePool {
         .synchronous(sqlx::sqlite::SqliteSynchronous::Normal)
         .busy_timeout(std::time::Duration::from_secs(5))
         .pragma("cache_size", "-65536")
-        .pragma("mmap_size", "1073741824");
+        .pragma("mmap_size", "1073741824")
+        .pragma("secure_delete", "1")
+        .pragma("temp_store", "2");
 
     SqlitePoolOptions::new()
         .connect_with(options)
@@ -93,6 +101,7 @@ pub async fn run_clients_migrations(pool: &SqlitePool) {
             scope           TEXT NOT NULL DEFAULT 'openid',
             expires_at      TEXT NOT NULL,
             revoked         INTEGER NOT NULL DEFAULT 0,
+            rotated_at      TEXT,
             created_at      TEXT NOT NULL DEFAULT (datetime('now'))
         )",
         "CREATE TABLE IF NOT EXISTS consent_grants (
