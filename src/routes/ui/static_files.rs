@@ -14,6 +14,7 @@ const FAVICON_ICO: &[u8] = include_bytes!("../../../static/favicon.ico");
 const FAVICON_SVG: &str = include_str!("../../../static/favicon.svg");
 const APPLE_TOUCH_ICON: &[u8] = include_bytes!("../../../static/apple-touch-icon.png");
 const APPLE_TOUCH_ICON_PRE: &[u8] = include_bytes!("../../../static/apple-touch-icon-precomposed.png");
+const ANIMATED_WAVE: &[u8] = include_bytes!("../../../static/animated-wave.svg");
 
 enum StaticContent {
     Text(&'static str),
@@ -62,6 +63,10 @@ fn lookup(path: &str) -> Option<StaticFile> {
         "apple-touch-icon-precomposed.png" => Some(StaticFile {
             content: StaticContent::Binary(APPLE_TOUCH_ICON_PRE),
             content_type: "image/png",
+        }),
+        "animated-wave.svg" => Some(StaticFile {
+            content: StaticContent::Binary(ANIMATED_WAVE),
+            content_type: "image/svg+xml",
         }),
         _ => None,
     }

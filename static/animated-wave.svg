@@ -1,0 +1,59 @@
+<svg viewBox="0 0 680 400" preserveAspectRatio="xMidYMid slice" style="transform: translateZ(0); will-change: transform;" xmlns="http://www.w3.org/2000/svg">
+	<defs>
+		<style>
+          @keyframes wa {
+            0%,100% { d: path("M-20,200 C80,130 180,270 300,200 C420,130 540,270 700,200"); }
+            50%      { d: path("M-20,200 C80,270 180,130 300,200 C420,270 540,130 700,200"); }
+          }
+          @keyframes wb {
+            0%,100% { d: path("M-20,200 C100,120 210,280 340,200 C470,120 580,280 700,200"); }
+            50%      { d: path("M-20,200 C100,280 210,120 340,200 C470,280 580,120 700,200"); }
+          }
+          @keyframes wc {
+            0%,100% { d: path("M-20,200 C70,145 180,255 310,200 C440,145 560,255 700,200"); }
+            50%      { d: path("M-20,200 C70,255 180,145 310,200 C440,255 560,145 700,200"); }
+          }
+        </style>
+		<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+			<stop offset="0%" stop-color="#08001a"/>
+			<stop offset="100%" stop-color="#010510"/>
+		</linearGradient>
+		<filter id="glow-pink" x="-50%" y="-50%" width="200%" height="200%">
+			<feGaussianBlur stdDeviation="6" result="blur"/>
+			<feMerge>
+				<feMergeNode in="blur"/>
+				<feMergeNode in="blur"/>
+				<feMergeNode in="SourceGraphic"/>
+			</feMerge>
+		</filter>
+		<filter id="glow-purple" x="-50%" y="-50%" width="200%" height="200%">
+			<feGaussianBlur stdDeviation="6" result="blur"/>
+			<feMerge>
+				<feMergeNode in="blur"/>
+				<feMergeNode in="blur"/>
+				<feMergeNode in="SourceGraphic"/>
+			</feMerge>
+		</filter>
+		<filter id="glow-cyan" x="-50%" y="-50%" width="200%" height="200%">
+			<feGaussianBlur stdDeviation="6" result="blur"/>
+			<feMerge>
+				<feMergeNode in="blur"/>
+				<feMergeNode in="blur"/>
+				<feMergeNode in="SourceGraphic"/>
+			</feMerge>
+		</filter>
+	</defs>
+	<rect width="680" height="400" fill="url(#bg)"/>
+	<!-- Pink wave -->
+	<path fill="none" stroke="#0099EB" stroke-width="8" stroke-opacity="0.05" d="M-20,200 C80,130 180,270 300,200 C420,130 540,270 700,200" style="animation: wa 30s ease-in-out; will-change: transform;" filter="url(#glow-pink)"/>
+	<path fill="none" stroke="#0099EB" stroke-width="3" stroke-opacity="0.08" d="M-20,200 C80,130 180,270 300,200 C420,130 540,270 700,200" style="animation: wa 30s ease-in-out; will-change: transform;" filter="url(#glow-pink)"/>
+	<path fill="none" stroke="#0099EB" stroke-width="1" stroke-opacity="0.1" d="M-20,200 C80,130 180,270 300,200 C420,130 540,270 700,200" style="animation: wa 30s ease-in-out;"/>
+	<!-- Purple wave -->
+	<path fill="none" stroke="#FF1818" stroke-width="8" stroke-opacity="0.05" d="M-20,200 C100,120 210,280 340,200 C470,120 580,280 700,200" style="animation: wb 10s ease-in-out 20s; will-change: transform;" filter="url(#glow-purple)"/>
+	<path fill="none" stroke="#FF1818" stroke-width="3" stroke-opacity="0.08" d="M-20,200 C100,120 210,280 340,200 C470,120 580,280 700,200" style="animation: wb 10s ease-in-out 20s; will-change: transform;" filter="url(#glow-purple)"/>
+	<path fill="none" stroke="#FF1818" stroke-width="1" stroke-opacity="0.1" d="M-20,200 C100,120 210,280 340,200 C470,120 580,280 700,200" style="animation: wb 10s ease-in-out 20s; will-change: transform;"/>
+	<!-- Cyan wave -->
+	<path fill="none" stroke="#00991B" stroke-width="8" stroke-opacity="0.05" d="M-20,200 C70,145 180,255 310,200 C440,145 560,255 700,200" style="animation: wc 20s ease-in-out 10s; will-change: transform;" filter="url(#glow-cyan)"/>
+	<path fill="none" stroke="#00991B" stroke-width="3" stroke-opacity="0.08" d="M-20,200 C70,145 180,255 310,200 C440,145 560,255 700,200" style="animation: wc 20s ease-in-out 10s; will-change: transform;" filter="url(#glow-cyan)"/>
+	<path fill="none" stroke="#00991B" stroke-width="1" stroke-opacity="0.1" d="M-20,200 C70,145 180,255 310,200 C440,145 560,255 700,200" style="animation: wc 20s ease-in-out 10s; will-change: transform;"/>
+</svg>

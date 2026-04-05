@@ -11,7 +11,7 @@
     <link rel="stylesheet" href="/static/style.css?h={{ css_hash }}">
     {% block head_extra %}{% endblock %}
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
     {% block body %}{% endblock %}
     <script src="/static/app.js?h={{ js_hash }}"></script>
 </body>
