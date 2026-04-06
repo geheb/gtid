@@ -1,0 +1,45 @@
+<svg viewBox="0 0 680 400" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+	<defs>
+		<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+			<stop offset="0%" stop-color="#08001a"/>
+			<stop offset="100%" stop-color="#010510"/>
+		</linearGradient>
+		<filter id="glow-pink" x="-50%" y="-50%" width="200%" height="200%">
+			<feGaussianBlur stdDeviation="6" result="blur"/>
+			<feMerge>
+				<feMergeNode in="blur"/>
+				<feMergeNode in="blur"/>
+				<feMergeNode in="SourceGraphic"/>
+			</feMerge>
+		</filter>
+		<filter id="glow-purple" x="-50%" y="-50%" width="200%" height="200%">
+			<feGaussianBlur stdDeviation="6" result="blur"/>
+			<feMerge>
+				<feMergeNode in="blur"/>
+				<feMergeNode in="blur"/>
+				<feMergeNode in="SourceGraphic"/>
+			</feMerge>
+		</filter>
+		<filter id="glow-cyan" x="-50%" y="-50%" width="200%" height="200%">
+			<feGaussianBlur stdDeviation="6" result="blur"/>
+			<feMerge>
+				<feMergeNode in="blur"/>
+				<feMergeNode in="blur"/>
+				<feMergeNode in="SourceGraphic"/>
+			</feMerge>
+		</filter>
+	</defs>
+	<rect width="680" height="400" fill="url(#bg)"/>
+	<!-- Pink wave -->
+	<path fill="none" stroke="#0099EB" stroke-width="8" stroke-opacity="0.05" d="M-20,200 C80,130 180,270 300,200 C420,130 540,270 700,200" filter="url(#glow-pink)"/>
+	<path fill="none" stroke="#0099EB" stroke-width="3" stroke-opacity="0.08" d="M-20,200 C80,130 180,270 300,200 C420,130 540,270 700,200" filter="url(#glow-pink)"/>
+	<path fill="none" stroke="#0099EB" stroke-width="1" stroke-opacity="0.1" d="M-20,200 C80,130 180,270 300,200 C420,130 540,270 700,200" />
+	<!-- Purple wave -->
+	<path fill="none" stroke="#FF1818" stroke-width="8" stroke-opacity="0.05" d="M-20,200 C100,120 210,280 340,200 C470,120 580,280 700,200" filter="url(#glow-purple)"/>
+	<path fill="none" stroke="#FF1818" stroke-width="3" stroke-opacity="0.08" d="M-20,200 C100,120 210,280 340,200 C470,120 580,280 700,200" filter="url(#glow-purple)"/>
+	<path fill="none" stroke="#FF1818" stroke-width="1" stroke-opacity="0.1" d="M-20,200 C100,120 210,280 340,200 C470,120 580,280 700,200" />
+	<!-- Cyan wave -->
+	<path fill="none" stroke="#00991B" stroke-width="8" stroke-opacity="0.05" d="M-20,200 C70,145 180,255 310,200 C440,145 560,255 700,200" filter="url(#glow-cyan)"/>
+	<path fill="none" stroke="#00991B" stroke-width="3" stroke-opacity="0.08" d="M-20,200 C70,145 180,255 310,200 C440,145 560,255 700,200" filter="url(#glow-cyan)"/>
+	<path fill="none" stroke="#00991B" stroke-width="1" stroke-opacity="0.1" d="M-20,200 C70,145 180,255 310,200 C440,145 560,255 700,200" />
+</svg>

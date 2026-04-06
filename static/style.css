@@ -27,9 +27,17 @@
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body { font-family: var(--font-primary); color: var(--color-text); min-height: 100vh; background-color: var(--color-bg); }
 
-.anim-back {
+.animated-wave {
     background-color: #08001a;
     background-image: url(animated-wave.svg);
+    background-size: cover;                      
+    background-repeat: no-repeat;
+    background-position: center center;
+}
+
+.wave {
+    background-color: #08001a;
+    background-image: url(wave.svg);
     background-size: cover;                      
     background-repeat: no-repeat;
     background-position: center center;

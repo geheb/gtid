@@ -47,11 +47,11 @@
 	<!-- Pink wave -->
 	<path fill="none" stroke="#0099EB" stroke-width="8" stroke-opacity="0.05" d="M-20,200 C80,130 180,270 300,200 C420,130 540,270 700,200" style="animation: wa 30s ease-in-out; will-change: transform;" filter="url(#glow-pink)"/>
 	<path fill="none" stroke="#0099EB" stroke-width="3" stroke-opacity="0.08" d="M-20,200 C80,130 180,270 300,200 C420,130 540,270 700,200" style="animation: wa 30s ease-in-out; will-change: transform;" filter="url(#glow-pink)"/>
-	<path fill="none" stroke="#0099EB" stroke-width="1" stroke-opacity="0.1" d="M-20,200 C80,130 180,270 300,200 C420,130 540,270 700,200" style="animation: wa 30s ease-in-out;"/>
+	<path fill="none" stroke="#0099EB" stroke-width="1" stroke-opacity="0.1" d="M-20,200 C80,130 180,270 300,200 C420,130 540,270 700,200" style="animation: wa 30s ease-in-out; will-change: transform;"/>
 	<!-- Purple wave -->
-	<path fill="none" stroke="#FF1818" stroke-width="8" stroke-opacity="0.05" d="M-20,200 C100,120 210,280 340,200 C470,120 580,280 700,200" style="animation: wb 10s ease-in-out 20s; will-change: transform;" filter="url(#glow-purple)"/>
-	<path fill="none" stroke="#FF1818" stroke-width="3" stroke-opacity="0.08" d="M-20,200 C100,120 210,280 340,200 C470,120 580,280 700,200" style="animation: wb 10s ease-in-out 20s; will-change: transform;" filter="url(#glow-purple)"/>
-	<path fill="none" stroke="#FF1818" stroke-width="1" stroke-opacity="0.1" d="M-20,200 C100,120 210,280 340,200 C470,120 580,280 700,200" style="animation: wb 10s ease-in-out 20s; will-change: transform;"/>
+	<path fill="none" stroke="#FF1818" stroke-width="8" stroke-opacity="0.05" d="M-20,200 C100,120 210,280 340,200 C470,120 580,280 700,200" style="animation: wb 10s ease-in-out 10s; will-change: transform;" filter="url(#glow-purple)"/>
+	<path fill="none" stroke="#FF1818" stroke-width="3" stroke-opacity="0.08" d="M-20,200 C100,120 210,280 340,200 C470,120 580,280 700,200" style="animation: wb 10s ease-in-out 10s; will-change: transform;" filter="url(#glow-purple)"/>
+	<path fill="none" stroke="#FF1818" stroke-width="1" stroke-opacity="0.1" d="M-20,200 C100,120 210,280 340,200 C470,120 580,280 700,200" style="animation: wb 10s ease-in-out 10s; will-change: transform;"/>
 	<!-- Cyan wave -->
 	<path fill="none" stroke="#00991B" stroke-width="8" stroke-opacity="0.05" d="M-20,200 C70,145 180,255 310,200 C440,145 560,255 700,200" style="animation: wc 20s ease-in-out 10s; will-change: transform;" filter="url(#glow-cyan)"/>
 	<path fill="none" stroke="#00991B" stroke-width="3" stroke-opacity="0.08" d="M-20,200 C70,145 180,255 310,200 C440,145 560,255 700,200" style="animation: wc 20s ease-in-out 10s; will-change: transform;" filter="url(#glow-cyan)"/>

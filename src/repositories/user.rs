@@ -113,6 +113,19 @@ impl UserRepository {
         Ok(())
     }
 
+    pub async fn update_email(
+        &self,
+        id: &str,
+        email: &str,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query("UPDATE users SET email = ? WHERE id = ?")
+            .bind(email)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     pub async fn update_last_login(&self, id: &str) -> Result<(), sqlx::Error> {
         sqlx::query("UPDATE users SET last_login_at = datetime('now') WHERE id = ?")
             .bind(id)
@@ -127,6 +140,10 @@ impl UserRepository {
             .execute(&self.pool)
             .await?;
         sqlx::query("DELETE FROM email_confirmations WHERE user_id = ?")
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("DELETE FROM email_changes WHERE user_id = ?")
             .bind(id)
             .execute(&self.pool)
             .await?;
@@ -212,6 +229,15 @@ mod tests {
         let user = repo.find_by_id("u1").await.unwrap().unwrap();
         assert_eq!(user.display_name.as_deref(), Some("New Name"));
         assert_eq!(user.roles, "admin");
+    }
+
+    #[tokio::test]
+    async fn update_email() {
+        let repo = test_repo().await;
+        repo.create("u1", "a@b.com", "h", None, "", true).await.unwrap();
+        repo.update_email("u1", "new@b.com").await.unwrap();
+        let user = repo.find_by_id("u1").await.unwrap().unwrap();
+        assert_eq!(user.email, "new@b.com");
     }
 
     #[tokio::test]

@@ -66,6 +66,13 @@ pub async fn run_users_migrations(pool: &SqlitePool) {
             expires_at      TEXT NOT NULL,
             created_at      TEXT NOT NULL DEFAULT (datetime('now'))
         )",
+        "CREATE TABLE IF NOT EXISTS email_changes (
+            token_hash      TEXT PRIMARY KEY,
+            user_id         TEXT NOT NULL REFERENCES users(id),
+            new_email       TEXT NOT NULL,
+            expires_at      TEXT NOT NULL,
+            created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+        )",
     ];
 
     for sql in &statements {

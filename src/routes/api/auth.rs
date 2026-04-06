@@ -177,6 +177,7 @@ pub async fn login_submit(
 
     let rl_key = state.login_rate_limiter.key("login", &ip, ua);
     let rid = form.rid.as_deref().unwrap_or("");
+    let email = crate::routes::ui::normalize_email(&form.email);
     let t = state.locales.get(&lang.tag);
 
     let show_imprint = has_legal_content(&state, "imprint").await;
@@ -203,17 +204,17 @@ pub async fn login_submit(
 
     // Check rate limit (IP + User-Agent)
     if state.login_rate_limiter.is_limited(rl_key) {
-        tracing::warn!(event = "rate_limited", ip = %ip, email = %form.email, "Login rate limited");
-        return render_login_error(&t.login_error_rate_limited, StatusCode::TOO_MANY_REQUESTS, rid, &csrf_form_token, &form.email);
+        tracing::warn!(event = "rate_limited", ip = %ip, email = %email, "Login rate limited");
+        return render_login_error(&t.login_error_rate_limited, StatusCode::TOO_MANY_REQUESTS, rid, &csrf_form_token, &email);
     }
 
     // Check account lockout (per email)
-    if state.account_lockout.is_locked(&form.email) {
-        tracing::warn!(event = "account_locked", ip = %ip, email = %form.email, "Login blocked by account lockout");
-        return render_login_error(&t.login_error_account_locked, StatusCode::FORBIDDEN, rid, &csrf_form_token, &form.email);
+    if state.account_lockout.is_locked(&email) {
+        tracing::warn!(event = "account_locked", ip = %ip, email = %email, "Login blocked by account lockout");
+        return render_login_error(&t.login_error_account_locked, StatusCode::FORBIDDEN, rid, &csrf_form_token, &email);
     }
 
-    let user = state.users.find_by_email(&form.email).await?;
+    let user = state.users.find_by_email(&email).await?;
 
     let user = match &user {
         Some(u) if password::verify_password(&form.password, &u.password_hash) => u.clone(),
@@ -221,22 +222,22 @@ pub async fn login_submit(
             if user.is_none() {
                 password::dummy_verify(&form.password);
             }
-            tracing::warn!(event = "login_failed", ip = %ip, email = %form.email, "Failed login attempt");
+            tracing::warn!(event = "login_failed", ip = %ip, email = %email, "Failed login attempt");
             state.login_rate_limiter.record_failure(rl_key);
-            state.account_lockout.record_failure(&form.email);
-            return render_login_error(&t.login_error_invalid, StatusCode::UNAUTHORIZED, rid, &csrf_form_token, &form.email);
+            state.account_lockout.record_failure(&email);
+            return render_login_error(&t.login_error_invalid, StatusCode::UNAUTHORIZED, rid, &csrf_form_token, &email);
         }
     };
 
     // Block unconfirmed users with same generic error (prevent account enumeration)
     if !user.is_confirmed {
-        tracing::warn!(event = "login_unconfirmed", ip = %ip, email = %form.email, "Login attempt with unconfirmed email");
-        return render_login_error(&t.login_error_invalid, StatusCode::UNAUTHORIZED, rid, &csrf_form_token, &form.email);
+        tracing::warn!(event = "login_unconfirmed", ip = %ip, email = %email, "Login attempt with unconfirmed email");
+        return render_login_error(&t.login_error_invalid, StatusCode::UNAUTHORIZED, rid, &csrf_form_token, &email);
     }
 
     // Successful login - clear rate limit and lockout, update last login
     state.login_rate_limiter.clear(rl_key);
-    state.account_lockout.clear(&form.email);
+    state.account_lockout.clear(&email);
     state.users.update_last_login(&user.id).await?;
 
     // #8: Session fixation prevention - invalidate all existing sessions for this user
@@ -274,7 +275,7 @@ pub async fn login_submit(
                     cookies.remove(Cookie::from("session"));
 
                     let csrf_form_token = csrf::set_new_csrf_cookie(&cookies, state.config.secure_cookies);
-                    return render_login_error(&t.login_error_session_expired, StatusCode::UNAUTHORIZED, "", &csrf_form_token, &form.email);
+                    return render_login_error(&t.login_error_session_expired, StatusCode::UNAUTHORIZED, "", &csrf_form_token, &email);
                 }
             }
         }

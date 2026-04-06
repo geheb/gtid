@@ -19,4 +19,5 @@ if ! docker ps --format '{{.Names}}' | grep -q mailpit; then
   docker compose -f dev/mailpit/docker-compose.yml up -d
 fi
 
+echo "Staring GT Id..."
 cargo run

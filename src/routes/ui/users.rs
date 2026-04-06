@@ -79,7 +79,7 @@ pub async fn user_create_submit(
 ) -> Result<Response, AppError> {
     let fields = parse_form_fields(&body);
     let csrf_token = get_field(&fields, "csrf_token");
-    let email = get_field(&fields, "email");
+    let email = super::normalize_email(&get_field(&fields, "email"));
     let display_name = get_field_opt(&fields, "display_name");
     let pw = get_field(&fields, "password");
     let roles = get_all(&fields, "roles");
@@ -106,6 +106,10 @@ pub async fn user_create_submit(
         let rendered = state.tera.render("admin/user_create.html", &ctx)?;
         Ok((status, Html(rendered)).into_response())
     };
+
+    if roles.is_empty() {
+        return render_error(&state.locales.get(&lang.tag).user_create_error_no_roles, StatusCode::BAD_REQUEST);
+    }
 
     if let Err(msg) = validate_password(&pw, state.locales.get(&lang.tag)) {
         return render_error(&msg, StatusCode::BAD_REQUEST);
@@ -151,6 +155,7 @@ pub async fn user_edit_form(
         error: false,
         error_message: "",
         user: &user,
+        form_email: &user.email,
         form_display_name: display_name,
         available_roles: &state.config.roles,
         form_roles: &user_roles,
@@ -170,6 +175,7 @@ pub async fn user_edit_submit(
 ) -> Result<Response, AppError> {
     let fields = parse_form_fields(&body);
     let csrf_token = get_field(&fields, "csrf_token");
+    let email = super::normalize_email(&get_field(&fields, "email"));
     let display_name = get_field_opt(&fields, "display_name");
     let pw = get_field(&fields, "password");
     let roles = get_all(&fields, "roles");
@@ -192,6 +198,7 @@ pub async fn user_edit_submit(
             error: true,
             error_message: msg,
             user: &user,
+            form_email: &email,
             form_display_name: display_name.as_deref().unwrap_or(""),
             available_roles: &state.config.roles,
             form_roles: &roles,
@@ -200,6 +207,18 @@ pub async fn user_edit_submit(
         let rendered = state.tera.render("admin/user_edit.html", &ctx)?;
         Ok((StatusCode::BAD_REQUEST, Html(rendered)).into_response())
     };
+
+    // Update email if changed
+    if email != user.email.to_lowercase() {
+        if email.is_empty() || !email.contains('@') {
+            return render_error(&state.locales.get(&lang.tag).profile_change_email_error_same);
+        }
+        if state.users.find_by_email(&email).await?.is_some() {
+            return render_error(&state.locales.get(&lang.tag).user_create_error_email_exists);
+        }
+        state.users.update_email(&id, &email).await?;
+        tracing::info!(event = "user_email_changed", user_id = %id, new_email = %email, "Admin changed user email");
+    }
 
     if !pw.is_empty() {
         if let Err(msg) = validate_password(&pw, state.locales.get(&lang.tag)) {
@@ -294,18 +313,12 @@ async fn enqueue_confirmation_email(
         .ok()
         .flatten();
 
-    let (subject, body_html) = match template {
-        Some(t) => {
-            let body = t.body_html.replace("{{name}}", name).replace("{{link}}", &link);
-            let subject = t.subject.replace("{{name}}", name);
-            (subject, body)
-        }
-        None => {
-            let subject = "Confirm your email".to_string();
-            let body = format!("<p>Hi {name},</p><p>Please confirm your email: <a href=\"{link}\">{link}</a></p>");
-            (subject, body)
-        }
-    };
+    let t = state.locales.get(lang);
+    let (subject, body_html) = super::render_email_template(
+        template.as_ref(), name, &link,
+        &t.email_default_confirm_registration_subject,
+        &t.email_default_confirm_registration_body,
+    );
 
     if let Err(e) = state.email_queue.enqueue(email, &subject, &body_html).await {
         tracing::error!(event = "confirmation_email_failed", error = %e, "Failed to enqueue confirmation email");

@@ -61,6 +61,7 @@ pub struct UserEditCtx<'a> {
     pub error: bool,
     pub error_message: &'a str,
     pub user: &'a User,
+    pub form_email: &'a str,
     pub form_display_name: &'a str,
     pub available_roles: &'a [String],
     pub form_roles: &'a [String],
@@ -250,7 +251,21 @@ pub struct ProfileCtx<'a> {
     pub pw_saved: bool,
     pub pw_error: bool,
     pub pw_error_message: &'a str,
+    pub email_saved: bool,
+    pub email_error: bool,
+    pub email_error_message: &'a str,
     pub form_display_name: &'a str,
+}
+
+// ── Confirm email change success ─────────────────────────────────────────────
+
+#[derive(Serialize)]
+pub struct ConfirmEmailChangeSuccessCtx<'a> {
+    pub t: &'a I18n,
+    pub lang: &'a str,
+    pub css_hash: &'a str,
+    pub js_hash: &'a str,
+    pub anonymized_email: &'a str,
 }
 
 // ── Confirm email success ─────────────────────────────────────────────────────

@@ -50,6 +50,54 @@ pub fn validate_client_secret(secret: &str, i18n: &crate::i18n::I18n) -> Result<
         .map_err(|e| i18n.secret_msg(e).to_string())
 }
 
+/// Normalize an email address: trim, lowercase, and convert the domain to Punycode (IDNA).
+/// E.g. `User@Müller.de` → `user@xn--mller-kva.de`
+pub fn normalize_email(email: &str) -> String {
+    let trimmed = email.trim();
+    let Some((local, domain)) = trimmed.rsplit_once('@') else {
+        return trimmed.to_lowercase();
+    };
+    let local = local.to_lowercase();
+    let ascii_domain = idna::domain_to_ascii(domain).unwrap_or_else(|_| domain.to_lowercase());
+    format!("{local}@{ascii_domain}")
+}
+
+/// Anonymize an email address: `thomas@example.com` → `t...s@example.com`
+pub fn anonymize_email(email: &str) -> String {
+    let Some((local, domain)) = email.split_once('@') else {
+        return "***".to_string();
+    };
+    let masked = match local.len() {
+        0 => "***".to_string(),
+        1 => format!("{}...", &local[..1]),
+        _ => format!("{}...{}", &local[..1], &local[local.len() - 1..]),
+    };
+    format!("{masked}@{domain}")
+}
+
+/// Render an email template by replacing `{{name}}` and `{{link}}` placeholders.
+/// Falls back to the provided default subject/body when no custom template exists.
+pub fn render_email_template(
+    template: Option<&crate::models::email_template::EmailTemplate>,
+    name: &str,
+    link: &str,
+    default_subject: &str,
+    default_body: &str,
+) -> (String, String) {
+    match template {
+        Some(tmpl) => {
+            let body = tmpl.body_html.replace("{{name}}", name).replace("{{link}}", link);
+            let subject = tmpl.subject.replace("{{name}}", name);
+            (subject, body)
+        }
+        None => {
+            let subject = default_subject.replace("{{name}}", name);
+            let body = default_body.replace("{{name}}", name).replace("{{link}}", link);
+            (subject, body)
+        }
+    }
+}
+
 #[derive(Deserialize)]
 pub struct DeleteForm {
     #[serde(default)]
@@ -59,6 +107,14 @@ pub struct DeleteForm {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn anonymize() {
+        assert_eq!(anonymize_email("thomas@example.com"), "t...s@example.com");
+        assert_eq!(anonymize_email("ab@test.de"), "a...b@test.de");
+        assert_eq!(anonymize_email("a@test.de"), "a...@test.de");
+        assert_eq!(anonymize_email("invalid"), "***");
+    }
 
     #[test]
     fn valid_https() {
@@ -109,5 +165,45 @@ mod tests {
     fn accepts_mixed_case_http() {
         assert!(validate_redirect_uri("HTTP://localhost/cb").is_ok());
         assert!(validate_redirect_uri("HTTPS://example.com/cb").is_ok());
+    }
+
+    #[test]
+    fn normalize_email_lowercases() {
+        assert_eq!(normalize_email("User@Example.COM"), "user@example.com");
+    }
+
+    #[test]
+    fn normalize_email_trims() {
+        assert_eq!(normalize_email("  user@example.com  "), "user@example.com");
+    }
+
+    #[test]
+    fn normalize_email_punycode_domain() {
+        assert_eq!(normalize_email("user@müller.de"), "user@xn--mller-kva.de");
+    }
+
+    #[test]
+    fn normalize_email_punycode_domain_punnycode() {
+        assert_eq!(normalize_email("user@xn--mller-kva.de"), "user@xn--mller-kva.de");
+    }
+
+    #[test]
+    fn normalize_email_punycode_mixed_case() {
+        assert_eq!(normalize_email("User@Müller.DE"), "user@xn--mller-kva.de");
+    }
+
+    #[test]
+    fn normalize_email_ascii_domain_unchanged() {
+        assert_eq!(normalize_email("test@example.com"), "test@example.com");
+    }
+
+    #[test]
+    fn normalize_email_no_at_sign() {
+        assert_eq!(normalize_email("invalid"), "invalid");
+    }
+
+    #[test]
+    fn normalize_email_umlaut_local_part() {
+        assert_eq!(normalize_email("müller@example.com"), "müller@example.com");
     }
 }

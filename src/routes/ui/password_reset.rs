@@ -56,7 +56,7 @@ pub async fn forgot_password_submit(
 ) -> Result<Response, AppError> {
     let fields = parse_form_fields(&body);
     let csrf_token = get_field(&fields, "csrf_token");
-    let email = get_field(&fields, "email");
+    let email = super::normalize_email(&get_field(&fields, "email"));
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
         return Err(AppError::BadRequest(
@@ -137,23 +137,12 @@ pub async fn forgot_password_submit(
                 .ok()
                 .flatten();
 
-            let (subject, body_html) = match template {
-                Some(tmpl) => {
-                    let body = tmpl
-                        .body_html
-                        .replace("{{name}}", name)
-                        .replace("{{link}}", &link);
-                    let subject = tmpl.subject.replace("{{name}}", name);
-                    (subject, body)
-                }
-                None => {
-                    let subject = "Reset password".to_string();
-                    let body = format!(
-                        "<p>Hi {name},</p><p>Reset your password: <a href=\"{link}\">{link}</a></p>"
-                    );
-                    (subject, body)
-                }
-            };
+            let t = state.locales.get(&lang.tag);
+            let (subject, body_html) = super::render_email_template(
+                template.as_ref(), name, &link,
+                &t.email_default_reset_password_subject,
+                &t.email_default_reset_password_body,
+            );
 
             if let Err(e) = state
                 .email_queue

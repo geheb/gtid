@@ -66,7 +66,7 @@ pub async fn setup_submit(
     let fields = parse_form_fields(&body);
     let csrf_token = get_field(&fields, "csrf_token");
     let setup_token = get_field(&fields, "setup_token");
-    let email = get_field(&fields, "email");
+    let email = super::normalize_email(&get_field(&fields, "email"));
     let display_name = get_field_opt(&fields, "display_name");
     let pw = get_field(&fields, "password");
 
