@@ -28,6 +28,14 @@
         <div class="alert alert-error">{{ email_error_message }}</div>
         {% endif %}
 
+        {% if totp_saved %}
+        <div class="alert alert-success">{{ t.profile_2fa_disabled_success }}</div>
+        {% endif %}
+
+        {% if totp_error %}
+        <div class="alert alert-error">{{ totp_error_message }}</div>
+        {% endif %}
+
         <form method="POST" action="/profile">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
 
@@ -60,6 +68,24 @@
 
         <a href="#change-password" class="btn btn-secondary btn-block mt-1">{{ t.profile_password_title }}</a>
         <a href="#change-email" class="btn btn-secondary btn-block mt-1">{{ t.profile_change_email_title }}</a>
+
+        <div class="form-group mt-1">
+            <label>{{ t.profile_2fa_title }}</label>
+            {% if has_totp %}
+            <span class="badge badge-admin">{{ t.profile_2fa_enabled }}</span>
+            {% if not is_admin %}
+            <a href="#disable-2fa" class="btn btn-secondary btn-block mt-1">{{ t.profile_2fa_disable }}</a>
+            {% else %}
+            <p class="subtitle">{{ t.profile_2fa_admin_required }}</p>
+            {% endif %}
+            {% else %}
+            <span class="badge badge-user">{{ t.profile_2fa_disabled }}</span>
+            <form method="POST" action="/profile/2fa/setup" class="no-spinner">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                <button type="submit" class="btn btn-secondary btn-block mt-1">{{ t.profile_2fa_setup }}</button>
+            </form>
+            {% endif %}
+        </div>
 
         <form method="POST" action="/logout" class="logout-form no-spinner mt-1">
             <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -128,4 +154,29 @@
         </form>
     </div>
 </div>
+
+{% if has_totp and not is_admin %}
+<div id="disable-2fa" class="modal-overlay">
+    <div class="modal-card">
+        <div class="modal-header">
+            <h2>{{ t.profile_2fa_disable }}</h2>
+            <a href="/profile" class="modal-close" aria-label="Close">&times;</a>
+        </div>
+
+        <form method="POST" action="/profile/2fa/disable">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+            <div class="form-group">
+                <label for="disable_2fa_password">{{ t.profile_password_current_label }}</label>
+                <input class="form-input" type="password" id="disable_2fa_password" name="current_password" placeholder="{{ t.profile_password_current_placeholder }}" required>
+            </div>
+
+            <div class="flex-row-mt">
+                <button type="submit" class="btn btn-primary flex-1">{{ t.profile_2fa_disable }}</button>
+                <a href="/profile" class="btn btn-secondary flex-1">{{ t.profile_password_cancel }}</a>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
 {% endblock %}

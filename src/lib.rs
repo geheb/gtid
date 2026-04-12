@@ -31,6 +31,7 @@ pub mod routes;
 use config::AppConfig;
 use middleware::bot_trap::BotTrap;
 use middleware::lockout::AccountLockout;
+use middleware::pending_2fa::Pending2faStore;
 use middleware::pending_redirect::PendingRedirectStore;
 use middleware::rate_limit::LoginRateLimiter;
 use repositories::auth_code::AuthCodeRepository;
@@ -43,6 +44,7 @@ use repositories::session::SessionRepository;
 use repositories::email_confirmation_token::EmailConfirmationTokenRepository;
 use repositories::email_change::EmailChangeRepository;
 use repositories::password_reset_token::PasswordResetTokenRepository;
+use repositories::trusted_device::TrustedDeviceRepository;
 use repositories::user::UserRepository;
 
 #[derive(Clone)]
@@ -59,9 +61,11 @@ pub struct AppState {
     pub email_templates: EmailTemplateRepository,
     pub email_queue: repositories::email_queue::EmailQueueRepository,
     pub legal_pages: LegalPageRepository,
+    pub trusted_devices: TrustedDeviceRepository,
     pub login_rate_limiter: LoginRateLimiter,
     pub account_lockout: AccountLockout,
     pub pending_redirects: PendingRedirectStore,
+    pub pending_2fa: Pending2faStore,
     pub bot_trap: BotTrap,
     pub tera: tera::Tera,
     pub locales: i18n::Locales,
@@ -120,6 +124,7 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
     let config_db = repositories::db::init_pool(&config.database_uri_config).await;
     repositories::db::run_config_migrations(&config_db).await;
 
+    crypto::password::init_dummy_hash();
     let key_store = Arc::new(crypto::keys::generate_keys().expect("Failed to generate initial keys"));
     let mut tera = tera::Tera::default();
     tera.add_raw_templates(vec![
@@ -148,6 +153,8 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
         ("forgot_password_sent.html", include_str!("../static/forgot_password_sent.html")),
         ("reset_password.html", include_str!("../static/reset_password.html")),
         ("reset_password_success.html", include_str!("../static/reset_password_success.html")),
+        ("totp_setup.html", include_str!("../static/totp_setup.html")),
+        ("totp_verify.html", include_str!("../static/totp_verify.html")),
     ]).expect("Failed to load embedded templates");
 
     let locales = i18n::build_locales();
@@ -156,6 +163,7 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
     let confirmation_tokens = EmailConfirmationTokenRepository::new(users_db.clone());
     let password_reset_tokens = PasswordResetTokenRepository::new(users_db.clone());
     let email_changes = EmailChangeRepository::new(users_db.clone());
+    let trusted_devices = TrustedDeviceRepository::new(users_db.clone());
     let sessions = SessionRepository::new(users_db);
 
     let clients = ClientRepository::new(clients_db.clone());
@@ -200,9 +208,11 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
         email_templates,
         email_queue: email_queue.clone(),
         legal_pages,
+        trusted_devices,
         login_rate_limiter: LoginRateLimiter::new(),
         account_lockout: AccountLockout::new(config.lockout_max_attempts, config.lockout_duration_secs),
         pending_redirects: PendingRedirectStore::new(),
+        pending_2fa: Pending2faStore::new(),
         bot_trap: BotTrap::new(),
         tera,
         locales,

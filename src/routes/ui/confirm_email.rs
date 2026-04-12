@@ -69,7 +69,7 @@ pub async fn confirm_email(
         .ok_or_else(|| AppError::Internal("User not found".into()))?;
 
     state.users.confirm(&confirmation.user_id).await?;
-    state.confirmation_tokens.delete_for_user(&confirmation.user_id).await?;
+    state.confirmation_tokens.delete_by_user_id(&confirmation.user_id).await?;
     state.login_rate_limiter.clear(rl_key);
     tracing::info!(event = "email_confirmed", user_id = %confirmation.user_id, "Email confirmed via token");
 

@@ -52,7 +52,7 @@ impl PasswordResetTokenRepository {
         .await
     }
 
-    pub async fn delete_for_user(&self, user_id: &str) -> Result<(), sqlx::Error> {
+    pub async fn delete_by_user_id(&self, user_id: &str) -> Result<(), sqlx::Error> {
         sqlx::query("DELETE FROM password_resets WHERE user_id = ?")
             .bind(user_id)
             .execute(&self.pool)
@@ -124,7 +124,7 @@ mod tests {
         let expires = crate::repositories::test_helpers::future_time();
         let t1 = repo.create("u1", &expires).await.unwrap();
         let t2 = repo.create("u1", &expires).await.unwrap();
-        repo.delete_for_user("u1").await.unwrap();
+        repo.delete_by_user_id("u1").await.unwrap();
         assert!(repo.find_valid(&t1).await.unwrap().is_none());
         assert!(repo.find_valid(&t2).await.unwrap().is_none());
     }

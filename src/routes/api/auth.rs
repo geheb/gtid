@@ -12,7 +12,7 @@ use tower_cookies::cookie::time::Duration;
 use tower_cookies::cookie::SameSite;
 use tower_cookies::{Cookie, Cookies};
 
-use crate::crypto::{jwt, password};
+use crate::{crypto::{jwt, password}, middleware::{SESSION_ID_COOKIE_NAME, TRUST_DEVICE_COOKIE_NAME}};
 use crate::datetime::SqliteDateTimeExt;
 use crate::errors::AppError;
 use crate::middleware::csrf::{self, CsrfToken};
@@ -99,7 +99,7 @@ pub async fn rp_initiated_logout(
     if let Some(user) = optional_user.0 {
         state.sessions.delete_by_user_id(&user.id).await?;
     }
-    cookies.remove(Cookie::from("session"));
+    cookies.remove(Cookie::from(SESSION_ID_COOKIE_NAME));
 
     Ok(redirect(&redirect_to))
 }
@@ -112,6 +112,20 @@ pub struct LoginForm {
     pub rid: Option<String>,
     #[serde(default)]
     pub csrf_token: String,
+}
+
+impl LoginForm {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        use crate::routes::ui::{MAX_CSRF_TOKEN, MAX_EMAIL, MAX_PASSWORD, MAX_UUID};
+        if self.email.len() > MAX_EMAIL
+            || self.password.len() > MAX_PASSWORD
+            || self.rid.as_ref().is_some_and(|r| r.len() > MAX_UUID)
+            || self.csrf_token.len() > MAX_CSRF_TOKEN
+        {
+            return Err("invalid request");
+        }
+        Ok(())
+    }
 }
 
 #[derive(Deserialize, Default)]
@@ -137,7 +151,10 @@ pub async fn login_page(
         return Ok(redirect(target));
     }
 
-    let rid = query.rid.as_deref().unwrap_or("");
+    let rid = match query.rid.as_deref() {
+        Some(r) if r.len() <= crate::routes::ui::MAX_UUID => r,
+        _ => "",
+    };
     let ctx = Context::from_serialize(LoginCtx {
         t: state.locales.get(&lang.tag),
         lang: &lang.tag,
@@ -174,6 +191,8 @@ pub async fn login_submit(
     let ip = crate::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     // Generate fresh CSRF token for error pages
     let csrf_form_token = csrf::set_new_csrf_cookie(&cookies, state.config.secure_cookies);
+
+    form.validate().map_err(|e| AppError::BadRequest(e.into()))?;
 
     let rl_key = state.login_rate_limiter.key("login", &ip, ua);
     let rid = form.rid.as_deref().unwrap_or("");
@@ -240,6 +259,30 @@ pub async fn login_submit(
     state.account_lockout.clear(&email);
     state.users.update_last_login(&user.id).await?;
 
+    // 2FA: all users with TOTP, or forced setup for admins without TOTP
+    let needs_2fa = if user.has_totp() {
+        match cookies.get(TRUST_DEVICE_COOKIE_NAME).map(|c| c.value().to_string()) {
+            Some(token) => !state.trusted_devices.find_valid(&token).await?.is_some(),
+            None => true,
+        }
+    } else if user.is_admin() {
+        true // admin without TOTP → forced setup
+    } else {
+        false // non-admin without TOTP → no 2FA
+    };
+
+    if needs_2fa {
+        let rid_for_2fa = form.rid.as_deref().filter(|r| !r.is_empty()).map(String::from);
+        let pending_id = state.pending_2fa.store(user.id.clone(), rid_for_2fa, None)
+            .ok_or_else(|| AppError::Internal("pending 2fa store full".into()))?;
+
+        if user.has_totp() {
+            return Ok(redirect(&format!("/2fa/verify?p={pending_id}")));
+        } else {
+            return Ok(redirect(&format!("/2fa/setup?p={pending_id}")));
+        }
+    }
+
     // #8: Session fixation prevention - invalidate all existing sessions for this user
     state.sessions.delete_by_user_id(&user.id).await?;
 
@@ -255,7 +298,7 @@ pub async fn login_submit(
         .create(&session_id, &user.id, &expires_at)
         .await?;
 
-    let mut builder = Cookie::build(("session", session_id.clone()))
+    let mut builder = Cookie::build((SESSION_ID_COOKIE_NAME, session_id.clone()))
         .http_only(true)
         .same_site(SameSite::Strict)
         .path("/")
@@ -272,7 +315,7 @@ pub async fn login_submit(
                 None => {
                     // Expired or invalid rid - destroy the session just created
                     state.sessions.delete(&session_id).await?;
-                    cookies.remove(Cookie::from("session"));
+                    cookies.remove(Cookie::from(SESSION_ID_COOKIE_NAME));
 
                     let csrf_form_token = csrf::set_new_csrf_cookie(&cookies, state.config.secure_cookies);
                     return render_login_error(&t.login_error_session_expired, StatusCode::UNAUTHORIZED, "", &csrf_form_token, &email);
@@ -309,7 +352,7 @@ pub async fn logout(
         .delete_by_user_id(&session_user.0.id)
         .await?;
 
-    cookies.remove(Cookie::from("session"));
+    cookies.remove(Cookie::from(SESSION_ID_COOKIE_NAME));
 
     Ok(redirect("/login"))
 }

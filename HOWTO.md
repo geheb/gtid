@@ -66,6 +66,31 @@ Clients are managed through the admin panel: `http://localhost:3001/admin/client
 
 When creating a client, `client_id`, `client_secret`, `client_redirect_uri` and optionally `client_post_logout_redirect_uri` are specified. The secret is stored hashed with Argon2id.
 
+### Two-Factor Authentication (2FA)
+
+TOTP-based 2FA is available to all users:
+
+- **Admin users (mandatory):** After creating the first admin account, the setup wizard redirects to 2FA configuration. On every login, admins without TOTP are forced to set it up. Admins cannot disable their own 2FA.
+- **Non-admin users (optional):** Can enable 2FA from their profile page (`/profile`). Once enabled, 2FA is required on every login. Non-admins can disable their own 2FA from the profile page (password confirmation required).
+- **Admin reset:** Admins can reset any user's 2FA from the user edit page in the admin panel. This clears the TOTP secret and all trusted devices for that user.
+
+**Trust this browser:** During 2FA verification, users can check "Trust this browser" to skip 2FA on subsequent logins. The trust duration is controlled by `TRUST_DEVICE_LIFETIME_SECS` (default: 30 days). Trust is stored per-browser via a secure cookie backed by the `trusted_devices` database table.
+
+**TOTP apps:** Any TOTP-compatible authenticator works (Google Authenticator, Authy, 1Password, Bitwarden, etc.)
+
+**`TOTP_ENCRYPTION_KEY`:** TOTP secrets are encrypted at rest with AES-256-GCM using a per-user key derived from this master key. Generate a production key:
+```bash
+# Generate a random 32-byte key (64 hex chars)
+openssl rand -hex 32
+```
+
+Set it in `.env`:
+```env
+TOTP_ENCRYPTION_KEY=<64 hex chars>
+```
+
+> **Important:** The default (all-zeros) is for development only. In production, always set a proper key. The key must be stored outside the database (environment variable, secret manager, HSM) - storing it in the database would defeat the purpose of encryption at rest.
+
 ### 1. Get Authorize URL
 
 ```bash

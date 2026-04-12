@@ -343,3 +343,8 @@ body { font-family: var(--font-primary); color: var(--color-text); min-height: 1
 .lang-tab-active { color: var(--color-primary); border-color: var(--color-primary); background: #eff6ff; }
 
 .divider { margin-top: 1em; margin-bottom: 1em; }
+
+.totp-qr { text-align: center; margin-bottom: 1.5rem; }
+.qr-code { max-width: 200px; height: auto; margin: 0.75rem auto; display: block; border-radius: 8px; }
+.totp-manual { text-align: center; margin-bottom: 1.5rem; }
+.totp-secret { display: inline-block; padding: 0.5rem 1rem; background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 6px; font-size: 1rem; letter-spacing: 0.15em; word-break: break-all; user-select: all; }

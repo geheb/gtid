@@ -146,6 +146,9 @@ pub async fn legal_page_edit_submit(
     let edit_lang = get_field(&fields, "edit_lang");
     let body_html = get_field(&fields, "body_html");
 
+    validate_legal_fields(&csrf_token, &edit_lang)
+        .map_err(|e| AppError::BadRequest(e.into()))?;
+
     if !SUPPORTED_LANGS.contains(&edit_lang.as_str()) {
         return Err(AppError::NotFound("Unsupported language".into()));
     }
@@ -157,4 +160,11 @@ pub async fn legal_page_edit_submit(
     state.legal_pages.update(&page_type, &edit_lang, &body_html).await?;
 
     Ok(redirect("/admin/legal-pages"))
+}
+
+fn validate_legal_fields(csrf_token: &str, edit_lang: &str) -> Result<(), &'static str> {
+    if csrf_token.len() > super::MAX_CSRF_TOKEN || edit_lang.len() > super::MAX_LANG {
+        return Err("invalid request");
+    }
+    Ok(())
 }

@@ -8,6 +8,7 @@ pub struct User {
     pub display_name: Option<String>,
     pub roles: String,
     pub is_confirmed: bool,
+    pub totp_secret: Option<String>,
     pub created_at: String,
     pub last_login_at: Option<String>,
 }
@@ -24,6 +25,10 @@ impl User {
     pub fn has_role(&self, role: &str) -> bool {
         self.roles().contains(&role)
     }
+
+    pub fn has_totp(&self) -> bool {
+        self.totp_secret.is_some()
+    }
 }
 
 #[cfg(test)]
@@ -38,6 +43,7 @@ mod tests {
             display_name: None,
             roles: roles.into(),
             is_confirmed: true,
+            totp_secret: None,
             created_at: "2024-01-01".into(),
             last_login_at: None,
         }

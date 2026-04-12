@@ -52,6 +52,8 @@ pub fn build_ui_router() -> Router<Arc<AppState>> {
         .route("/profile", get(api::profile::profile_page).post(api::profile::profile_submit))
         .route("/profile/password", axum::routing::post(api::profile::password_submit))
         .route("/profile/email", axum::routing::post(api::profile::email_change_submit))
+        .route("/profile/2fa/setup", axum::routing::post(api::profile::totp_setup_initiate))
+        .route("/profile/2fa/disable", axum::routing::post(api::profile::totp_disable_submit))
         .route("/admin", get(ui::dashboard))
         .route("/admin/clients", get(ui::clients_list))
         .route(
@@ -73,10 +75,13 @@ pub fn build_ui_router() -> Router<Arc<AppState>> {
             get(ui::user_edit_form).post(ui::user_edit_submit),
         )
         .route("/admin/users/{id}/delete", axum::routing::post(ui::user_delete))
+        .route("/admin/users/{id}/reset-2fa", axum::routing::post(ui::user_reset_2fa))
         .route("/favicon.ico", get(ui::static_files::favicon_ico))
         .route("/favicon.svg", get(ui::static_files::favicon_svg))
         .route("/apple-touch-icon.png", get(ui::static_files::apple_touch_icon))
         .route("/apple-touch-icon-precomposed.png", get(ui::static_files::apple_touch_icon_precomposed))
+        .route("/2fa/setup", get(ui::totp_setup_form).post(ui::totp_setup_submit))
+        .route("/2fa/verify", get(ui::totp_verify_form).post(ui::totp_verify_submit))
         .route("/confirm-email", get(ui::confirm_email))
         .route("/confirm-email-change", get(ui::confirm_email_change))
         .route("/forgot-password", get(ui::forgot_password_form).post(ui::forgot_password_submit))

@@ -66,6 +66,7 @@ pub struct UserEditCtx<'a> {
     pub available_roles: &'a [String],
     pub form_roles: &'a [String],
     pub locked_until: Option<String>,
+    pub has_totp: bool,
 }
 
 #[derive(Serialize)]
@@ -173,6 +174,34 @@ pub struct LoginCtx<'a> {
     pub show_privacy: bool,
 }
 
+// ── 2FA / TOTP ──────────────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+pub struct TotpSetupCtx<'a> {
+    pub t: &'a I18n,
+    pub lang: &'a str,
+    pub css_hash: &'a str,
+    pub js_hash: &'a str,
+    pub csrf_token: &'a str,
+    pub qr_data_uri: &'a str,
+    pub secret_display: &'a str,
+    pub pending_id: &'a str,
+    pub error: bool,
+    pub error_message: &'a str,
+}
+
+#[derive(Serialize)]
+pub struct TotpVerifyCtx<'a> {
+    pub t: &'a I18n,
+    pub lang: &'a str,
+    pub css_hash: &'a str,
+    pub js_hash: &'a str,
+    pub csrf_token: &'a str,
+    pub pending_id: &'a str,
+    pub error: bool,
+    pub error_message: &'a str,
+}
+
 // ── Legal pages ──────────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
@@ -255,6 +284,11 @@ pub struct ProfileCtx<'a> {
     pub email_error: bool,
     pub email_error_message: &'a str,
     pub form_display_name: &'a str,
+    pub has_totp: bool,
+    pub is_admin: bool,
+    pub totp_saved: bool,
+    pub totp_error: bool,
+    pub totp_error_message: &'a str,
 }
 
 // ── Confirm email change success ─────────────────────────────────────────────

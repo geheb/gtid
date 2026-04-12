@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+
+{% block title %}{{ t.totp_setup_title }} - GT Id{% endblock %}
+{% block body_class %}back{% endblock %}
+
+{% block body %}
+<div class="centered">
+    <div class="centered-card">
+        <div class="logo"><img src="/favicon.svg" alt="GT Id" class="logo-icon">Id</div>
+        <h1>{{ t.totp_setup_title }}</h1>
+        <p class="subtitle">{{ t.totp_setup_subtitle }}</p>
+        {% if error %}
+        <div class="alert alert-error">{{ error_message }}</div>
+        {% endif %}
+        {% if pending_id %}
+        <div class="totp-qr">
+            <p><strong>{{ t.totp_setup_scan_qr }}</strong></p>
+            <img src="{{ qr_data_uri }}" alt="QR Code" class="qr-code">
+        </div>
+        <div class="totp-manual">
+            <p><strong>{{ t.totp_setup_manual_entry }}</strong></p>
+            <code class="totp-secret">{{ secret_display }}</code>
+        </div>
+        <form method="POST" action="/2fa/setup">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="p" value="{{ pending_id }}">
+            <div class="form-group">
+                <label for="code">{{ t.totp_setup_code_label }}</label>
+                <input class="form-input" type="text" id="code" name="code" placeholder="{{ t.totp_setup_code_placeholder }}" required autofocus autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6">
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">{{ t.totp_setup_submit }}</button>
+        </form>
+        {% else %}
+        <a href="/login" class="btn btn-primary btn-block">{{ t.login_title }}</a>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

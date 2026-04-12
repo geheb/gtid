@@ -149,6 +149,7 @@ The attacker cannot forge the form token because:
 | BotTrap | 100,000 |
 | AccountLockout | 50,000 |
 | PendingRedirectStore | 10,000 |
+| Pending2faStore | 1,000 |
 
 **Rule:** Every new in-memory store must use `TrackedStore<V>` and define a maximum capacity. No unbounded growth from external input.
 
@@ -239,6 +240,7 @@ The attacker cannot forge the form token because:
 - **CSP** (UI router): `default-src 'self'` baseline, every directive explicitly set, `object-src 'none'`, `frame-ancestors 'none'`, `form-action` dynamically built from registered client redirect origins
 - **CSP rebuild:** When clients are created, edited, or deleted, the CSP is rebuilt from the current client list and swapped via `Arc<RwLock<String>>`
 - **API router:** No CSP (returns JSON only), but all other security headers apply
+- **CSS:**: no inline definitions
 - **Additional headers on all responses:**
 
 | Header | Value |
@@ -362,6 +364,65 @@ Implement `Debug` manually for types that hold secrets. Replace sensitive fields
 If a struct has no sensitive fields (like `AppConfig` after removing admin credentials), a derived `#[derive(Debug)]` is sufficient.
 
 **Rule:** Every new log statement must be reviewed for secret leakage. Every new error variant must return a generic message to the client. Every struct holding secrets must implement `Debug` manually with `[REDACTED]` fields.
+
+---
+
+## 17. TOTP Two-Factor Authentication
+
+**Pattern:** TOTP-based 2FA is available to all users. It is mandatory for admins and optional for non-admins. Secrets are encrypted at rest. Verification is rate-limited with code replay prevention.
+
+### Secret lifecycle
+
+1. **Generation:** 20 bytes of entropy via CSPRNG (`Secret::generate_secret()`), Base32-encoded
+2. **Pending state:** Plaintext secret held in `Pending2faStore` (in-memory only) during setup - never written to disk unencrypted
+3. **Storage:** After successful verification, encrypted with AES-256-GCM and stored in `users.totp_secret`
+4. **Decryption:** On each login verification, decrypted in memory, used, then dropped
+
+### Encryption at rest
+
+- **Algorithm:** AES-256-GCM with random 12-byte nonce per encryption (`OsRng`)
+- **Key derivation:** `HMAC-SHA256(TOTP_ENCRYPTION_KEY, "totp-secret" || user_id)` - each user gets a unique encryption key
+- **Key separation:** `TOTP_ENCRYPTION_KEY` must come from outside the database layer (environment variable, secret manager). Storing it in the database would defeat encryption at rest
+- **Storage format:** `hex(nonce || ciphertext)` in the `totp_secret` column
+
+### Enforcement
+
+- **Admin (mandatory):** After creating the admin account via `/setup`, the user is redirected to `/2fa/setup`. On every login, admin users without TOTP are forced to set it up; those with TOTP must verify. The `AdminUser` extractor checks `has_totp()` as defense-in-depth
+- **Non-admin (optional):** Users can enable 2FA from their profile page (`/profile/2fa/setup`). Once enabled, they must verify on every login. Non-admins can disable their own 2FA from the profile page (password confirmation required)
+- **Admin reset:** Admins can reset any user's 2FA from the user edit page, which clears the TOTP secret and all trusted devices
+
+### Brute-force protection
+
+- **Rate limiting:** Both `/2fa/setup` and `/2fa/verify` POST handlers use the shared `LoginRateLimiter` (IP + User-Agent based)
+- **Account lockout:** `/2fa/verify` records failures against `AccountLockout` (per user_id)
+- **Code replay prevention:** Each pending 2FA session tracks used codes. A code that was already submitted (valid or invalid) is rejected immediately - prevents timing attacks and replay within the same TOTP window
+- **Pending entry expiry:** `Pending2faStore` entries expire after 10 minutes (MAX_AGE=600s)
+
+### TOTP parameters (RFC 6238)
+
+| Parameter | Value |
+|-----------|-------|
+| Algorithm | SHA-1 |
+| Digits | 6 |
+| Period | 30 seconds |
+| Skew | 1 step (accepts previous, current, next window) |
+| Secret entropy | 160 bits (20 bytes) |
+
+### Trusted device ("remember this browser")
+
+- **Optional checkbox** on the `/2fa/verify` form lets users skip future 2FA prompts for a configurable duration (`TRUST_DEVICE_LIFETIME_SECS`, default 30 days)
+- **Token storage:** A 256-bit random token is generated on success. Only the SHA-256 hash is stored in the `trusted_devices` table; the plaintext token is sent as an HttpOnly / Strict / Secure cookie
+- **Validation:** On subsequent logins, the cookie is hashed and looked up in the DB. If a valid (non-expired) entry exists, 2FA is skipped
+- **Invalidation:** All trusted devices for a user are deleted when the user is deleted. Any code path that resets `totp_secret` to `NULL` must also call `trusted_devices.delete_by_user_id()`
+- **Expiry cleanup:** Expired rows are deleted opportunistically on every `create()` call
+
+### In-memory store
+
+| Store | Capacity |
+|-------|----------|
+| Pending2faStore | 1,000 |
+
+**Rule:** Never store TOTP secrets in plaintext in the database. Never store the encryption key in the database. New admin-level features must verify `has_totp()`. The `TOTP_ENCRYPTION_KEY` default (all-zeros) is for development only - production deployments must set a proper key. Any code that resets a user's TOTP secret must also invalidate their trusted devices.
 
 ---
 

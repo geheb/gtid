@@ -75,6 +75,9 @@ pub async fn client_create_submit(
     let redirect_uri = get_field(&fields, "client_redirect_uri");
     let post_logout_uri = get_field_opt(&fields, "client_post_logout_redirect_uri");
 
+    validate_client_fields(&csrf_token, &client_id, &client_secret, &redirect_uri, post_logout_uri.as_deref())
+        .map_err(|e| AppError::BadRequest(e.into()))?;
+
     if !csrf::verify_csrf(&cookies, &csrf_token) {
         return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
     }
@@ -169,6 +172,9 @@ pub async fn client_edit_submit(
     let redirect_uri = get_field(&fields, "client_redirect_uri");
     let post_logout_uri = get_field_opt(&fields, "client_post_logout_redirect_uri");
 
+    validate_client_fields(&csrf_token, &id, &client_secret, &redirect_uri, post_logout_uri.as_deref())
+        .map_err(|e| AppError::BadRequest(e.into()))?;
+
     if !csrf::verify_csrf(&cookies, &csrf_token) {
         return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
     }
@@ -245,4 +251,19 @@ pub async fn client_delete(
     }
 
     Ok(redirect("/admin/clients"))
+}
+
+fn validate_client_fields(
+    csrf_token: &str, client_id: &str, client_secret: &str,
+    redirect_uri: &str, post_logout_uri: Option<&str>,
+) -> Result<(), &'static str> {
+    if csrf_token.len() > super::MAX_CSRF_TOKEN
+        || client_id.len() > super::MAX_CLIENT_ID
+        || client_secret.len() > super::MAX_CLIENT_SECRET
+        || redirect_uri.len() > super::MAX_URI
+        || post_logout_uri.is_some_and(|u| u.len() > super::MAX_URI)
+    {
+        return Err("invalid request");
+    }
+    Ok(())
 }

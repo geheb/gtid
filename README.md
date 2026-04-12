@@ -45,6 +45,7 @@ GT Id is the alternative when you don't need any of that: a single binary, one S
 - **Redirect URI validation** - only http/https schemes allowed on client creation
 - **i18n (DE/EN)** - UI language auto-detected from `Accept-Language` header, powered by Mozilla Project Fluent
 - **Per-language content** - email templates and legal pages (imprint, privacy) editable per language in the admin panel, public pages served in the visitor's language with German fallback
+- **TOTP 2FA** - mandatory for admins, optional for all other users. Secrets encrypted at rest (AES-256-GCM). "Trust this browser" option to skip 2FA for a configurable duration. Admins can reset any user's 2FA
 - **Email queue** - background worker sends queued emails every 30 seconds via SMTP, with exponential backoff on failure (60s, 120s, ... max 1h)
 
 ## What it doesn't do (by design)
@@ -109,6 +110,8 @@ cargo run
 | `ACCESS_TOKEN_EXPIRY_SECS` | Access token lifetime in seconds | `900` (15 min) |
 | `ID_TOKEN_EXPIRY_SECS` | ID token lifetime in seconds | `600` (10 min) |
 | `REFRESH_TOKEN_EXPIRY_DAYS` | Refresh token lifetime in days | `30` |
+| `TOTP_ENCRYPTION_KEY` | Hex-encoded 32-byte key for TOTP secret encryption (64 hex chars). **Must** come from outside the DB layer (env var, secret manager) | all-zeros (dev only) |
+| `TRUST_DEVICE_LIFETIME_SECS` | How long a trusted-browser cookie skips 2FA (seconds) | `2592000` (30 days) |
 | `SMTP_HOST` | SMTP server hostname (unset = email disabled) | *none* |
 | `SMTP_PORT` | SMTP server port | `587` |
 | `SMTP_USERNAME` | SMTP authentication username | *none* |
@@ -148,6 +151,7 @@ For detailed security patterns and guidelines for contributors, see [SECURITY.md
 | Token substitution | at_hash binds access token to ID token |
 | Token theft | Refresh token chain tracking with family revocation |
 | Code replay | One-time codes with cascade revocation on reuse |
+| Admin compromise | Mandatory TOTP 2FA (optional for non-admins), secrets encrypted at rest (AES-256-GCM) |
 | Open redirect | Exact match of redirect_uri against registered client URIs |
 | ID token replay | Nonce mandatory |
 | Scope escalation | Downscoping allowed, upscoping prevented |

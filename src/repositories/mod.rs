@@ -11,6 +11,7 @@ pub mod email_queue;
 pub mod email_template;
 pub mod legal_page;
 pub mod refresh_token;
+pub mod trusted_device;
 
 #[cfg(test)]
 pub(super) mod test_helpers {

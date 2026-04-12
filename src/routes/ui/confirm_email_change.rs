@@ -67,7 +67,7 @@ pub async fn confirm_email_change(
 
     // Race condition guard: check new email is still available
     if state.users.find_by_email(&change.new_email).await?.is_some() {
-        state.email_changes.delete_for_user(&change.user_id).await?;
+        state.email_changes.delete_by_user_id(&change.user_id).await?;
         let t = state.locales.get(&lang.tag);
         let ctx = Context::from_serialize(ErrorCtx {
             t,
@@ -81,7 +81,7 @@ pub async fn confirm_email_change(
     }
 
     state.users.update_email(&change.user_id, &change.new_email).await?;
-    state.email_changes.delete_for_user(&change.user_id).await?;
+    state.email_changes.delete_by_user_id(&change.user_id).await?;
 
     // Invalidate all sessions — force re-login
     state.sessions.delete_by_user_id(&change.user_id).await?;

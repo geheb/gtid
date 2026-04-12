@@ -25,6 +25,8 @@ pub struct ProfileQuery {
     pub pw_saved: Option<String>,
     #[serde(default)]
     pub email_saved: Option<String>,
+    #[serde(default)]
+    pub totp_saved: Option<String>,
 }
 
 fn render_profile(
@@ -36,6 +38,8 @@ fn render_profile(
     pw_error_message: &str,
     email_saved: bool,
     email_error_message: &str,
+    totp_saved: bool,
+    totp_error_message: &str,
     lang: &str,
 ) -> Result<String, AppError> {
     let user_roles: Vec<String> = user.roles().into_iter().map(String::from).collect();
@@ -56,6 +60,11 @@ fn render_profile(
         email_error: !email_error_message.is_empty(),
         email_error_message,
         form_display_name: &display_name,
+        has_totp: user.has_totp(),
+        is_admin: user.is_admin(),
+        totp_saved,
+        totp_error: !totp_error_message.is_empty(),
+        totp_error_message,
     })?;
     Ok(state.tera.render("profile.html", &ctx)?)
 }
@@ -77,6 +86,7 @@ pub async fn profile_page(
         &state, &user, &csrf.form_token,
         query.saved.is_some(), query.pw_saved.is_some(), "",
         query.email_saved.is_some(), "",
+        query.totp_saved.is_some(), "",
         &lang.tag,
     )?;
 
@@ -91,6 +101,18 @@ pub struct ProfileForm {
     pub display_name: String,
 }
 
+impl ProfileForm {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        use crate::routes::ui::{MAX_CSRF_TOKEN, MAX_DISPLAY_NAME};
+        if self.csrf_token.len() > MAX_CSRF_TOKEN
+            || self.display_name.len() > MAX_DISPLAY_NAME
+        {
+            return Err("invalid request");
+        }
+        Ok(())
+    }
+}
+
 pub async fn profile_submit(
     State(state): State<Arc<AppState>>,
     cookies: Cookies,
@@ -98,6 +120,7 @@ pub async fn profile_submit(
     lang: Lang,
     axum::Form(form): axum::Form<ProfileForm>,
 ) -> Result<Response, AppError> {
+    form.validate().map_err(|e| AppError::BadRequest(e.into()))?;
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
         return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
     }
@@ -127,6 +150,20 @@ pub struct PasswordForm {
     pub new_password_confirm: String,
 }
 
+impl PasswordForm {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        use crate::routes::ui::{MAX_CSRF_TOKEN, MAX_PASSWORD};
+        if self.csrf_token.len() > MAX_CSRF_TOKEN
+            || self.current_password.len() > MAX_PASSWORD
+            || self.new_password.len() > MAX_PASSWORD
+            || self.new_password_confirm.len() > MAX_PASSWORD
+        {
+            return Err("invalid request");
+        }
+        Ok(())
+    }
+}
+
 pub async fn password_submit(
     State(state): State<Arc<AppState>>,
     cookies: Cookies,
@@ -134,6 +171,7 @@ pub async fn password_submit(
     lang: Lang,
     axum::Form(form): axum::Form<PasswordForm>,
 ) -> Result<Response, AppError> {
+    form.validate().map_err(|e| AppError::BadRequest(e.into()))?;
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
         return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
     }
@@ -148,20 +186,20 @@ pub async fn password_submit(
     // Verify current password
     if !password::verify_password(&form.current_password, &user.password_hash) {
         let msg = &t.profile_password_error_wrong;
-        let rendered = render_profile(&state, &user, &form.csrf_token, false, false, msg, false, "", &lang.tag)?;
+        let rendered = render_profile(&state, &user, &form.csrf_token, false, false, msg, false, "", false, "", &lang.tag)?;
         return Ok((StatusCode::BAD_REQUEST, Html(rendered)).into_response());
     }
 
     // Check that new passwords match
     if form.new_password != form.new_password_confirm {
         let msg = &t.profile_password_error_mismatch;
-        let rendered = render_profile(&state, &user, &form.csrf_token, false, false, msg, false, "", &lang.tag)?;
+        let rendered = render_profile(&state, &user, &form.csrf_token, false, false, msg, false, "", false, "", &lang.tag)?;
         return Ok((StatusCode::BAD_REQUEST, Html(rendered)).into_response());
     }
 
     // Validate new password strength
     if let Err(msg) = crate::routes::ui::validate_password(&form.new_password, t) {
-        let rendered = render_profile(&state, &user, &form.csrf_token, false, false, &msg, false, "", &lang.tag)?;
+        let rendered = render_profile(&state, &user, &form.csrf_token, false, false, &msg, false, "", false, "", &lang.tag)?;
         return Ok((StatusCode::BAD_REQUEST, Html(rendered)).into_response());
     }
 
@@ -181,6 +219,19 @@ pub struct EmailChangeForm {
     pub new_email: String,
 }
 
+impl EmailChangeForm {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        use crate::routes::ui::{MAX_CSRF_TOKEN, MAX_EMAIL, MAX_PASSWORD};
+        if self.csrf_token.len() > MAX_CSRF_TOKEN
+            || self.current_password.len() > MAX_PASSWORD
+            || self.new_email.len() > MAX_EMAIL
+        {
+            return Err("invalid request");
+        }
+        Ok(())
+    }
+}
+
 pub async fn email_change_submit(
     State(state): State<Arc<AppState>>,
     cookies: Cookies,
@@ -188,6 +239,7 @@ pub async fn email_change_submit(
     lang: Lang,
     axum::Form(form): axum::Form<EmailChangeForm>,
 ) -> Result<Response, AppError> {
+    form.validate().map_err(|e| AppError::BadRequest(e.into()))?;
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
         return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
     }
@@ -202,7 +254,7 @@ pub async fn email_change_submit(
     let render_email_error = |msg: &str| -> Result<Response, AppError> {
         let rendered = render_profile(
             &state, &user, &form.csrf_token,
-            false, false, "", false, msg, &lang.tag,
+            false, false, "", false, msg, false, "", &lang.tag,
         )?;
         Ok((StatusCode::BAD_REQUEST, Html(rendered)).into_response())
     };
@@ -234,7 +286,7 @@ pub async fn email_change_submit(
         expires_at.to_sqlite()
     };
 
-    let _ = state.email_changes.delete_for_user(&user.id).await;
+    let _ = state.email_changes.delete_by_user_id(&user.id).await;
     let token = state
         .email_changes
         .create(&user.id, &new_email, &expires_at)
@@ -268,4 +320,118 @@ pub async fn email_change_submit(
     tracing::info!(event = "email_change_requested", user_id = %user.id, "Email change confirmation enqueued");
 
     Ok(redirect("/profile?email_saved=1"))
+}
+
+// ── POST /profile/2fa/setup ────────────────────────────────────────────────
+
+pub async fn totp_setup_initiate(
+    State(state): State<Arc<AppState>>,
+    cookies: Cookies,
+    session_user: SessionUser,
+    lang: Lang,
+    axum::Form(form): axum::Form<CsrfOnlyForm>,
+) -> Result<Response, AppError> {
+    form.validate().map_err(|e| AppError::BadRequest(e.into()))?;
+    if !csrf::verify_csrf(&cookies, &form.csrf_token) {
+        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
+    }
+
+    let user = &session_user.0;
+    if user.has_totp() {
+        return Ok(redirect("/profile"));
+    }
+
+    // Create a pending redirect back to profile
+    let rid = state.pending_redirects.store("/profile?totp_saved=1".into());
+    let pending_id = state.pending_2fa.store(user.id.clone(), rid, None)
+        .ok_or_else(|| AppError::Internal("pending 2fa store full".into()))?;
+
+    Ok(redirect(&format!("/2fa/setup?p={pending_id}")))
+}
+
+// ── POST /profile/2fa/disable ──────────────────────────────────────────────
+
+#[derive(Deserialize)]
+pub struct TotpDisableForm {
+    #[serde(default)]
+    pub csrf_token: String,
+    #[serde(default)]
+    pub current_password: String,
+}
+
+impl TotpDisableForm {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        use crate::routes::ui::{MAX_CSRF_TOKEN, MAX_PASSWORD};
+        if self.csrf_token.len() > MAX_CSRF_TOKEN
+            || self.current_password.len() > MAX_PASSWORD
+        {
+            return Err("invalid request");
+        }
+        Ok(())
+    }
+}
+
+pub async fn totp_disable_submit(
+    State(state): State<Arc<AppState>>,
+    cookies: Cookies,
+    session_user: SessionUser,
+    lang: Lang,
+    axum::Form(form): axum::Form<TotpDisableForm>,
+) -> Result<Response, AppError> {
+    form.validate().map_err(|e| AppError::BadRequest(e.into()))?;
+    if !csrf::verify_csrf(&cookies, &form.csrf_token) {
+        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
+    }
+
+    let t = state.locales.get(&lang.tag);
+    let user = state.users.find_by_id(&session_user.0.id).await?
+        .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+
+    // Admins cannot disable 2FA
+    if user.is_admin() {
+        return Err(AppError::BadRequest(t.profile_2fa_admin_required.clone()));
+    }
+
+    if !user.has_totp() {
+        return Ok(redirect("/profile"));
+    }
+
+    // Verify current password
+    if !password::verify_password(&form.current_password, &user.password_hash) {
+        let csrf_form_token = csrf::set_new_csrf_cookie(&cookies, state.config.secure_cookies);
+        let rendered = render_profile(
+            &state, &user, &csrf_form_token,
+            false, false, "", false, "",
+            false, &t.profile_2fa_error_wrong_password,
+            &lang.tag,
+        )?;
+        return Ok((StatusCode::BAD_REQUEST, Html(rendered)).into_response());
+    }
+
+    // Disable 2FA: clear secret + trusted devices
+    state.users.set_totp_secret(&user.id, None).await?;
+    state.trusted_devices.delete_by_user_id(&user.id).await?;
+
+    // Remove trust device cookie
+    cookies.remove(tower_cookies::Cookie::from(crate::middleware::TRUST_DEVICE_COOKIE_NAME));
+
+    tracing::info!(event = "totp_disabled", user_id = %user.id, "2FA disabled by user");
+
+    Ok(redirect("/profile?totp_saved=1"))
+}
+
+#[derive(Deserialize)]
+pub struct CsrfOnlyForm {
+    #[serde(default)]
+    pub csrf_token: String,
+}
+
+impl CsrfOnlyForm {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        use crate::routes::ui::MAX_CSRF_TOKEN;
+        if self.csrf_token.len() > MAX_CSRF_TOKEN {
+            return Err("invalid request");
+        }
+        Ok(())
+    }
 }

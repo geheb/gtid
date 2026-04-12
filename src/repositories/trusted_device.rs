@@ -1,10 +1,10 @@
 use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 
-use crate::models::email_change::EmailChange;
+use crate::models::trusted_device::TrustedDevice;
 
 #[derive(Clone)]
-pub struct EmailChangeRepository {
+pub struct TrustedDeviceRepository {
     pool: SqlitePool,
 }
 
@@ -13,7 +13,7 @@ fn hash_token(token: &str) -> String {
     hash.iter().map(|b| format!("{b:02x}")).collect()
 }
 
-impl EmailChangeRepository {
+impl TrustedDeviceRepository {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
@@ -21,20 +21,17 @@ impl EmailChangeRepository {
     pub async fn create(
         &self,
         user_id: &str,
-        new_email: &str,
         expires_at: &str,
     ) -> Result<String, sqlx::Error> {
-        // Opportunistically clean up expired tokens
         self.delete_expired().await?;
 
         let token = crate::crypto::id::new_secure_token();
         let token_hash = hash_token(&token);
         sqlx::query(
-            "INSERT INTO email_changes (token_hash, user_id, new_email, expires_at) VALUES (?, ?, ?, ?)",
+            "INSERT INTO trusted_devices (token_hash, user_id, expires_at) VALUES (?, ?, ?)",
         )
         .bind(&token_hash)
         .bind(user_id)
-        .bind(new_email)
         .bind(expires_at)
         .execute(&self.pool)
         .await?;
@@ -44,10 +41,10 @@ impl EmailChangeRepository {
     pub async fn find_valid(
         &self,
         token: &str,
-    ) -> Result<Option<EmailChange>, sqlx::Error> {
+    ) -> Result<Option<TrustedDevice>, sqlx::Error> {
         let token_hash = hash_token(token);
-        sqlx::query_as::<_, EmailChange>(
-            "SELECT * FROM email_changes WHERE token_hash = ? AND expires_at > datetime('now')",
+        sqlx::query_as::<_, TrustedDevice>(
+            "SELECT * FROM trusted_devices WHERE token_hash = ? AND expires_at > datetime('now')",
         )
         .bind(&token_hash)
         .fetch_optional(&self.pool)
@@ -55,7 +52,7 @@ impl EmailChangeRepository {
     }
 
     pub async fn delete_by_user_id(&self, user_id: &str) -> Result<(), sqlx::Error> {
-        sqlx::query("DELETE FROM email_changes WHERE user_id = ?")
+        sqlx::query("DELETE FROM trusted_devices WHERE user_id = ?")
             .bind(user_id)
             .execute(&self.pool)
             .await?;
@@ -63,7 +60,7 @@ impl EmailChangeRepository {
     }
 
     pub async fn delete_expired(&self) -> Result<(), sqlx::Error> {
-        sqlx::query("DELETE FROM email_changes WHERE expires_at <= datetime('now')")
+        sqlx::query("DELETE FROM trusted_devices WHERE expires_at <= datetime('now')")
             .execute(&self.pool)
             .await?;
         Ok(())
@@ -74,10 +71,10 @@ impl EmailChangeRepository {
 mod tests {
     use super::*;
 
-    async fn test_repo() -> (EmailChangeRepository, crate::repositories::user::UserRepository) {
+    async fn test_repo() -> (TrustedDeviceRepository, crate::repositories::user::UserRepository) {
         let pool = crate::repositories::test_helpers::make_users_pool().await;
         (
-            EmailChangeRepository::new(pool.clone()),
+            TrustedDeviceRepository::new(pool.clone()),
             crate::repositories::user::UserRepository::new(pool),
         )
     }
@@ -87,11 +84,10 @@ mod tests {
         let (repo, users) = test_repo().await;
         users.create("u1", "a@b.com", "h", None, "", true).await.unwrap();
         let expires = crate::repositories::test_helpers::future_time();
-        let token = repo.create("u1", "new@b.com", &expires).await.unwrap();
+        let token = repo.create("u1", &expires).await.unwrap();
         assert_eq!(token.len(), 64);
         let found = repo.find_valid(&token).await.unwrap().unwrap();
         assert_eq!(found.user_id, "u1");
-        assert_eq!(found.new_email, "new@b.com");
     }
 
     #[tokio::test]
@@ -99,7 +95,7 @@ mod tests {
         let (repo, users) = test_repo().await;
         users.create("u1", "a@b.com", "h", None, "", true).await.unwrap();
         let expires = crate::repositories::test_helpers::future_time();
-        let token = repo.create("u1", "new@b.com", &expires).await.unwrap();
+        let token = repo.create("u1", &expires).await.unwrap();
         let found = repo.find_valid(&token).await.unwrap().unwrap();
         assert_ne!(found.token_hash, token);
         assert_eq!(found.token_hash, hash_token(&token));
@@ -110,7 +106,7 @@ mod tests {
         let (repo, users) = test_repo().await;
         users.create("u1", "a@b.com", "h", None, "", true).await.unwrap();
         let expires = crate::repositories::test_helpers::past_time();
-        let token = repo.create("u1", "new@b.com", &expires).await.unwrap();
+        let token = repo.create("u1", &expires).await.unwrap();
         assert!(repo.find_valid(&token).await.unwrap().is_none());
     }
 
@@ -121,25 +117,25 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn delete_for_user_removes_all_tokens() {
+    async fn delete_by_user_id_removes_all() {
         let (repo, users) = test_repo().await;
         users.create("u1", "a@b.com", "h", None, "", true).await.unwrap();
         let expires = crate::repositories::test_helpers::future_time();
-        let t1 = repo.create("u1", "new1@b.com", &expires).await.unwrap();
-        let t2 = repo.create("u1", "new2@b.com", &expires).await.unwrap();
+        let t1 = repo.create("u1", &expires).await.unwrap();
+        let t2 = repo.create("u1", &expires).await.unwrap();
         repo.delete_by_user_id("u1").await.unwrap();
         assert!(repo.find_valid(&t1).await.unwrap().is_none());
         assert!(repo.find_valid(&t2).await.unwrap().is_none());
     }
 
     #[tokio::test]
-    async fn delete_expired_cleans_old_tokens() {
+    async fn delete_expired_cleans_old() {
         let (repo, users) = test_repo().await;
         users.create("u1", "a@b.com", "h", None, "", true).await.unwrap();
         let past = crate::repositories::test_helpers::past_time();
         let future = crate::repositories::test_helpers::future_time();
-        let _expired = repo.create("u1", "old@b.com", &past).await.unwrap();
-        let valid = repo.create("u1", "new@b.com", &future).await.unwrap();
+        let _expired = repo.create("u1", &past).await.unwrap();
+        let valid = repo.create("u1", &future).await.unwrap();
         repo.delete_expired().await.unwrap();
         assert!(repo.find_valid(&valid).await.unwrap().is_some());
     }

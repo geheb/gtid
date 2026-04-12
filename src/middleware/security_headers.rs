@@ -49,7 +49,7 @@ pub fn build_csp(clients: &[crate::models::client::Client]) -> String {
         format!("'self' {}", origins.join(" "))
     };
     format!(
-        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; worker-src 'none'; manifest-src 'none'; form-action {form_action}; frame-ancestors 'none'; base-uri 'self'"
+        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; worker-src 'none'; manifest-src 'none'; form-action {form_action}; frame-ancestors 'none'; base-uri 'self'"
     )
 }
 

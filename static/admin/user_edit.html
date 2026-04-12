@@ -63,6 +63,12 @@
                     </div>
                 </form>
                 <hr class="divider">
+                {% if has_totp %}
+                <form method="POST" action="/admin/users/{{ user.id }}/reset-2fa" class="delete-form no-spinner" data-confirm="{{ t.users_reset_2fa_confirm }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-secondary btn-block">{{ t.users_reset_2fa }}</button>
+                </form>
+                {% endif %}
                 <form method="POST" action="/admin/users/{{ user.id }}/delete" class="delete-form no-spinner" data-confirm="{{ t.confirm_delete }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
                     <button type="submit" class="btn btn-danger btn-block">{{ t.user_edit_delete }}</button>

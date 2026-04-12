@@ -34,10 +34,12 @@ hyper = { version = "1", features = ["http1", "http2", "server"] }
 hyper-util = { version = "0.1", features = ["tokio", "http1", "http2", "server", "server-auto"] }
 arc-swap = "1.9.0"
 dashmap = "6.1.0"
-static_init = "1"
 rust-i18n = "3"
 lettre = { version = "0.11", features = ["tokio1-native-tls", "smtp-transport", "builder"] }
 idna = "1"
+totp-rs = { version = "5", features = ["otpauth", "gen_secret", "qr"] }
+aes-gcm = "0.10"
+hmac = "0.13"
 
 [dev-dependencies]
 tokio = { version = "1", features = ["full", "test-util"] }

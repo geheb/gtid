@@ -10,6 +10,10 @@ use crate::errors::AppError;
 use crate::models::user::User;
 use crate::routes::ui::redirect;
 
+// Cookies
+pub const SESSION_ID_COOKIE_NAME: &str = "__s";
+pub const TRUST_DEVICE_COOKIE_NAME: &str = "__td";
+
 fn login_redirect() -> Response {
     redirect("/login")
 }
@@ -30,7 +34,7 @@ impl FromRequestParts<Arc<crate::AppState>> for SessionUser {
             .map_err(|_| login_redirect())?;
 
         let session_id = cookies
-            .get("session")
+            .get(SESSION_ID_COOKIE_NAME)
             .map(|c| c.value().to_string())
             .ok_or_else(login_redirect)?;
 
@@ -66,7 +70,7 @@ impl FromRequestParts<Arc<crate::AppState>> for OptionalSessionUser {
             .await
             .map_err(|e| AppError::Internal(format!("Cookie layer missing: {}", e.1)))?;
 
-        let session_id = match cookies.get("session") {
+        let session_id = match cookies.get(SESSION_ID_COOKIE_NAME) {
             Some(c) => c.value().to_string(),
             None => return Ok(OptionalSessionUser(None)),
         };
@@ -93,6 +97,10 @@ impl FromRequestParts<Arc<crate::AppState>> for AdminUser {
     ) -> Result<Self, Self::Rejection> {
         let SessionUser(user) = SessionUser::from_request_parts(parts, state).await?;
         if !user.is_admin() {
+            return Err(login_redirect());
+        }
+        // Defense-in-depth: admin must have 2FA configured
+        if !user.has_totp() {
             return Err(login_redirect());
         }
         Ok(AdminUser(user))

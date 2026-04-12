@@ -134,6 +134,21 @@ pub struct ConsentForm {
     pub csrf_token: String,
 }
 
+impl ConsentForm {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        use crate::routes::ui::{MAX_CLIENT_ID, MAX_CSRF_TOKEN, MAX_SCOPE, MAX_URI};
+        if self.csrf_token.len() > MAX_CSRF_TOKEN
+            || self.client_id.len() > MAX_CLIENT_ID
+            || self.redirect_uri.len() > MAX_URI
+            || self.scope.as_ref().is_some_and(|s| s.len() > MAX_SCOPE)
+            || self.consent.len() > 10
+        {
+            return Err("invalid request");
+        }
+        Ok(())
+    }
+}
+
 pub async fn authorize_post(
     State(state): State<Arc<AppState>>,
     cookies: Cookies,
@@ -143,6 +158,8 @@ pub async fn authorize_post(
     lang: Lang,
     axum::Form(form): axum::Form<ConsentForm>,
 ) -> Result<Response, AppError> {
+    form.validate().map_err(|e| AppError::BadRequest(e.into()))?;
+
     let ua = crate::routes::require_user_agent(&headers)
         .map_err(|e| AppError::BadRequest(e))?;
     let ip = crate::routes::client_ip(&headers, &addr, state.config.trusted_proxies);

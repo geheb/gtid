@@ -1,3 +1,5 @@
+use std::sync::OnceLock;
+
 use argon2::{
     password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Algorithm, Argon2, Params, Version,
@@ -77,15 +79,23 @@ pub fn verify_password(password: &str, hash: &str) -> bool {
         .is_ok()
 }
 
+static DUMMY_HASH: OnceLock<String> = OnceLock::new();
+
+/// Generates a random dummy hash at startup. Must be called once before any
+/// `dummy_verify` call. Panics on failure (startup code, acceptable per SECURITY.md §1).
+pub fn init_dummy_hash() {
+    let random_pad = SaltString::generate(&mut OsRng).to_string();
+    let hash = hash_password(&random_pad)
+        .expect("Failed to generate dummy hash at startup");
+    DUMMY_HASH.set(hash).ok();
+}
+
 /// Runs a dummy password verification to burn the same time as a real one.
 /// Prevents user enumeration via timing side-channels.
 pub fn dummy_verify(password: &str) {
-    #[static_init::dynamic]
-    static DUMMY_HASH: String = {
-        let random_pad = SaltString::generate(&mut OsRng).to_string();
-        hash_password(&random_pad).expect("dummy hash failed")
-    };
-    let _ = verify_password(password, &DUMMY_HASH);
+    if let Some(hash) = DUMMY_HASH.get() {
+        let _ = verify_password(password, hash);
+    }
 }
 
 #[cfg(test)]
@@ -139,6 +149,17 @@ mod tests {
     fn wrong_password_fails() {
         let hash = hash_password("Test!!99xx").unwrap();
         assert!(!verify_password("Wrong!!99xx", &hash));
+    }
+
+    #[test]
+    fn init_dummy_hash_and_verify() {
+        // init_dummy_hash uses OnceLock — safe to call multiple times
+        super::init_dummy_hash();
+        assert!(super::DUMMY_HASH.get().is_some());
+        // The generated hash must be a valid argon2id hash
+        let hash = super::DUMMY_HASH.get().unwrap();
+        let parsed = PasswordHash::new(hash).expect("must parse");
+        assert_eq!(parsed.algorithm, argon2::ARGON2ID_IDENT);
     }
 
     #[test]

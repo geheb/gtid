@@ -13,11 +13,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Start Mailpit if not already running
-if ! docker ps --format '{{.Names}}' | grep -q mailpit; then
-  echo "Starting Mailpit..."
-  docker compose -f dev/mailpit/docker-compose.yml up -d
-fi
+echo "Starting Mailpit..."
+docker compose -f dev/mailpit/docker-compose.yml up -d
 
 echo "Staring GT Id..."
 cargo run

@@ -94,6 +94,11 @@ async fn oidc_complete_flow() {
 
     assert_eq!(login_resp.status(), 303, "Login should redirect with 303");
 
+    // ── Step 4b: Complete 2FA ──
+    let location = login_resp.headers().get("location").unwrap().to_str().unwrap().to_string();
+    assert!(location.contains("/2fa/verify"), "Admin login should redirect to 2FA verify");
+    complete_2fa_verify(&server, &login_client, &location, &server.admin_totp_secret).await;
+
     // ── Step 5: Consent ──
     let consent_resp = login_client
         .get(authorize_url)

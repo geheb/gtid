@@ -1,6 +1,6 @@
 use std::env;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct AppConfig {
     pub issuer_uri: String,
     pub public_ui_uri: String,
@@ -31,6 +31,22 @@ pub struct AppConfig {
     pub smtp_starttls: bool,
     pub email_confirm_token_expiry_hours: u64,
     pub password_reset_token_expiry_hours: u64,
+    pub totp_encryption_key: [u8; 32],
+    pub trust_device_lifetime_secs: i64,
+}
+
+impl std::fmt::Debug for AppConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AppConfig")
+            .field("issuer_uri", &self.issuer_uri)
+            .field("public_ui_uri", &self.public_ui_uri)
+            .field("ui_listen_port", &self.ui_listen_port)
+            .field("api_listen_port", &self.api_listen_port)
+            .field("roles", &self.roles)
+            .field("secure_cookies", &self.secure_cookies)
+            .field("totp_encryption_key", &"[REDACTED]")
+            .finish_non_exhaustive()
+    }
 }
 
 impl AppConfig {
@@ -124,6 +140,19 @@ impl AppConfig {
             password_reset_token_expiry_hours: get("PASSWORD_RESET_TOKEN_EXPIRY_HOURS")
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(1),
+            trust_device_lifetime_secs: get("TRUST_DEVICE_LIFETIME_SECS")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(2_592_000), // 30 days
+            totp_encryption_key: {
+                let hex_str = get("TOTP_ENCRYPTION_KEY")
+                    .unwrap_or_else(|| "0".repeat(64));
+                let bytes = hex::decode(&hex_str)
+                    .expect("TOTP_ENCRYPTION_KEY must be valid hex (64 hex chars = 32 bytes)");
+                let mut key = [0u8; 32];
+                assert!(bytes.len() == 32, "TOTP_ENCRYPTION_KEY must be exactly 32 bytes (64 hex chars)");
+                key.copy_from_slice(&bytes);
+                key
+            },
         }
     }
 
@@ -178,6 +207,7 @@ mod tests {
         assert!(c.smtp_starttls);
         assert_eq!(c.email_confirm_token_expiry_hours, 24);
         assert_eq!(c.password_reset_token_expiry_hours, 1);
+        assert_eq!(c.trust_device_lifetime_secs, 2_592_000);
     }
 
     #[test]
@@ -336,6 +366,14 @@ mod tests {
             ("EMAIL_CONFIRM_TOKEN_EXPIRY_HOURS", "48"),
         ]);
         assert_eq!(c.email_confirm_token_expiry_hours, 48);
+    }
+
+    #[test]
+    fn custom_trust_device_lifetime() {
+        let c = config_from(&[
+            ("TRUST_DEVICE_LIFETIME_SECS", "604800"),
+        ]);
+        assert_eq!(c.trust_device_lifetime_secs, 604800); // 7 days
     }
 
     #[test]

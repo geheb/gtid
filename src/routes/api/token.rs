@@ -26,12 +26,35 @@ pub struct TokenRequest {
     pub scope: Option<String>,
 }
 
+impl TokenRequest {
+    pub fn validate(&self) -> Result<(), &'static str> {
+        use crate::routes::ui::{
+            MAX_CLIENT_ID, MAX_CLIENT_SECRET, MAX_CODE_VERIFIER, MAX_GRANT_TYPE,
+            MAX_REFRESH_TOKEN, MAX_SCOPE, MAX_URI, MAX_UUID,
+        };
+        if self.grant_type.len() > MAX_GRANT_TYPE
+            || self.code.as_ref().is_some_and(|c| c.len() > MAX_UUID)
+            || self.redirect_uri.as_ref().is_some_and(|u| u.len() > MAX_URI)
+            || self.client_id.as_ref().is_some_and(|c| c.len() > MAX_CLIENT_ID)
+            || self.client_secret.as_ref().is_some_and(|s| s.len() > MAX_CLIENT_SECRET)
+            || self.code_verifier.as_ref().is_some_and(|v| v.len() > MAX_CODE_VERIFIER)
+            || self.refresh_token.as_ref().is_some_and(|t| t.len() > MAX_REFRESH_TOKEN)
+            || self.scope.as_ref().is_some_and(|s| s.len() > MAX_SCOPE)
+        {
+            return Err("invalid request");
+        }
+        Ok(())
+    }
+}
+
 pub async fn token(
     State(state): State<Arc<AppState>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: axum::http::HeaderMap,
     axum::Form(form): axum::Form<TokenRequest>,
 ) -> Result<Response, Response> {
+    form.validate().map_err(|e| crate::routes::oauth_error("invalid_request", e))?;
+
     tracing::info!("Calling token client_id={}, grant_type={} ...", form.client_id.as_deref().unwrap_or(""), form.grant_type);
 
     let ua = crate::routes::require_user_agent(&headers)

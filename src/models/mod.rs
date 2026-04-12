@@ -9,3 +9,4 @@ pub mod email_template;
 pub mod legal_page;
 pub mod refresh_token;
 pub mod session;
+pub mod trusted_device;

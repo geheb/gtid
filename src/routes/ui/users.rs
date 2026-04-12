@@ -84,6 +84,9 @@ pub async fn user_create_submit(
     let pw = get_field(&fields, "password");
     let roles = get_all(&fields, "roles");
 
+    validate_user_fields(&csrf_token, None, &email, display_name.as_deref(), &pw, &roles)
+        .map_err(|e| AppError::BadRequest(e.into()))?;
+
     if !csrf::verify_csrf(&cookies, &csrf_token) {
         return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
     }
@@ -160,6 +163,7 @@ pub async fn user_edit_form(
         available_roles: &state.config.roles,
         form_roles: &user_roles,
         locked_until,
+        has_totp: user.has_totp(),
     })?;
     let rendered = state.tera.render("admin/user_edit.html", &ctx)?;
     Ok(Html(rendered).into_response())
@@ -179,6 +183,9 @@ pub async fn user_edit_submit(
     let display_name = get_field_opt(&fields, "display_name");
     let pw = get_field(&fields, "password");
     let roles = get_all(&fields, "roles");
+
+    validate_user_fields(&csrf_token, Some(&id), &email, display_name.as_deref(), &pw, &roles)
+        .map_err(|e| AppError::BadRequest(e.into()))?;
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
         return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
@@ -203,6 +210,7 @@ pub async fn user_edit_submit(
             available_roles: &state.config.roles,
             form_roles: &roles,
             locked_until: state.account_lockout.locked_until_utc(&user.email),
+            has_totp: user.has_totp(),
         })?;
         let rendered = state.tera.render("admin/user_edit.html", &ctx)?;
         Ok((StatusCode::BAD_REQUEST, Html(rendered)).into_response())
@@ -235,7 +243,7 @@ pub async fn user_edit_submit(
     // Manual confirm
     if get_field_opt(&fields, "manual_confirm").is_some() && !user.is_confirmed {
         state.users.confirm(&id).await?;
-        state.confirmation_tokens.delete_for_user(&id).await?;
+        state.confirmation_tokens.delete_by_user_id(&id).await?;
         tracing::info!(event = "user_confirmed_manually", user_id = %id, "Admin manually confirmed user");
     }
 
@@ -268,8 +276,13 @@ pub async fn user_delete(
     state.auth_codes.delete_by_user_id(&id).await?;
     state.refresh_tokens.delete_by_user_id(&id).await?;
     state.consents.delete_by_user_id(&id).await?;
-
+    state.password_reset_tokens.delete_by_user_id(&id).await?;
+    state.confirmation_tokens.delete_by_user_id(&id).await?;
+    state.email_changes.delete_by_user_id(&id).await?;
+    state.sessions.delete_by_user_id(&id).await?;
+    state.trusted_devices.delete_by_user_id(&id).await?;
     state.users.delete(&id).await?;
+
     tracing::info!(event = "user_deleted", user_id = %id, "Admin deleted user");
 
     Ok(redirect("/admin/users"))
@@ -294,7 +307,7 @@ async fn enqueue_confirmation_email(
     };
 
     // Delete old tokens and create a new one
-    let _ = state.confirmation_tokens.delete_for_user(user_id).await;
+    let _ = state.confirmation_tokens.delete_by_user_id(user_id).await;
     let token = match state.confirmation_tokens.create(user_id, &expires_at).await {
         Ok(t) => t,
         Err(e) => {
@@ -323,4 +336,52 @@ async fn enqueue_confirmation_email(
     if let Err(e) = state.email_queue.enqueue(email, &subject, &body_html).await {
         tracing::error!(event = "confirmation_email_failed", error = %e, "Failed to enqueue confirmation email");
     }
+}
+
+pub async fn user_reset_2fa(
+    State(state): State<Arc<AppState>>,
+    cookies: Cookies,
+    admin: AdminUser,
+    Path(id): Path<String>,
+    lang: Lang,
+    axum::Form(form): axum::Form<DeleteForm>,
+) -> Result<Response, AppError> {
+    if !csrf::verify_csrf(&cookies, &form.csrf_token) {
+        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
+    }
+
+    let user = state.users.find_by_id(&id).await?
+        .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+
+    if user.has_totp() {
+        state.users.set_totp_secret(&id, None).await?;
+        state.trusted_devices.delete_by_user_id(&id).await?;
+        tracing::info!(event = "totp_reset_by_admin", user_id = %id, "Admin reset 2FA for user");
+    }
+
+    // Self-reset: admin lost their own TOTP → clear trust cookie, redirect to 2FA setup
+    if admin.0.id == id {
+        cookies.remove(tower_cookies::Cookie::from(crate::middleware::session::TRUST_DEVICE_COOKIE_NAME));
+        let pending_id = state.pending_2fa.store(id, None, None)
+            .ok_or_else(|| AppError::Internal("pending 2fa store full".into()))?;
+        return Ok(redirect(&format!("/2fa/setup?p={pending_id}")));
+    }
+
+    Ok(redirect(&format!("/admin/users/{id}/edit")))
+}
+
+fn validate_user_fields(
+    csrf_token: &str, id: Option<&str>, email: &str,
+    display_name: Option<&str>, password: &str, roles: &[String],
+) -> Result<(), &'static str> {
+    if csrf_token.len() > super::MAX_CSRF_TOKEN
+        || id.is_some_and(|i| i.len() > super::MAX_UUID)
+        || email.len() > super::MAX_EMAIL
+        || display_name.is_some_and(|n| n.len() > super::MAX_DISPLAY_NAME)
+        || password.len() > super::MAX_PASSWORD
+        || roles.iter().any(|r| r.len() > super::MAX_ROLE)
+    {
+        return Err("invalid request");
+    }
+    Ok(())
 }

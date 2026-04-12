@@ -30,9 +30,11 @@ impl SmtpSender {
             builder = builder.credentials(Credentials::new(user.clone(), pass.clone()));
         }
 
+        let fallback: Mailbox = "noreply@localhost".parse()
+            .expect("hardcoded fallback email is valid");
         let from: Mailbox = config.smtp_from.parse().unwrap_or_else(|_| {
             tracing::warn!("Invalid SMTP_FROM '{}', falling back to noreply@localhost", config.smtp_from);
-            "noreply@localhost".parse().unwrap()
+            fallback.clone()
         });
 
         Some(Self {

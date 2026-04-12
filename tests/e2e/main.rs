@@ -1,4 +1,5 @@
 use gtid::config::AppConfig;
+use gtid::crypto::totp as totp_crypto;
 use reqwest::redirect::Policy;
 use scraper::{Html, Selector};
 
@@ -15,6 +16,7 @@ pub struct TestServer {
     pub api_port: u16,
     pub ui_port: u16,
     pub client: reqwest::Client,
+    pub admin_totp_secret: String,
     _db_users: tempfile::NamedTempFile,
     _db_clients: tempfile::NamedTempFile,
     _db_emails: tempfile::NamedTempFile,
@@ -58,6 +60,8 @@ impl TestServer {
             smtp_starttls: true,
             email_confirm_token_expiry_hours: 24,
             password_reset_token_expiry_hours: 1,
+            totp_encryption_key: [42u8; 32],
+            trust_device_lifetime_secs: 2_592_000,
         };
 
         let (api_port, ui_port, setup_token) = gtid::start_server(config).await;
@@ -105,12 +109,40 @@ impl TestServer {
             .send()
             .await
             .unwrap();
-        assert_eq!(resp.status().as_u16(), 303, "Setup should redirect to /login");
+        assert_eq!(resp.status().as_u16(), 303, "Setup should redirect to 2FA setup");
+        let totp_setup_location = resp.headers().get("location").unwrap().to_str().unwrap().to_string();
+        assert!(totp_setup_location.contains("/2fa/setup"), "Should redirect to /2fa/setup");
+
+        // Complete 2FA setup
+        let totp_setup_url = format!("http://127.0.0.1:{ui_port}{totp_setup_location}");
+        let totp_resp = client.get(&totp_setup_url).send().await.unwrap();
+        let totp_status = totp_resp.status();
+        let totp_page = totp_resp.text().await.unwrap();
+        assert!(totp_status.is_success() || totp_status.as_u16() == 303,
+            "TOTP setup page returned {totp_status}: {totp_page}");
+        let totp_csrf = extract_csrf(&totp_page).expect("No CSRF on TOTP setup page");
+        let totp_secret = extract_totp_secret(&totp_page).expect("No TOTP secret on setup page");
+        let pending_id = extract_input_value(&totp_page, "p").expect("No pending ID on setup page");
+        let issuer_uri = format!("http://127.0.0.1:{ui_port}");
+        let totp = totp_crypto::build_totp(&totp_secret, ADMIN_EMAIL, &issuer_uri).unwrap();
+        let code = totp.generate_current().unwrap();
+        let resp = client
+            .post(format!("http://127.0.0.1:{ui_port}/2fa/setup"))
+            .form(&[
+                ("csrf_token", totp_csrf.as_str()),
+                ("p", pending_id.as_str()),
+                ("code", code.as_str()),
+            ])
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(resp.status().as_u16(), 303, "2FA setup should redirect to /login");
 
         Self {
             api_port,
             ui_port,
             client,
+            admin_totp_secret: totp_secret,
             _db_users: db_users,
             _db_clients: db_clients,
             _db_emails: db_emails,
@@ -162,7 +194,17 @@ pub fn extract_csrf(html: &str) -> Option<String> {
     extract_input_value(html, "csrf_token")
 }
 
-/// Admin login: fetches CSRF, submits login form, returns session-bearing client.
+/// Extract the TOTP secret from the 2FA setup page (from the <code class="totp-secret"> element).
+pub fn extract_totp_secret(html: &str) -> Option<String> {
+    let doc = Html::parse_document(html);
+    let selector = Selector::parse("code.totp-secret").ok()?;
+    doc.select(&selector)
+        .next()
+        .map(|el| el.text().collect::<String>().replace(' ', ""))
+}
+
+/// Admin login: fetches CSRF, submits login form, completes 2FA, returns CSRF token.
+/// Works with both redirect-following and no-redirect clients.
 pub async fn admin_login(server: &TestServer, client: &reqwest::Client) -> String {
     let login_page = client
         .get(server.ui_url("/login"))
@@ -175,7 +217,7 @@ pub async fn admin_login(server: &TestServer, client: &reqwest::Client) -> Strin
 
     let csrf = extract_csrf(&login_page).expect("No CSRF token on login page");
 
-    client
+    let resp = client
         .post(server.ui_url("/login"))
         .form(&[
             ("email", ADMIN_EMAIL),
@@ -187,7 +229,68 @@ pub async fn admin_login(server: &TestServer, client: &reqwest::Client) -> Strin
         .await
         .unwrap();
 
+    // No-redirect client: location header present → manually complete 2FA
+    if let Some(location) = resp.headers().get("location") {
+        let location = location.to_str().unwrap().to_string();
+        if location.contains("/2fa/verify") {
+            complete_2fa_verify(server, client, &location, &server.admin_totp_secret).await;
+        }
+    } else {
+        // Following-redirect client: landed on 2FA verify form page
+        let body = resp.text().await.unwrap();
+        if let (Some(verify_csrf), Some(pending_id)) =
+            (extract_csrf(&body), extract_input_value(&body, "p"))
+        {
+            let issuer_uri = server.ui_url("");
+            let totp = totp_crypto::build_totp(
+                &server.admin_totp_secret, ADMIN_EMAIL, &issuer_uri,
+            ).unwrap();
+            let code = totp.generate_current().unwrap();
+
+            client
+                .post(server.ui_url("/2fa/verify"))
+                .form(&[
+                    ("csrf_token", verify_csrf.as_str()),
+                    ("p", pending_id.as_str()),
+                    ("code", code.as_str()),
+                ])
+                .send()
+                .await
+                .unwrap();
+        }
+    }
+
     csrf
+}
+
+/// Complete the 2FA verification step during login.
+pub async fn complete_2fa_verify(
+    server: &TestServer,
+    client: &reqwest::Client,
+    location: &str,
+    totp_secret: &str,
+) {
+    let verify_page = client
+        .get(server.ui_url(location))
+        .send().await.unwrap()
+        .text().await.unwrap();
+    let verify_csrf = extract_csrf(&verify_page).expect("No CSRF on 2FA verify page");
+    let pending_id = extract_input_value(&verify_page, "p").expect("No pending ID");
+
+    let issuer_uri = server.ui_url("");
+    let totp = totp_crypto::build_totp(totp_secret, ADMIN_EMAIL, &issuer_uri).unwrap();
+    let code = totp.generate_current().unwrap();
+
+    client
+        .post(server.ui_url("/2fa/verify"))
+        .form(&[
+            ("csrf_token", verify_csrf.as_str()),
+            ("p", pending_id.as_str()),
+            ("code", code.as_str()),
+        ])
+        .send()
+        .await
+        .unwrap();
 }
 
 /// Setup the test client via admin panel.

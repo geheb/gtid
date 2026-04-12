@@ -134,23 +134,16 @@ impl UserRepository {
         Ok(())
     }
 
+    pub async fn set_totp_secret(&self, id: &str, encrypted_secret: Option<&str>) -> Result<(), sqlx::Error> {
+        sqlx::query("UPDATE users SET totp_secret = ? WHERE id = ?")
+            .bind(encrypted_secret)
+            .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     pub async fn delete(&self, id: &str) -> Result<(), sqlx::Error> {
-        sqlx::query("DELETE FROM password_resets WHERE user_id = ?")
-            .bind(id)
-            .execute(&self.pool)
-            .await?;
-        sqlx::query("DELETE FROM email_confirmations WHERE user_id = ?")
-            .bind(id)
-            .execute(&self.pool)
-            .await?;
-        sqlx::query("DELETE FROM email_changes WHERE user_id = ?")
-            .bind(id)
-            .execute(&self.pool)
-            .await?;
-        sqlx::query("DELETE FROM sessions WHERE user_id = ?")
-            .bind(id)
-            .execute(&self.pool)
-            .await?;
         sqlx::query("DELETE FROM users WHERE id = ?")
             .bind(id)
             .execute(&self.pool)

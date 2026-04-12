@@ -58,6 +58,9 @@ pub async fn forgot_password_submit(
     let csrf_token = get_field(&fields, "csrf_token");
     let email = super::normalize_email(&get_field(&fields, "email"));
 
+    validate_forgot_fields(&csrf_token, &email)
+        .map_err(|e| AppError::BadRequest(e.into()))?;
+
     if !csrf::verify_csrf(&cookies, &csrf_token) {
         return Err(AppError::BadRequest(
             state.locales.get(&lang.tag).csrf_token_invalid.clone(),
@@ -111,7 +114,7 @@ pub async fn forgot_password_submit(
                 None => return render_sent(),
             };
 
-            let _ = state.password_reset_tokens.delete_for_user(&user.id).await;
+            let _ = state.password_reset_tokens.delete_by_user_id(&user.id).await;
             let token = match state
                 .password_reset_tokens
                 .create(&user.id, &expires_at)
@@ -248,6 +251,9 @@ pub async fn reset_password_submit(
     let pw = get_field(&fields, "password");
     let pw_confirm = get_field(&fields, "password_confirm");
 
+    validate_reset_fields(&csrf_token, &token, &pw, &pw_confirm)
+        .map_err(|e| AppError::BadRequest(e.into()))?;
+
     if !csrf::verify_csrf(&cookies, &csrf_token) {
         return Err(AppError::BadRequest(
             state.locales.get(&lang.tag).csrf_token_invalid.clone(),
@@ -327,7 +333,7 @@ pub async fn reset_password_submit(
     // Single-use: delete all reset tokens for this user
     state
         .password_reset_tokens
-        .delete_for_user(&reset_token.user_id)
+        .delete_by_user_id(&reset_token.user_id)
         .await?;
 
     // Invalidate all sessions (force re-login on all devices)
@@ -353,4 +359,24 @@ pub async fn reset_password_submit(
     })?;
     let rendered = state.tera.render("reset_password_success.html", &ctx)?;
     Ok(Html(rendered).into_response())
+}
+
+fn validate_forgot_fields(csrf_token: &str, email: &str) -> Result<(), &'static str> {
+    if csrf_token.len() > super::MAX_CSRF_TOKEN || email.len() > super::MAX_EMAIL {
+        return Err("invalid request");
+    }
+    Ok(())
+}
+
+fn validate_reset_fields(
+    csrf_token: &str, token: &str, password: &str, password_confirm: &str,
+) -> Result<(), &'static str> {
+    if csrf_token.len() > super::MAX_CSRF_TOKEN
+        || token.len() > super::MAX_RESET_TOKEN
+        || password.len() > super::MAX_PASSWORD
+        || password_confirm.len() > super::MAX_PASSWORD
+    {
+        return Err("invalid request");
+    }
+    Ok(())
 }

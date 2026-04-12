@@ -110,6 +110,9 @@ pub async fn email_template_edit_submit(
     let subject = get_field(&fields, "subject");
     let body_html = get_field(&fields, "body_html");
 
+    validate_template_fields(&csrf_token, &edit_lang, &subject)
+        .map_err(|e| AppError::BadRequest(e.into()))?;
+
     if !SUPPORTED_LANGS.contains(&edit_lang.as_str()) {
         return Err(AppError::NotFound("Unsupported language".into()));
     }
@@ -125,4 +128,14 @@ pub async fn email_template_edit_submit(
     state.email_templates.update(&template_type, &edit_lang, &subject, &body_html).await?;
 
     Ok(redirect("/admin/email-templates"))
+}
+
+fn validate_template_fields(csrf_token: &str, edit_lang: &str, subject: &str) -> Result<(), &'static str> {
+    if csrf_token.len() > super::MAX_CSRF_TOKEN
+        || edit_lang.len() > super::MAX_LANG
+        || subject.len() > super::MAX_SUBJECT
+    {
+        return Err("invalid request");
+    }
+    Ok(())
 }

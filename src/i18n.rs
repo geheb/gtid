@@ -150,6 +150,17 @@ pub struct I18n {
     pub profile_change_email_error_same: String,
     pub profile_change_email_error_taken: String,
     pub profile_change_email_error_wrong_password: String,
+    pub profile_2fa_title: String,
+    pub profile_2fa_enabled: String,
+    pub profile_2fa_disabled: String,
+    pub profile_2fa_setup: String,
+    pub profile_2fa_disable: String,
+    pub profile_2fa_admin_required: String,
+    pub profile_2fa_disabled_success: String,
+    pub profile_2fa_error_wrong_password: String,
+    pub users_reset_2fa: String,
+    pub users_reset_2fa_confirm: String,
+    pub users_2fa_reset_success: String,
     pub confirm_email_change_success_title: String,
     pub confirm_email_change_success_message: String,
     pub confirm_email_change_invalid: String,
@@ -248,6 +259,24 @@ pub struct I18n {
     pub users_badge_confirmed: String,
     pub users_badge_unconfirmed: String,
 
+    pub totp_setup_title: String,
+    pub totp_setup_subtitle: String,
+    pub totp_setup_scan_qr: String,
+    pub totp_setup_manual_entry: String,
+    pub totp_setup_code_label: String,
+    pub totp_setup_code_placeholder: String,
+    pub totp_setup_submit: String,
+    pub totp_setup_error_invalid_code: String,
+    pub totp_setup_error_expired: String,
+    pub totp_verify_title: String,
+    pub totp_verify_subtitle: String,
+    pub totp_verify_code_label: String,
+    pub totp_verify_code_placeholder: String,
+    pub totp_verify_submit: String,
+    pub totp_verify_trust_device: String,
+    pub totp_verify_error_invalid_code: String,
+    pub totp_verify_error_expired: String,
+
     pub language_label: String,
     pub language_de: String,
     pub language_en: String,
@@ -287,11 +316,12 @@ impl I18n {
 #[derive(Clone)]
 pub struct Locales {
     map: HashMap<String, I18n>,
+    default: I18n,
 }
 
 impl Locales {
     pub fn get(&self, lang: &str) -> &I18n {
-        self.map.get(lang).unwrap_or_else(|| self.map.get("de").unwrap())
+        self.map.get(lang).unwrap_or(&self.default)
     }
 }
 
@@ -438,6 +468,17 @@ fn resolve_i18n(lang: &str) -> I18n {
         profile_change_email_error_same,
         profile_change_email_error_taken,
         profile_change_email_error_wrong_password,
+        profile_2fa_title,
+        profile_2fa_enabled,
+        profile_2fa_disabled,
+        profile_2fa_setup,
+        profile_2fa_disable,
+        profile_2fa_admin_required,
+        profile_2fa_disabled_success,
+        profile_2fa_error_wrong_password,
+        users_reset_2fa,
+        users_reset_2fa_confirm,
+        users_2fa_reset_success,
         confirm_email_change_success_title,
         confirm_email_change_success_message,
         confirm_email_change_invalid,
@@ -524,6 +565,23 @@ fn resolve_i18n(lang: &str) -> I18n {
         users_col_status,
         users_badge_confirmed,
         users_badge_unconfirmed,
+        totp_setup_title,
+        totp_setup_subtitle,
+        totp_setup_scan_qr,
+        totp_setup_manual_entry,
+        totp_setup_code_label,
+        totp_setup_code_placeholder,
+        totp_setup_submit,
+        totp_setup_error_invalid_code,
+        totp_setup_error_expired,
+        totp_verify_title,
+        totp_verify_subtitle,
+        totp_verify_code_label,
+        totp_verify_code_placeholder,
+        totp_verify_submit,
+        totp_verify_trust_device,
+        totp_verify_error_invalid_code,
+        totp_verify_error_expired,
         language_label,
         language_de,
         language_en,
@@ -541,5 +599,6 @@ pub fn build_locales() -> Locales {
     map.insert("de".to_string(), resolve_i18n("de"));
     map.insert("en".to_string(), resolve_i18n("en"));
 
-    Locales { map }
+    let default = resolve_i18n("de");
+    Locales { map, default }
 }
