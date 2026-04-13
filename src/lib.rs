@@ -6,8 +6,6 @@ use std::sync::atomic::AtomicBool;
 
 use axum::Router;
 use axum::extract::ConnectInfo;
-use axum::http::{StatusCode, header};
-use axum::response::IntoResponse;
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as AutoBuilder;
 use hyper_util::service::TowerToHyperService;
@@ -195,7 +193,7 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
         .fallback({
             let st = state.clone();
             move |conn: ConnectInfo<SocketAddr>, req: axum::http::Request<axum::body::Body>| {
-                bot_trap_fallback(st.clone(), conn, req)
+                middleware::bot_trap::bot_trap_fallback(st.clone(), conn, req)
             }
         })
         .layer(axum::middleware::from_fn(
@@ -207,7 +205,7 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
             middleware::security_headers::api_security_headers,
         ))
         .layer(TraceLayer::new_for_http())
-        .layer(axum::middleware::from_fn_with_state(state.clone(), bot_trap_guard))
+        .layer(axum::middleware::from_fn_with_state(state.clone(), middleware::bot_trap::bot_trap_guard))
         .with_state(state.clone());
 
     let ui_app = Router::new()
@@ -215,7 +213,7 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
         .fallback({
             let st = state.clone();
             move |conn: ConnectInfo<SocketAddr>, req: axum::http::Request<axum::body::Body>| {
-                bot_trap_fallback(st.clone(), conn, req)
+                middleware::bot_trap::bot_trap_fallback(st.clone(), conn, req)
             }
         })
         .layer(axum::middleware::from_fn(
@@ -228,7 +226,7 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
             middleware::security_headers::ui_security_headers,
         ))
         .layer(TraceLayer::new_for_http())
-        .layer(axum::middleware::from_fn_with_state(state.clone(), bot_trap_guard))
+        .layer(axum::middleware::from_fn_with_state(state.clone(), middleware::bot_trap::bot_trap_guard))
         .with_state(state);
 
     let rotation_interval = config.key_rotation_interval_secs;
@@ -408,68 +406,6 @@ async fn serve_h2c(listener: tokio::net::TcpListener, app: Router) {
             }
         });
     }
-}
-
-/// Middleware: blocks requests without User-Agent or from banned IP+UA combos.
-async fn bot_trap_guard(
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
-    request: axum::http::Request<axum::body::Body>,
-    next: axum::middleware::Next,
-) -> axum::response::Response {
-    let ip = routes::client_ip(request.headers(), &addr, state.config.trusted_proxies);
-
-    let ua = request
-        .headers()
-        .get(header::USER_AGENT)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-
-    if ua.is_empty() {
-        tracing::warn!(event = "bot_blocked", ip = %ip, reason = "missing_user_agent", "Blocked: no User-Agent");
-        return StatusCode::IM_A_TEAPOT.into_response();
-    }
-
-    if !addr.ip().is_loopback() {
-        let bt_key = state.bot_trap.key(&ip, ua);
-        if state.bot_trap.is_banned(bt_key) {
-            tracing::debug!(event = "bot_blocked", ip = %ip, reason = "banned", "Blocked banned bot");
-            return StatusCode::IM_A_TEAPOT.into_response();
-        }
-    }
-
-    next.run(request).await
-}
-
-/// Fallback handler: any request that matches no route counts as a bot strike.
-async fn bot_trap_fallback(
-    state: Arc<AppState>,
-    ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    req: axum::http::Request<axum::body::Body>,
-) -> impl IntoResponse {
-    let path = req.uri().path().to_owned();
-    let headers = req.headers().clone();
-
-    if addr.ip().is_loopback() {
-        tracing::debug!(event = "fallback_404", path = %path, "Unknown path from localhost");
-        return StatusCode::NOT_FOUND;
-    }
-
-    let ip = routes::client_ip(&headers, &addr, state.config.trusted_proxies);
-    let ua = headers
-        .get(header::USER_AGENT)
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("unknown");
-    let bt_key = state.bot_trap.key(&ip, ua);
-    let banned = state.bot_trap.record_strike(bt_key);
-    if banned {
-        tracing::warn!(event = "bot_banned", ip = %ip, ua = %ua, path = %path, "Bot banned after repeated unknown-path probes");
-        return StatusCode::IM_A_TEAPOT;
-    } else {
-        tracing::info!(event = "bot_strike", ip = %ip, ua = %ua, path = %path, "Unknown path probe recorded");
-    }
-
-    StatusCode::NOT_FOUND
 }
 
 fn unwrap_infallible<T>(result: Result<T, std::convert::Infallible>) -> T {

@@ -34,14 +34,14 @@ pub async fn revoke(
     );
 
     let ua =
-        crate::routes::require_user_agent(&headers).map_err(|e| crate::routes::oauth_error("invalid_request", &e))?;
+        crate::routes::require_user_agent(&headers).map_err(|e| super::oauth_error("invalid_request", &e))?;
     let ip = crate::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let rl_key = state.login_rate_limiter.key("revoke", &ip, ua);
     if state.login_rate_limiter.is_limited(rl_key) {
-        return Err(crate::routes::oauth_error("slow_down", "Too many requests"));
+        return Err(super::oauth_error("slow_down", "Too many requests"));
     }
 
-    crate::routes::verify_client_credentials(
+    super::verify_client_credentials(
         form.client_id.as_deref(),
         form.client_secret.as_deref(),
         &headers,

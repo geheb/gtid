@@ -1,5 +1,13 @@
-use crate::middleware::TrackedStore;
+use std::net::SocketAddr;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
+
+use axum::extract::ConnectInfo;
+use axum::http::{StatusCode, header};
+use axum::response::IntoResponse;
+
+use crate::AppState;
+use crate::middleware::TrackedStore;
 
 /// Number of unknown-path hits before the IP+UA combo gets blocked.
 const STRIKE_THRESHOLD: u32 = 3;
@@ -88,6 +96,68 @@ impl BotTrap {
             .filter(|e| e.banned_at.is_some_and(|at| at.elapsed() < BAN_DURATION))
             .count()
     }
+}
+
+/// Middleware: blocks requests without User-Agent or from banned IP+UA combos.
+pub async fn bot_trap_guard(
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+    request: axum::http::Request<axum::body::Body>,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let ip = crate::routes::client_ip(request.headers(), &addr, state.config.trusted_proxies);
+
+    let ua = request
+        .headers()
+        .get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    if ua.is_empty() {
+        tracing::warn!(event = "bot_blocked", ip = %ip, reason = "missing_user_agent", "Blocked: no User-Agent");
+        return StatusCode::IM_A_TEAPOT.into_response();
+    }
+
+    if !addr.ip().is_loopback() {
+        let bt_key = state.bot_trap.key(&ip, ua);
+        if state.bot_trap.is_banned(bt_key) {
+            tracing::debug!(event = "bot_blocked", ip = %ip, reason = "banned", "Blocked banned bot");
+            return StatusCode::IM_A_TEAPOT.into_response();
+        }
+    }
+
+    next.run(request).await
+}
+
+/// Fallback handler: any request that matches no route counts as a bot strike.
+pub async fn bot_trap_fallback(
+    state: Arc<AppState>,
+    ConnectInfo(addr): ConnectInfo<SocketAddr>,
+    req: axum::http::Request<axum::body::Body>,
+) -> impl IntoResponse {
+    let path = req.uri().path().to_owned();
+    let headers = req.headers().clone();
+
+    if addr.ip().is_loopback() {
+        tracing::debug!(event = "fallback_404", path = %path, "Unknown path from localhost");
+        return StatusCode::NOT_FOUND;
+    }
+
+    let ip = crate::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
+    let ua = headers
+        .get(header::USER_AGENT)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown");
+    let bt_key = state.bot_trap.key(&ip, ua);
+    let banned = state.bot_trap.record_strike(bt_key);
+    if banned {
+        tracing::warn!(event = "bot_banned", ip = %ip, ua = %ua, path = %path, "Bot banned after repeated unknown-path probes");
+        return StatusCode::IM_A_TEAPOT;
+    } else {
+        tracing::info!(event = "bot_strike", ip = %ip, ua = %ua, path = %path, "Unknown path probe recorded");
+    }
+
+    StatusCode::NOT_FOUND
 }
 
 #[cfg(test)]

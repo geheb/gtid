@@ -98,7 +98,7 @@ pub async fn rp_initiated_logout(
             if s.len() > 1024 {
                 return Err(AppError::BadRequest("state parameter too long".into()));
             }
-            url.push_str(&format!("?state={}", crate::routes::urlencoding(s)));
+            url.push_str(&format!("?state={}", super::urlencoding(s)));
         }
         url
     } else {

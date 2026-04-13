@@ -93,7 +93,7 @@ pub async fn authorize_get(
             .await?;
         let mut redirect_url = format!("{}?code={}", redirect_uri, code);
         if let Some(ref s) = params.state {
-            redirect_url.push_str(&format!("&state={}", crate::routes::urlencoding(s)));
+            redirect_url.push_str(&format!("&state={}", super::urlencoding(s)));
         }
         return Ok(redirect(&redirect_url));
     }
@@ -225,7 +225,7 @@ pub async fn authorize_post(
         let state_encoded = form
             .state
             .as_deref()
-            .map(crate::routes::urlencoding)
+            .map(super::urlencoding)
             .unwrap_or_default();
         let deny_url = format!("{}?error=access_denied&state={}", form.redirect_uri, state_encoded);
         return Ok(redirect(&deny_url));
@@ -256,7 +256,7 @@ pub async fn authorize_post(
 
     let mut redirect_url = format!("{}?code={}", form.redirect_uri, code);
     if let Some(ref s) = form.state {
-        redirect_url.push_str(&format!("&state={}", crate::routes::urlencoding(s)));
+        redirect_url.push_str(&format!("&state={}", super::urlencoding(s)));
     }
 
     Ok(redirect(&redirect_url))
@@ -335,7 +335,7 @@ fn error_response(state: &AppState, message: &str, lang: &str) -> Result<Respons
 }
 
 fn build_query_string(params: &AuthorizeParams) -> String {
-    let enc = crate::routes::urlencoding;
+    let enc = super::urlencoding;
     let mut parts = Vec::new();
     if let Some(ref v) = params.response_type {
         parts.push(format!("response_type={}", enc(v)));

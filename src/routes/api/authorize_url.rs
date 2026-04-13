@@ -74,12 +74,12 @@ pub async fn authorize_url(
     let authorize_url = format!(
         "{}/authorize?response_type=code&client_id={}&redirect_uri={}&scope={}&state={}&code_challenge={}&code_challenge_method=S256&nonce={}",
         state.config.public_ui_uri,
-        crate::routes::urlencoding(&client.client_id),
-        crate::routes::urlencoding(&client.client_redirect_uri),
-        crate::routes::urlencoding(scope),
-        crate::routes::urlencoding(&state_param),
-        crate::routes::urlencoding(&code_challenge),
-        crate::routes::urlencoding(&nonce),
+        super::urlencoding(&client.client_id),
+        super::urlencoding(&client.client_redirect_uri),
+        super::urlencoding(scope),
+        super::urlencoding(&state_param),
+        super::urlencoding(&code_challenge),
+        super::urlencoding(&nonce),
     );
 
     Ok(Json(serde_json::json!({
