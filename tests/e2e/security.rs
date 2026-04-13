@@ -1,6 +1,6 @@
 use super::*;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use reqwest::redirect::Policy;
 
 /// Shared test setup: starts server, creates client, logs in.
@@ -32,8 +32,14 @@ async fn setup() -> (TestServer, reqwest::Client) {
         let consent_html = consent_resp.text().await.unwrap();
         let consent_csrf = extract_csrf(&consent_html).unwrap();
         let fields: Vec<(&str, String)> = [
-            "client_id", "redirect_uri", "scope", "state",
-            "code_challenge", "code_challenge_method", "nonce", "response_type",
+            "client_id",
+            "redirect_uri",
+            "scope",
+            "state",
+            "code_challenge",
+            "code_challenge_method",
+            "nonce",
+            "response_type",
         ]
         .iter()
         .map(|name| (*name, extract_input_value(&consent_html, name).unwrap_or_default()))
@@ -51,7 +57,13 @@ async fn setup() -> (TestServer, reqwest::Client) {
             .unwrap();
     } else {
         // Auto-consent - exchange code to establish token family
-        let loc = consent_resp.headers().get("location").unwrap().to_str().unwrap().to_string();
+        let loc = consent_resp
+            .headers()
+            .get("location")
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .to_string();
         let url = url::Url::parse(&loc).unwrap();
         let code = url.query_pairs().find(|(k, _)| k == "code").unwrap().1.to_string();
         let _ = exchange_code(&server, &client, &code, code_verifier).await;
@@ -61,10 +73,7 @@ async fn setup() -> (TestServer, reqwest::Client) {
 }
 
 /// Get a fresh code and exchange it for tokens.
-async fn get_fresh_tokens(
-    server: &TestServer,
-    client: &reqwest::Client,
-) -> serde_json::Value {
+async fn get_fresh_tokens(server: &TestServer, client: &reqwest::Client) -> serde_json::Value {
     let (code, verifier) = get_fresh_code(server, client).await;
     exchange_code(server, client, &code, &verifier).await
 }
@@ -76,16 +85,16 @@ async fn hidden_field_manipulation() {
     let (server, client) = setup().await;
 
     // Get a CSRF token from profile page (user is logged in)
-    let profile = client
-        .get(server.ui_url("/profile"))
-        .send()
-        .await
-        .unwrap();
+    let profile = client.get(server.ui_url("/profile")).send().await.unwrap();
 
     // Follow redirect if needed
     let profile_html = if profile.status() == 303 {
         let loc = profile.headers().get("location").unwrap().to_str().unwrap();
-        let full_url = if loc.starts_with('/') { server.ui_url(loc) } else { loc.to_string() };
+        let full_url = if loc.starts_with('/') {
+            server.ui_url(loc)
+        } else {
+            loc.to_string()
+        };
         client.get(&full_url).send().await.unwrap().text().await.unwrap()
     } else {
         profile.text().await.unwrap()
@@ -348,7 +357,11 @@ async fn jwt_algorithm() {
     let header: serde_json::Value = serde_json::from_slice(&header_bytes).unwrap();
 
     // 17a: Algorithm must be EdDSA
-    assert_eq!(header["alg"].as_str().unwrap(), "EdDSA", "17a: JWT algorithm is not EdDSA");
+    assert_eq!(
+        header["alg"].as_str().unwrap(),
+        "EdDSA",
+        "17a: JWT algorithm is not EdDSA"
+    );
 
     // 17b: kid must exist in JWKS
     let kid = header["kid"].as_str().unwrap();
@@ -506,7 +519,10 @@ async fn csrf_validation() {
             ("code_challenge", "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
             ("code_challenge_method", "S256"),
             ("consent", "allow"),
-            ("csrf_token", "aaaa0000bbbb1111cccc2222dddd3333eeee4444ffff5555aaaa6666bbbb7777"),
+            (
+                "csrf_token",
+                "aaaa0000bbbb1111cccc2222dddd3333eeee4444ffff5555aaaa6666bbbb7777",
+            ),
         ])
         .send()
         .await
@@ -537,7 +553,9 @@ async fn security_headers() {
     );
 
     // 21b: X-Frame-Options
-    let xfo = headers.get("x-frame-options").map(|v| v.to_str().unwrap().to_uppercase());
+    let xfo = headers
+        .get("x-frame-options")
+        .map(|v| v.to_str().unwrap().to_uppercase());
     assert_eq!(xfo.as_deref(), Some("DENY"), "21b: X-Frame-Options missing/not DENY");
 
     // 21c: Content-Security-Policy
@@ -547,10 +565,7 @@ async fn security_headers() {
     );
 
     // 21d: Referrer-Policy
-    assert!(
-        headers.get("referrer-policy").is_some(),
-        "21d: Referrer-Policy missing"
-    );
+    assert!(headers.get("referrer-policy").is_some(), "21d: Referrer-Policy missing");
 
     // 21e: Cache-Control on token endpoint
     let token_resp = client
@@ -604,10 +619,7 @@ async fn response_type_validation() {
 async fn grant_type_validation() {
     let (server, _client) = setup().await;
 
-    let client = reqwest::Client::builder()
-        .user_agent("E2ETest/1.0")
-        .build()
-        .unwrap();
+    let client = reqwest::Client::builder().user_agent("E2ETest/1.0").build().unwrap();
 
     // 23a: client_credentials
     let resp = client
@@ -661,7 +673,7 @@ async fn at_hash() {
 
 #[tokio::test]
 async fn token_substitution_detected() {
-    use sha2::{Sha256, Digest};
+    use sha2::{Digest, Sha256};
 
     let (server, client) = setup().await;
 
@@ -756,10 +768,7 @@ async fn token_introspection() {
     let resp: serde_json::Value = client
         .post(server.api_url("/introspect"))
         .basic_auth(CLIENT_ID, Some(CLIENT_SECRET))
-        .form(&[
-            ("token", access_token),
-            ("token_type_hint", "access_token"),
-        ])
+        .form(&[("token", access_token), ("token_type_hint", "access_token")])
         .send()
         .await
         .unwrap()
@@ -772,10 +781,7 @@ async fn token_introspection() {
     let resp: serde_json::Value = client
         .post(server.api_url("/introspect"))
         .basic_auth(CLIENT_ID, Some(CLIENT_SECRET))
-        .form(&[
-            ("token", "invalid-token-value"),
-            ("token_type_hint", "access_token"),
-        ])
+        .form(&[("token", "invalid-token-value"), ("token_type_hint", "access_token")])
         .send()
         .await
         .unwrap()
@@ -938,7 +944,11 @@ async fn auth_code_replay_cascade() {
         .send()
         .await
         .unwrap();
-    assert_ne!(rt_resp.status(), 200, "30b: Refresh token not revoked after code replay");
+    assert_ne!(
+        rt_resp.status(),
+        200,
+        "30b: Refresh token not revoked after code replay"
+    );
 }
 
 // ── Step 31: RP-Initiated Logout ──
@@ -953,7 +963,11 @@ async fn rp_initiated_logout() {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status(), 400, "31a: Logout with invalid id_token_hint not rejected");
+    assert_eq!(
+        resp.status(),
+        400,
+        "31a: Logout with invalid id_token_hint not rejected"
+    );
 
     // 31b: Logout with invalid post_logout_redirect_uri
     let resp = client
@@ -961,14 +975,14 @@ async fn rp_initiated_logout() {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp.status(), 400, "31b: Logout with invalid post_logout_redirect_uri not rejected");
+    assert_eq!(
+        resp.status(),
+        400,
+        "31b: Logout with invalid post_logout_redirect_uri not rejected"
+    );
 
     // 31c: Logout without params → redirect to /login
-    let resp = client
-        .get(server.ui_url("/logout"))
-        .send()
-        .await
-        .unwrap();
+    let resp = client.get(server.ui_url("/logout")).send().await.unwrap();
     let location = resp
         .headers()
         .get("location")

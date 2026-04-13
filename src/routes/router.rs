@@ -1,4 +1,4 @@
-use axum::{routing::get, Router};
+use axum::{Router, routing::get};
 use std::sync::Arc;
 
 use crate::AppState;
@@ -7,8 +7,11 @@ use super::{api, ui};
 
 pub fn build_api_router() -> Router<Arc<AppState>> {
     Router::new()
-        .route("/", get(|| async {
-            axum::response::Html(r#"
+        .route(
+            "/",
+            get(|| async {
+                axum::response::Html(
+                    r#"
 <!doctype html>
 <html lang="en">
 <head><title>GT Id</title></head>
@@ -23,8 +26,10 @@ pub fn build_api_router() -> Router<Arc<AppState>> {
 </pre>
 </body>
 </html>
-"#)
-        }))
+"#,
+                )
+            }),
+        )
         .route("/health", get(|| async { "ok" }))
         .route(
             "/.well-known/openid-configuration",
@@ -44,16 +49,28 @@ pub fn build_ui_router() -> Router<Arc<AppState>> {
         .route("/setup", get(ui::setup_form).post(ui::setup_submit))
         .route("/static/{*path}", get(ui::static_files::serve))
         .route("/login", get(api::auth::login_page).post(api::auth::login_submit))
-        .route("/logout", axum::routing::post(api::auth::logout).get(api::auth::rp_initiated_logout))
+        .route(
+            "/logout",
+            axum::routing::post(api::auth::logout).get(api::auth::rp_initiated_logout),
+        )
         .route(
             "/authorize",
             get(api::authorize::authorize_get).post(api::authorize::authorize_post),
         )
-        .route("/profile", get(api::profile::profile_page).post(api::profile::profile_submit))
+        .route(
+            "/profile",
+            get(api::profile::profile_page).post(api::profile::profile_submit),
+        )
         .route("/profile/password", axum::routing::post(api::profile::password_submit))
         .route("/profile/email", axum::routing::post(api::profile::email_change_submit))
-        .route("/profile/2fa/setup", axum::routing::post(api::profile::totp_setup_initiate))
-        .route("/profile/2fa/disable", axum::routing::post(api::profile::totp_disable_submit))
+        .route(
+            "/profile/2fa/setup",
+            axum::routing::post(api::profile::totp_setup_initiate),
+        )
+        .route(
+            "/profile/2fa/disable",
+            axum::routing::post(api::profile::totp_disable_submit),
+        )
         .route("/admin", get(ui::dashboard))
         .route("/admin/clients", get(ui::clients_list))
         .route(
@@ -79,13 +96,22 @@ pub fn build_ui_router() -> Router<Arc<AppState>> {
         .route("/favicon.ico", get(ui::static_files::favicon_ico))
         .route("/favicon.svg", get(ui::static_files::favicon_svg))
         .route("/apple-touch-icon.png", get(ui::static_files::apple_touch_icon))
-        .route("/apple-touch-icon-precomposed.png", get(ui::static_files::apple_touch_icon_precomposed))
+        .route(
+            "/apple-touch-icon-precomposed.png",
+            get(ui::static_files::apple_touch_icon_precomposed),
+        )
         .route("/2fa/setup", get(ui::totp_setup_form).post(ui::totp_setup_submit))
         .route("/2fa/verify", get(ui::totp_verify_form).post(ui::totp_verify_submit))
         .route("/confirm-email", get(ui::confirm_email))
         .route("/confirm-email-change", get(ui::confirm_email_change))
-        .route("/forgot-password", get(ui::forgot_password_form).post(ui::forgot_password_submit))
-        .route("/reset-password", get(ui::reset_password_form).post(ui::reset_password_submit))
+        .route(
+            "/forgot-password",
+            get(ui::forgot_password_form).post(ui::forgot_password_submit),
+        )
+        .route(
+            "/reset-password",
+            get(ui::reset_password_form).post(ui::reset_password_submit),
+        )
         .route("/imprint", get(ui::legal::imprint))
         .route("/privacy", get(ui::legal::privacy))
         .route("/admin/email-templates", get(ui::email_templates_list))

@@ -1,8 +1,4 @@
-use axum::{
-    extract::FromRequestParts,
-    http::request::Parts,
-    response::Response,
-};
+use axum::{extract::FromRequestParts, http::request::Parts, response::Response};
 use std::sync::Arc;
 use tower_cookies::Cookies;
 
@@ -25,10 +21,7 @@ pub struct SessionUser(pub User);
 impl FromRequestParts<Arc<crate::AppState>> for SessionUser {
     type Rejection = Response;
 
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &Arc<crate::AppState>,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, state: &Arc<crate::AppState>) -> Result<Self, Self::Rejection> {
         let cookies = Cookies::from_request_parts(parts, state)
             .await
             .map_err(|_| login_redirect())?;
@@ -62,10 +55,7 @@ pub struct OptionalSessionUser(pub Option<User>);
 impl FromRequestParts<Arc<crate::AppState>> for OptionalSessionUser {
     type Rejection = AppError;
 
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &Arc<crate::AppState>,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, state: &Arc<crate::AppState>) -> Result<Self, Self::Rejection> {
         let cookies = Cookies::from_request_parts(parts, state)
             .await
             .map_err(|e| AppError::Internal(format!("Cookie layer missing: {}", e.1)))?;
@@ -91,10 +81,7 @@ pub struct AdminUser(#[allow(dead_code)] pub User);
 impl FromRequestParts<Arc<crate::AppState>> for AdminUser {
     type Rejection = Response;
 
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &Arc<crate::AppState>,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, state: &Arc<crate::AppState>) -> Result<Self, Self::Rejection> {
         let SessionUser(user) = SessionUser::from_request_parts(parts, state).await?;
         if !user.is_admin() {
             return Err(login_redirect());

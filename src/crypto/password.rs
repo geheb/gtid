@@ -1,17 +1,15 @@
 use std::sync::OnceLock;
 
 use argon2::{
-    password_hash::{rand_core::OsRng, PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
     Algorithm, Argon2, Params, Version,
+    password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
 };
 
 pub fn hash_password(password: &str) -> Result<String, argon2::password_hash::Error> {
     let salt = SaltString::generate(&mut OsRng);
     let params = Params::new(65536, 3, 4, None)?;
     let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
-    Ok(argon2
-        .hash_password(password.as_bytes(), &salt)?
-        .to_string())
+    Ok(argon2.hash_password(password.as_bytes(), &salt)?.to_string())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -23,7 +21,6 @@ pub enum PasswordError {
     TooFewSpecial,
     TooWeak,
 }
-
 
 pub fn validate_password_strength(password: &str) -> Result<(), PasswordError> {
     if password.len() < 10 {
@@ -74,9 +71,7 @@ pub fn verify_password(password: &str, hash: &str) -> bool {
         Ok(h) => h,
         Err(_) => return false,
     };
-    Argon2::default()
-        .verify_password(password.as_bytes(), &parsed)
-        .is_ok()
+    Argon2::default().verify_password(password.as_bytes(), &parsed).is_ok()
 }
 
 static DUMMY_HASH: OnceLock<String> = OnceLock::new();
@@ -85,8 +80,7 @@ static DUMMY_HASH: OnceLock<String> = OnceLock::new();
 /// `dummy_verify` call. Panics on failure (startup code, acceptable per SECURITY.md §1).
 pub fn init_dummy_hash() {
     let random_pad = SaltString::generate(&mut OsRng).to_string();
-    let hash = hash_password(&random_pad)
-        .expect("Failed to generate dummy hash at startup");
+    let hash = hash_password(&random_pad).expect("Failed to generate dummy hash at startup");
     DUMMY_HASH.set(hash).ok();
 }
 
@@ -114,22 +108,34 @@ mod tests {
 
     #[test]
     fn no_uppercase() {
-        assert_eq!(validate_password_strength("abcdef12!!"), Err(PasswordError::NoUppercase));
+        assert_eq!(
+            validate_password_strength("abcdef12!!"),
+            Err(PasswordError::NoUppercase)
+        );
     }
 
     #[test]
     fn no_lowercase() {
-        assert_eq!(validate_password_strength("ABCDEF12!!"), Err(PasswordError::NoLowercase));
+        assert_eq!(
+            validate_password_strength("ABCDEF12!!"),
+            Err(PasswordError::NoLowercase)
+        );
     }
 
     #[test]
     fn too_few_digits() {
-        assert_eq!(validate_password_strength("Abcdefgh!!"), Err(PasswordError::TooFewDigits));
+        assert_eq!(
+            validate_password_strength("Abcdefgh!!"),
+            Err(PasswordError::TooFewDigits)
+        );
     }
 
     #[test]
     fn too_few_special() {
-        assert_eq!(validate_password_strength("Abcdefg123"), Err(PasswordError::TooFewSpecial));
+        assert_eq!(
+            validate_password_strength("Abcdefg123"),
+            Err(PasswordError::TooFewSpecial)
+        );
     }
 
     #[test]

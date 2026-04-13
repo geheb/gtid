@@ -1,7 +1,7 @@
 use axum::{
     body::Body,
     extract::State,
-    http::{header::HeaderName, HeaderValue, Request},
+    http::{HeaderValue, Request, header::HeaderName},
     middleware::Next,
     response::Response,
 };
@@ -38,7 +38,8 @@ pub async fn api_security_headers(request: Request<Body>, next: Next) -> Respons
 }
 
 pub fn build_csp(clients: &[crate::models::client::Client]) -> String {
-    let origins: Vec<String> = clients.iter()
+    let origins: Vec<String> = clients
+        .iter()
         .filter_map(|c| extract_origin(&c.client_redirect_uri))
         .collect::<std::collections::HashSet<_>>()
         .into_iter()
@@ -53,11 +54,7 @@ pub fn build_csp(clients: &[crate::models::client::Client]) -> String {
     )
 }
 
-pub async fn ui_security_headers(
-    State(state): State<Arc<AppState>>,
-    request: Request<Body>,
-    next: Next,
-) -> Response {
+pub async fn ui_security_headers(State(state): State<Arc<AppState>>, request: Request<Body>, next: Next) -> Response {
     let csp = state.csp.read().unwrap_or_else(|e| e.into_inner()).clone();
 
     let mut response = next.run(request).await;
@@ -80,10 +77,7 @@ pub async fn ui_security_headers(
         HeaderValue::from_static("max-age=31536000; includeSubDomains"),
     );
     if let Ok(csp_value) = HeaderValue::from_str(&csp) {
-        headers.insert(
-            HeaderName::from_static("content-security-policy"),
-            csp_value,
-        );
+        headers.insert(HeaderName::from_static("content-security-policy"), csp_value);
     } else {
         tracing::error!("Invalid CSP header value, skipping");
     }
@@ -95,17 +89,13 @@ pub async fn ui_security_headers(
         HeaderName::from_static("cache-control"),
         HeaderValue::from_static("no-store, no-cache, must-revalidate"),
     );
-    headers.insert(
-        HeaderName::from_static("pragma"),
-        HeaderValue::from_static("no-cache"),
-    );
+    headers.insert(HeaderName::from_static("pragma"), HeaderValue::from_static("no-cache"));
 
     response
 }
 
 fn extract_origin(url: &str) -> Option<String> {
-    let after_scheme = url.strip_prefix("https://")
-        .or_else(|| url.strip_prefix("http://"))?;
+    let after_scheme = url.strip_prefix("https://").or_else(|| url.strip_prefix("http://"))?;
     let scheme = if url.starts_with("https") { "https" } else { "http" };
     let host = after_scheme.split('/').next()?;
     Some(format!("{scheme}://{host}"))

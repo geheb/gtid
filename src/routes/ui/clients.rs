@@ -8,15 +8,17 @@ use std::sync::Arc;
 use tera::Context;
 use tower_cookies::Cookies;
 
+use crate::AppState;
 use crate::crypto::password;
 use crate::errors::AppError;
 use crate::middleware::csrf::{self, CsrfToken};
 use crate::middleware::language::Lang;
 use crate::middleware::session::AdminUser;
-use crate::routes::ctx::{ClientCreateCtx, ClientEditCtx, ClientsListCtx};
-use crate::AppState;
+use crate::routes::ctx::{BaseCtx, ClientCreateCtx, ClientEditCtx, ClientsListCtx};
 
-use super::{get_field, get_field_opt, parse_form_fields, redirect, validate_client_secret, validate_redirect_uri, DeleteForm};
+use super::{
+    DeleteForm, get_field, get_field_opt, parse_form_fields, redirect, validate_client_secret, validate_redirect_uri,
+};
 
 pub async fn clients_list(
     State(state): State<Arc<AppState>>,
@@ -26,10 +28,12 @@ pub async fn clients_list(
 ) -> Result<Response, AppError> {
     let clients = state.clients.list().await?;
     let ctx = Context::from_serialize(ClientsListCtx {
-        t: state.locales.get(&lang.tag),
-        lang: &lang.tag,
-        css_hash: &state.css_hash,
-        js_hash: &state.js_hash,
+        base: BaseCtx {
+            t: state.locales.get(&lang.tag),
+            lang: &lang.tag,
+            css_hash: &state.css_hash,
+            js_hash: &state.js_hash,
+        },
         active_page: "clients",
         csrf_token: &csrf.form_token,
         clients: &clients,
@@ -45,10 +49,12 @@ pub async fn client_create_form(
     lang: Lang,
 ) -> Result<Response, AppError> {
     let ctx = Context::from_serialize(ClientCreateCtx {
-        t: state.locales.get(&lang.tag),
-        lang: &lang.tag,
-        css_hash: &state.css_hash,
-        js_hash: &state.js_hash,
+        base: BaseCtx {
+            t: state.locales.get(&lang.tag),
+            lang: &lang.tag,
+            css_hash: &state.css_hash,
+            js_hash: &state.js_hash,
+        },
         active_page: "create_client",
         csrf_token: &csrf.form_token,
         error: false,
@@ -75,19 +81,29 @@ pub async fn client_create_submit(
     let redirect_uri = get_field(&fields, "client_redirect_uri");
     let post_logout_uri = get_field_opt(&fields, "client_post_logout_redirect_uri");
 
-    validate_client_fields(&csrf_token, &client_id, &client_secret, &redirect_uri, post_logout_uri.as_deref())
-        .map_err(|e| AppError::BadRequest(e.into()))?;
+    validate_client_fields(
+        &csrf_token,
+        &client_id,
+        &client_secret,
+        &redirect_uri,
+        post_logout_uri.as_deref(),
+    )
+    .map_err(|e| AppError::BadRequest(e.into()))?;
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
-        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
+        return Err(AppError::BadRequest(
+            state.locales.get(&lang.tag).csrf_token_invalid.clone(),
+        ));
     }
 
     let render_error = |msg: &str| -> Result<Response, AppError> {
         let ctx = Context::from_serialize(ClientCreateCtx {
-            t: state.locales.get(&lang.tag),
-            lang: &lang.tag,
-            css_hash: &state.css_hash,
-            js_hash: &state.js_hash,
+            base: BaseCtx {
+                t: state.locales.get(&lang.tag),
+                lang: &lang.tag,
+                css_hash: &state.css_hash,
+                js_hash: &state.js_hash,
+            },
             active_page: "create_client",
             csrf_token: &csrf_token,
             error: true,
@@ -109,23 +125,26 @@ pub async fn client_create_submit(
     if let Err(msg) = validate_redirect_uri(&redirect_uri) {
         return render_error(&msg);
     }
-    if let Some(ref plu) = post_logout_uri {
-        if let Err(msg) = validate_redirect_uri(plu) {
-            return render_error(&msg);
-        }
+    if let Some(ref plu) = post_logout_uri
+        && let Err(msg) = validate_redirect_uri(plu)
+    {
+        return render_error(&msg);
     }
     if state.clients.find_by_id(&client_id).await?.is_some() {
         return render_error(&state.locales.get(&lang.tag).client_create_error_id_exists);
     }
 
     let hash = password::hash_password(&client_secret)?;
-    state.clients.create(&client_id, &hash, &redirect_uri, post_logout_uri.as_deref()).await?;
+    state
+        .clients
+        .create(&client_id, &hash, &redirect_uri, post_logout_uri.as_deref())
+        .await?;
     tracing::info!(event = "client_created", client_id = %client_id, redirect_uri = %redirect_uri, "Admin created client");
 
-    if let Ok(updated_clients) = state.clients.list().await {
-        if let Ok(mut csp) = state.csp.write() {
-            *csp = crate::middleware::security_headers::build_csp(&updated_clients);
-        }
+    if let Ok(updated_clients) = state.clients.list().await
+        && let Ok(mut csp) = state.csp.write()
+    {
+        *csp = crate::middleware::security_headers::build_csp(&updated_clients);
     }
 
     Ok(redirect("/admin/clients"))
@@ -138,14 +157,19 @@ pub async fn client_edit_form(
     csrf: CsrfToken,
     lang: Lang,
 ) -> Result<Response, AppError> {
-    let client = state.clients.find_by_id(&id).await?
+    let client = state
+        .clients
+        .find_by_id(&id)
+        .await?
         .ok_or_else(|| AppError::NotFound("Client not found".into()))?;
 
     let ctx = Context::from_serialize(ClientEditCtx {
-        t: state.locales.get(&lang.tag),
-        lang: &lang.tag,
-        css_hash: &state.css_hash,
-        js_hash: &state.js_hash,
+        base: BaseCtx {
+            t: state.locales.get(&lang.tag),
+            lang: &lang.tag,
+            css_hash: &state.css_hash,
+            js_hash: &state.js_hash,
+        },
         active_page: "clients",
         csrf_token: &csrf.form_token,
         error: false,
@@ -172,31 +196,44 @@ pub async fn client_edit_submit(
     let redirect_uri = get_field(&fields, "client_redirect_uri");
     let post_logout_uri = get_field_opt(&fields, "client_post_logout_redirect_uri");
 
-    validate_client_fields(&csrf_token, &id, &client_secret, &redirect_uri, post_logout_uri.as_deref())
-        .map_err(|e| AppError::BadRequest(e.into()))?;
+    validate_client_fields(
+        &csrf_token,
+        &id,
+        &client_secret,
+        &redirect_uri,
+        post_logout_uri.as_deref(),
+    )
+    .map_err(|e| AppError::BadRequest(e.into()))?;
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
-        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
+        return Err(AppError::BadRequest(
+            state.locales.get(&lang.tag).csrf_token_invalid.clone(),
+        ));
     }
 
     if let Err(msg) = validate_redirect_uri(&redirect_uri) {
         return Err(AppError::BadRequest(msg));
     }
-    if let Some(ref plu) = post_logout_uri {
-        if let Err(msg) = validate_redirect_uri(plu) {
-            return Err(AppError::BadRequest(msg));
-        }
+    if let Some(ref plu) = post_logout_uri
+        && let Err(msg) = validate_redirect_uri(plu)
+    {
+        return Err(AppError::BadRequest(msg));
     }
 
-    let client = state.clients.find_by_id(&id).await?
+    let client = state
+        .clients
+        .find_by_id(&id)
+        .await?
         .ok_or_else(|| AppError::NotFound("Client not found".into()))?;
 
     let render_error = |msg: &str| -> Result<Response, AppError> {
         let ctx = Context::from_serialize(ClientEditCtx {
-            t: state.locales.get(&lang.tag),
-            lang: &lang.tag,
-            css_hash: &state.css_hash,
-            js_hash: &state.js_hash,
+            base: BaseCtx {
+                t: state.locales.get(&lang.tag),
+                lang: &lang.tag,
+                css_hash: &state.css_hash,
+                js_hash: &state.js_hash,
+            },
             active_page: "clients",
             csrf_token: &csrf_token,
             error: true,
@@ -217,13 +254,16 @@ pub async fn client_edit_submit(
         state.clients.update_secret(&id, &hash).await?;
     }
 
-    state.clients.update(&id, &redirect_uri, post_logout_uri.as_deref()).await?;
+    state
+        .clients
+        .update(&id, &redirect_uri, post_logout_uri.as_deref())
+        .await?;
     tracing::info!(event = "client_updated", client_id = %id, redirect_uri = %redirect_uri, "Admin updated client");
 
-    if let Ok(updated_clients) = state.clients.list().await {
-        if let Ok(mut csp) = state.csp.write() {
-            *csp = crate::middleware::security_headers::build_csp(&updated_clients);
-        }
+    if let Ok(updated_clients) = state.clients.list().await
+        && let Ok(mut csp) = state.csp.write()
+    {
+        *csp = crate::middleware::security_headers::build_csp(&updated_clients);
     }
 
     Ok(redirect("/admin/clients"))
@@ -238,24 +278,29 @@ pub async fn client_delete(
     axum::Form(form): axum::Form<DeleteForm>,
 ) -> Result<Response, AppError> {
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
-        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
+        return Err(AppError::BadRequest(
+            state.locales.get(&lang.tag).csrf_token_invalid.clone(),
+        ));
     }
 
     state.clients.delete(&id).await?;
     tracing::info!(event = "client_deleted", client_id = %id, "Admin deleted client");
 
-    if let Ok(updated_clients) = state.clients.list().await {
-        if let Ok(mut csp) = state.csp.write() {
-            *csp = crate::middleware::security_headers::build_csp(&updated_clients);
-        }
+    if let Ok(updated_clients) = state.clients.list().await
+        && let Ok(mut csp) = state.csp.write()
+    {
+        *csp = crate::middleware::security_headers::build_csp(&updated_clients);
     }
 
     Ok(redirect("/admin/clients"))
 }
 
 fn validate_client_fields(
-    csrf_token: &str, client_id: &str, client_secret: &str,
-    redirect_uri: &str, post_logout_uri: Option<&str>,
+    csrf_token: &str,
+    client_id: &str,
+    client_secret: &str,
+    redirect_uri: &str,
+    post_logout_uri: Option<&str>,
 ) -> Result<(), &'static str> {
     if csrf_token.len() > super::MAX_CSRF_TOKEN
         || client_id.len() > super::MAX_CLIENT_ID

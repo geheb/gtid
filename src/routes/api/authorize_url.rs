@@ -1,15 +1,15 @@
 use axum::{
+    Json,
     extract::{ConnectInfo, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use serde::Deserialize;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use crate::crypto::{id::new_id, pkce::generate_pkce};
 use crate::AppState;
+use crate::crypto::{id::new_id, pkce::generate_pkce};
 
 #[derive(Debug, Deserialize)]
 pub struct AuthorizeUrlParams {
@@ -23,21 +23,49 @@ pub async fn authorize_url(
     headers: axum::http::HeaderMap,
     Query(params): Query<AuthorizeUrlParams>,
 ) -> Result<Response, Response> {
-    let ua = crate::routes::require_user_agent(&headers)
-        .map_err(|_| (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": "Missing User-Agent"}))).into_response())?;
+    let ua = crate::routes::require_user_agent(&headers).map_err(|_| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "Missing User-Agent"})),
+        )
+            .into_response()
+    })?;
     let ip = crate::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let rl_key = state.login_rate_limiter.key("authorize-url", &ip, ua);
     if state.login_rate_limiter.is_limited(rl_key) {
         state.login_rate_limiter.record_failure(rl_key);
-        return Err((StatusCode::TOO_MANY_REQUESTS, Json(serde_json::json!({"error": "Too many requests"}))).into_response());
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(serde_json::json!({"error": "Too many requests"})),
+        )
+            .into_response());
     }
 
     let scope = params.scope.as_deref().unwrap_or("openid+email+profile");
-    tracing::info!("Calling authorize-url client_id={} scope={} ...", params.client_id, scope);
+    tracing::info!(
+        "Calling authorize-url client_id={} scope={} ...",
+        params.client_id,
+        scope
+    );
 
-    let client = state.clients.find_by_id(&params.client_id).await
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "Database error"}))).into_response())?
-        .ok_or_else(|| (StatusCode::NOT_FOUND, Json(serde_json::json!({"error": "Unknown client_id"}))).into_response())?;
+    let client = state
+        .clients
+        .find_by_id(&params.client_id)
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "Database error"})),
+            )
+                .into_response()
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::NOT_FOUND,
+                Json(serde_json::json!({"error": "Unknown client_id"})),
+            )
+                .into_response()
+        })?;
 
     let (code_verifier, code_challenge) = generate_pkce();
     let state_param = new_id();
@@ -57,5 +85,6 @@ pub async fn authorize_url(
     Ok(Json(serde_json::json!({
         "authorize_url": authorize_url,
         "code_verifier": code_verifier
-    })).into_response())
+    }))
+    .into_response())
 }

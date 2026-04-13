@@ -1,20 +1,20 @@
 use axum::{
-    http::{header, StatusCode},
+    http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
 use serde::Deserialize;
 
 // ── Field length limits (SECURITY.md §2) ────────────────────────────────────
-pub const MAX_CSRF_TOKEN: usize = 64;      // SHA256 hex
-pub const MAX_EMAIL: usize = 254;          // RFC 5321
+pub const MAX_CSRF_TOKEN: usize = 64; // SHA256 hex
+pub const MAX_EMAIL: usize = 254; // RFC 5321
 pub const MAX_PASSWORD: usize = 256;
 pub const MAX_DISPLAY_NAME: usize = 200;
-pub const MAX_UUID: usize = 36;            // UUID v6 (pending_id, rid)
+pub const MAX_UUID: usize = 36; // UUID v6 (pending_id, rid)
 pub const MAX_CLIENT_ID: usize = 128;
 pub const MAX_CLIENT_SECRET: usize = 256;
-pub const MAX_URI: usize = 2048;           // redirect_uri, post_logout_uri
+pub const MAX_URI: usize = 2048; // redirect_uri, post_logout_uri
 pub const MAX_SETUP_TOKEN: usize = 128;
-pub const MAX_RESET_TOKEN: usize = 128;    // hex-encoded SHA256 hash input
+pub const MAX_RESET_TOKEN: usize = 128; // hex-encoded SHA256 hash input
 pub const MAX_ROLE: usize = 64;
 pub const MAX_SCOPE: usize = 1024;
 pub const MAX_CODE_VERIFIER: usize = 128;
@@ -34,15 +34,27 @@ pub fn parse_form_fields(body: &[u8]) -> Vec<(String, String)> {
 }
 
 pub fn get_field(fields: &[(String, String)], key: &str) -> String {
-    fields.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone()).unwrap_or_default()
+    fields
+        .iter()
+        .find(|(k, _)| k == key)
+        .map(|(_, v)| v.clone())
+        .unwrap_or_default()
 }
 
 pub fn get_field_opt(fields: &[(String, String)], key: &str) -> Option<String> {
-    fields.iter().find(|(k, _)| k == key).map(|(_, v)| v.clone()).filter(|v| !v.is_empty())
+    fields
+        .iter()
+        .find(|(k, _)| k == key)
+        .map(|(_, v)| v.clone())
+        .filter(|v| !v.is_empty())
 }
 
 pub fn get_all(fields: &[(String, String)], key: &str) -> Vec<String> {
-    fields.iter().filter(|(k, _)| k == key).map(|(_, v)| v.clone()).collect()
+    fields
+        .iter()
+        .filter(|(k, _)| k == key)
+        .map(|(_, v)| v.clone())
+        .collect()
 }
 
 pub fn validate_redirect_uri(uri: &str) -> Result<(), String> {
@@ -60,13 +72,11 @@ pub fn validate_redirect_uri(uri: &str) -> Result<(), String> {
 }
 
 pub fn validate_password(password: &str, i18n: &crate::i18n::I18n) -> Result<(), String> {
-    crate::crypto::password::validate_password_strength(password)
-        .map_err(|e| i18n.password_msg(e).to_string())
+    crate::crypto::password::validate_password_strength(password).map_err(|e| i18n.password_msg(e).to_string())
 }
 
 pub fn validate_client_secret(secret: &str, i18n: &crate::i18n::I18n) -> Result<(), String> {
-    crate::crypto::password::validate_secret_strength(secret)
-        .map_err(|e| i18n.secret_msg(e).to_string())
+    crate::crypto::password::validate_secret_strength(secret).map_err(|e| i18n.secret_msg(e).to_string())
 }
 
 /// Normalize an email address: trim, lowercase, and convert the domain to Punycode (IDNA).

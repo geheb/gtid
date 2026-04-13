@@ -1,14 +1,14 @@
 use axum::{
+    Json,
     extract::{ConnectInfo, State},
     response::{IntoResponse, Response},
-    Json,
 };
 use serde::Deserialize;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use crate::crypto::jwt;
 use crate::AppState;
+use crate::crypto::jwt;
 
 #[derive(Deserialize)]
 pub struct IntrospectRequest {
@@ -26,10 +26,13 @@ pub async fn introspect(
     headers: axum::http::HeaderMap,
     axum::Form(form): axum::Form<IntrospectRequest>,
 ) -> Result<Response, Response> {
-    tracing::info!("Calling introspect client_id={} ...", form.client_id.as_deref().unwrap_or(""));
+    tracing::info!(
+        "Calling introspect client_id={} ...",
+        form.client_id.as_deref().unwrap_or("")
+    );
 
-    let ua = crate::routes::require_user_agent(&headers)
-        .map_err(|e| crate::routes::oauth_error("invalid_request", &e))?;
+    let ua =
+        crate::routes::require_user_agent(&headers).map_err(|e| crate::routes::oauth_error("invalid_request", &e))?;
     let ip = crate::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let rl_key = state.login_rate_limiter.key("introspect", &ip, ua);
     if state.login_rate_limiter.is_limited(rl_key) {
@@ -39,8 +42,11 @@ pub async fn introspect(
     let client = crate::routes::verify_client_credentials(
         form.client_id.as_deref(),
         form.client_secret.as_deref(),
-        &headers, &state, rl_key,
-    ).await?;
+        &headers,
+        &state,
+        rl_key,
+    )
+    .await?;
 
     let hint = form.token_type_hint.as_deref().unwrap_or("access_token");
 
@@ -48,12 +54,9 @@ pub async fn introspect(
     if hint != "refresh_token" {
         let decoding_keys = state.key_store.decoding_keys();
         let key_refs: Vec<&jsonwebtoken::DecodingKey> = decoding_keys.iter().collect();
-        if let Ok(claims) = jwt::decode_access_token_multi(
-            &form.token,
-            &key_refs,
-            &state.config.issuer_uri,
-            &client.client_id,
-        ) {
+        if let Ok(claims) =
+            jwt::decode_access_token_multi(&form.token, &key_refs, &state.config.issuer_uri, &client.client_id)
+        {
             return Ok(Json(serde_json::json!({
                 "active": true,
                 "token_type": "Bearer",
@@ -69,19 +72,18 @@ pub async fn introspect(
     }
 
     // Try as refresh token (DB lookup)
-    if hint != "access_token" {
-        if let Ok(crate::repositories::refresh_token::RefreshResult::Ok(rt)) =
+    if hint != "access_token"
+        && let Ok(crate::repositories::refresh_token::RefreshResult::Ok(rt)) =
             state.refresh_tokens.find_valid(&form.token).await
-        {
-            return Ok(Json(serde_json::json!({
-                "active": true,
-                "token_type": "refresh_token",
-                "scope": rt.scope,
-                "client_id": rt.client_id,
-                "sub": rt.user_id,
-            }))
-            .into_response());
-        }
+    {
+        return Ok(Json(serde_json::json!({
+            "active": true,
+            "token_type": "refresh_token",
+            "scope": rt.scope,
+            "client_id": rt.client_id,
+            "sub": rt.user_id,
+        }))
+        .into_response());
     }
 
     // Token is not active

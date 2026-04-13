@@ -20,14 +20,24 @@ pub struct BotTrap {
     store: TrackedStore<BanEntry>,
 }
 
+impl Default for BotTrap {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl BotTrap {
     pub fn new() -> Self {
-        Self { store: TrackedStore::new(MAX_TRACKED_KEYS) }
+        Self {
+            store: TrackedStore::new(MAX_TRACKED_KEYS),
+        }
     }
 
     #[cfg(test)]
     fn with_max_keys(max_tracked_keys: usize) -> Self {
-        Self { store: TrackedStore::with_seed(max_tracked_keys, 0) }
+        Self {
+            store: TrackedStore::with_seed(max_tracked_keys, 0),
+        }
     }
 
     pub fn key(&self, ip: &str, ua: &str) -> u64 {
@@ -36,23 +46,23 @@ impl BotTrap {
 
     /// Returns true if this key is currently banned.
     pub fn is_banned(&self, key: u64) -> bool {
-        if let Some(entry) = self.store.map.get(&key) {
-            if let Some(banned_at) = entry.banned_at {
-                if banned_at.elapsed() < BAN_DURATION {
-                    return true;
-                }
-            }
+        if let Some(entry) = self.store.map.get(&key)
+            && let Some(banned_at) = entry.banned_at
+            && banned_at.elapsed() < BAN_DURATION
+        {
+            return true;
         }
         // Expired ban - clean up outside read guard
-        self.store.map.remove_if(&key, |_, e| {
-            e.banned_at.is_some_and(|at| at.elapsed() >= BAN_DURATION)
-        });
+        self.store
+            .map
+            .remove_if(&key, |_, e| e.banned_at.is_some_and(|at| at.elapsed() >= BAN_DURATION));
         false
     }
 
     /// Records a strike for this key. Returns true if now banned.
     pub fn record_strike(&self, key: u64) -> bool {
-        self.store.evict(|e| e.banned_at.is_some_and(|at| at.elapsed() >= BAN_DURATION));
+        self.store
+            .evict(|e| e.banned_at.is_some_and(|at| at.elapsed() >= BAN_DURATION));
 
         if !self.store.can_insert(key) {
             return false;
@@ -72,7 +82,8 @@ impl BotTrap {
     }
 
     pub fn banned_count(&self) -> usize {
-        self.store.map
+        self.store
+            .map
             .iter()
             .filter(|e| e.banned_at.is_some_and(|at| at.elapsed() < BAN_DURATION))
             .count()
@@ -132,7 +143,13 @@ mod tests {
         };
         let trap = BotTrap::with_max_keys(MAX_TRACKED_KEYS);
         let key = trap.key("1.2.3.4", "old-bot");
-        trap.store.map.insert(key, BanEntry { strikes: STRIKE_THRESHOLD, banned_at: Some(past) });
+        trap.store.map.insert(
+            key,
+            BanEntry {
+                strikes: STRIKE_THRESHOLD,
+                banned_at: Some(past),
+            },
+        );
         assert!(!trap.is_banned(key));
     }
 

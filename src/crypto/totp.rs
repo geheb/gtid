@@ -1,6 +1,6 @@
 use aes_gcm::{
+    AeadCore, Aes256Gcm, Nonce,
     aead::{Aead, KeyInit, OsRng},
-    Aes256Gcm, AeadCore, Nonce,
 };
 use hmac::Hmac;
 use sha2::Sha256;
@@ -17,7 +17,6 @@ pub fn generate_secret() -> String {
 /// Constructs a TOTP instance from a Base32-encoded secret.
 /// The issuer is percent-encoded (otpauth spec forbids literal colons in issuer).
 pub fn build_totp(secret_base32: &str, email: &str, issuer_uri: &str) -> Result<TOTP, String> {
-
     let stripped_issuer_uri = if issuer_uri.to_lowercase().starts_with("https://") {
         &issuer_uri[8..]
     } else if issuer_uri.to_lowercase().starts_with("http://") {
@@ -60,8 +59,8 @@ pub fn verify_code(totp: &TOTP, code: &str) -> bool {
 /// Derives a per-user encryption key via HMAC-SHA256(master_key, "totp-secret" || user_id).
 /// Each user gets a unique key without storing per-user keys.
 pub fn derive_user_key(master_key: &[u8; 32], user_id: &str) -> Result<[u8; 32], String> {
-    let mut mac = <HmacSha256 as hmac::digest::KeyInit>::new_from_slice(master_key)
-        .map_err(|e| format!("HMAC key init: {e}"))?;
+    let mut mac =
+        <HmacSha256 as hmac::digest::KeyInit>::new_from_slice(master_key).map_err(|e| format!("HMAC key init: {e}"))?;
     hmac::digest::Update::update(&mut mac, b"totp-secret");
     hmac::digest::Update::update(&mut mac, user_id.as_bytes());
     let result = hmac::digest::FixedOutput::finalize_fixed(mac);
@@ -73,8 +72,7 @@ pub fn derive_user_key(master_key: &[u8; 32], user_id: &str) -> Result<[u8; 32],
 /// Encrypts a TOTP secret using AES-256-GCM.
 /// Returns hex-encoded nonce (24 hex chars) + ciphertext.
 pub fn encrypt_secret(plaintext: &str, user_key: &[u8; 32]) -> Result<String, String> {
-    let cipher = Aes256Gcm::new_from_slice(user_key)
-        .map_err(|e| format!("cipher init: {e}"))?;
+    let cipher = Aes256Gcm::new_from_slice(user_key).map_err(|e| format!("cipher init: {e}"))?;
     let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
     let ciphertext = cipher
         .encrypt(&nonce, plaintext.as_bytes())
@@ -94,8 +92,7 @@ pub fn decrypt_secret(hex_data: &str, user_key: &[u8; 32]) -> Result<String, Str
     let (nonce_bytes, ciphertext) = data.split_at(12);
     let nonce_arr: [u8; 12] = nonce_bytes.try_into().map_err(|_| "invalid nonce length")?;
     let nonce = Nonce::from(nonce_arr);
-    let cipher = Aes256Gcm::new_from_slice(user_key)
-        .map_err(|e| format!("cipher init: {e}"))?;
+    let cipher = Aes256Gcm::new_from_slice(user_key).map_err(|e| format!("cipher init: {e}"))?;
     let plaintext = cipher
         .decrypt(&nonce, ciphertext)
         .map_err(|_| "decryption failed (wrong key or corrupted data)".to_string())?;

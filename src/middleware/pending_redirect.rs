@@ -17,6 +17,12 @@ pub struct PendingRedirectStore {
     max_entries: usize,
 }
 
+impl Default for PendingRedirectStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PendingRedirectStore {
     pub fn new() -> Self {
         Self {
@@ -50,10 +56,13 @@ impl PendingRedirectStore {
             return None;
         }
 
-        self.inner.insert(id.clone(), Entry {
-            url,
-            created: Instant::now(),
-        });
+        self.inner.insert(
+            id.clone(),
+            Entry {
+                url,
+                created: Instant::now(),
+            },
+        );
         Some(id)
     }
 

@@ -1,17 +1,17 @@
+pub mod auth_code;
 pub mod client;
+pub mod consent;
+pub mod db;
 pub mod email_change;
 pub mod email_confirmation_token;
-pub mod password_reset_token;
-pub mod db;
-pub mod user;
-pub mod session;
-pub mod auth_code;
-pub mod consent;
 pub mod email_queue;
 pub mod email_template;
 pub mod legal_page;
+pub mod password_reset_token;
 pub mod refresh_token;
+pub mod session;
 pub mod trusted_device;
+pub mod user;
 
 #[cfg(test)]
 pub(super) mod test_helpers {

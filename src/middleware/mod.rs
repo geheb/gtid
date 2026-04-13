@@ -1,7 +1,7 @@
 pub mod bot_trap;
-pub mod language;
 pub mod content_type;
 pub mod csrf;
+pub mod language;
 pub mod lockout;
 pub mod pending_2fa;
 pub mod pending_redirect;
@@ -10,6 +10,5 @@ pub mod security_headers;
 pub mod session;
 mod tracked_store;
 
+pub(crate) use session::{SESSION_ID_COOKIE_NAME, TRUST_DEVICE_COOKIE_NAME};
 pub(super) use tracked_store::TrackedStore;
-pub(crate) use session::{ SESSION_ID_COOKIE_NAME, TRUST_DEVICE_COOKIE_NAME };
-

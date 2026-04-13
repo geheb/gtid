@@ -1,10 +1,10 @@
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-use ed25519_dalek::pkcs8::{EncodePrivateKey, EncodePublicKey};
+use arc_swap::ArcSwap;
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use ed25519_dalek::SigningKey;
+use ed25519_dalek::pkcs8::{EncodePrivateKey, EncodePublicKey};
 use jsonwebtoken::{DecodingKey, EncodingKey};
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
-use arc_swap::ArcSwap;
 
 type KeyError = Box<dyn std::error::Error + Send + Sync>;
 
@@ -86,10 +86,8 @@ pub fn generate_key_pair() -> Result<KeyPair, KeyError> {
     let signing_key = SigningKey::from_bytes(&seed);
     let verifying_key = signing_key.verifying_key();
 
-    let priv_pem = signing_key
-        .to_pkcs8_pem(ed25519_dalek::pkcs8::spki::der::pem::LineEnding::LF)?;
-    let pub_pem = verifying_key
-        .to_public_key_pem(ed25519_dalek::pkcs8::spki::der::pem::LineEnding::LF)?;
+    let priv_pem = signing_key.to_pkcs8_pem(ed25519_dalek::pkcs8::spki::der::pem::LineEnding::LF)?;
+    let pub_pem = verifying_key.to_public_key_pem(ed25519_dalek::pkcs8::spki::der::pem::LineEnding::LF)?;
 
     let encoding_key = EncodingKey::from_ed_pem(priv_pem.as_bytes())?;
     let decoding_key = DecodingKey::from_ed_pem(pub_pem.as_bytes())?;
@@ -124,11 +122,17 @@ mod tests {
         let kp = generate_key_pair().unwrap();
         assert!(!kp.kid.is_empty());
         let token = crate::crypto::jwt::issue_access_token(
-            &kp.encoding_key, &kp.kid, "http://test", "client", "user", "openid", 900,
-        ).unwrap();
-        let claims = crate::crypto::jwt::decode_access_token(
-            &token, &kp.decoding_key, "http://test", "client",
-        ).unwrap();
+            &kp.encoding_key,
+            &kp.kid,
+            "http://test",
+            "client",
+            "user",
+            "openid",
+            900,
+        )
+        .unwrap();
+        let claims =
+            crate::crypto::jwt::decode_access_token(&token, &kp.decoding_key, "http://test", "client").unwrap();
         assert_eq!(claims.sub, "user");
     }
 
@@ -170,12 +174,8 @@ mod tests {
 
 fn build_jwk(pub_pem: &[u8]) -> Result<(String, serde_json::Value), KeyError> {
     let pem_str = std::str::from_utf8(pub_pem)?;
-    let der_b64: String = pem_str
-        .lines()
-        .filter(|l| !l.starts_with("-----"))
-        .collect();
-    let der = base64::engine::general_purpose::STANDARD
-        .decode(&der_b64)?;
+    let der_b64: String = pem_str.lines().filter(|l| !l.starts_with("-----")).collect();
+    let der = base64::engine::general_purpose::STANDARD.decode(&der_b64)?;
 
     let pub_bytes = &der[der.len() - 32..];
     let x = URL_SAFE_NO_PAD.encode(pub_bytes);

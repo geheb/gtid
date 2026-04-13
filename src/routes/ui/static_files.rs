@@ -1,6 +1,6 @@
 use axum::{
     extract::Path,
-    http::{header, StatusCode},
+    http::{StatusCode, header},
     response::{IntoResponse, Response},
 };
 use sha2::{Digest, Sha256};
@@ -121,9 +121,5 @@ pub fn asset_hashes() -> (String, String) {
 
 /// Returns (quill_js_hash, quill_css_hash, editor_js_hash) for email editor assets.
 pub fn email_editor_hashes() -> (String, String, String) {
-    (
-        short_hash(QUILL_JS),
-        short_hash(QUILL_CSS),
-        short_hash(EMAIL_EDITOR_JS),
-    )
+    (short_hash(QUILL_JS), short_hash(QUILL_CSS), short_hash(EMAIL_EDITOR_JS))
 }

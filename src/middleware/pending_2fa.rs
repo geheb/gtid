@@ -20,6 +20,12 @@ pub struct Pending2faStore {
     max_entries: usize,
 }
 
+impl Default for Pending2faStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Pending2faStore {
     pub fn new() -> Self {
         Self {
@@ -50,13 +56,16 @@ impl Pending2faStore {
             return None;
         }
 
-        self.inner.insert(id.clone(), Entry {
-            user_id,
-            rid,
-            totp_secret,
-            used_codes: Vec::new(),
-            created: Instant::now(),
-        });
+        self.inner.insert(
+            id.clone(),
+            Entry {
+                user_id,
+                rid,
+                totp_secret,
+                used_codes: Vec::new(),
+                created: Instant::now(),
+            },
+        );
         Some(id)
     }
 
@@ -81,7 +90,8 @@ impl Pending2faStore {
 
     /// Returns true if the code was already used for this pending entry (replay prevention).
     pub fn is_code_used(&self, id: &str, code: &str) -> bool {
-        self.inner.get(id)
+        self.inner
+            .get(id)
             .is_some_and(|e| e.used_codes.iter().any(|c| c == code))
     }
 
@@ -187,7 +197,9 @@ mod tests {
     #[test]
     fn rid_preserved() {
         let store = Pending2faStore::new();
-        let id = store.store("user-1".into(), Some("/authorize?...".into()), None).unwrap();
+        let id = store
+            .store("user-1".into(), Some("/authorize?...".into()), None)
+            .unwrap();
         let entry = store.take(&id).unwrap();
         assert_eq!(entry.rid.as_deref(), Some("/authorize?..."));
     }

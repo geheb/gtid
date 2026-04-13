@@ -13,19 +13,13 @@ impl ConsentRepository {
     }
 
     /// Checks whether a consent grant exists for user+client that covers all requested scopes.
-    pub async fn has_grant(
-        &self,
-        user_id: &str,
-        client_id: &str,
-        scope: &str,
-    ) -> Result<bool, sqlx::Error> {
-        let row: Option<(String,)> = sqlx::query_as(
-            "SELECT scope FROM consent_grants WHERE user_id = ? AND client_id = ?",
-        )
-        .bind(user_id)
-        .bind(client_id)
-        .fetch_optional(&self.pool)
-        .await?;
+    pub async fn has_grant(&self, user_id: &str, client_id: &str, scope: &str) -> Result<bool, sqlx::Error> {
+        let row: Option<(String,)> =
+            sqlx::query_as("SELECT scope FROM consent_grants WHERE user_id = ? AND client_id = ?")
+                .bind(user_id)
+                .bind(client_id)
+                .fetch_optional(&self.pool)
+                .await?;
 
         let Some((stored_scope,)) = row else {
             return Ok(false);
@@ -45,20 +39,13 @@ impl ConsentRepository {
         Ok(())
     }
 
-    pub async fn save_grant(
-        &self,
-        user_id: &str,
-        client_id: &str,
-        scope: &str,
-    ) -> Result<(), sqlx::Error> {
-        sqlx::query(
-            "INSERT OR REPLACE INTO consent_grants (user_id, client_id, scope) VALUES (?, ?, ?)",
-        )
-        .bind(user_id)
-        .bind(client_id)
-        .bind(scope)
-        .execute(&self.pool)
-        .await?;
+    pub async fn save_grant(&self, user_id: &str, client_id: &str, scope: &str) -> Result<(), sqlx::Error> {
+        sqlx::query("INSERT OR REPLACE INTO consent_grants (user_id, client_id, scope) VALUES (?, ?, ?)")
+            .bind(user_id)
+            .bind(client_id)
+            .bind(scope)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 }

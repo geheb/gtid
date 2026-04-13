@@ -1,11 +1,8 @@
-use axum::{
-    extract::FromRequestParts,
-    http::request::Parts,
-};
+use axum::{extract::FromRequestParts, http::request::Parts};
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
-use tower_cookies::cookie::time::Duration;
 use tower_cookies::cookie::SameSite;
+use tower_cookies::cookie::time::Duration;
 use tower_cookies::{Cookie, Cookies};
 
 use crate::AppState;
@@ -22,10 +19,7 @@ pub struct CsrfToken {
 impl FromRequestParts<Arc<AppState>> for CsrfToken {
     type Rejection = axum::http::StatusCode;
 
-    async fn from_request_parts(
-        parts: &mut Parts,
-        state: &Arc<AppState>,
-    ) -> Result<Self, Self::Rejection> {
+    async fn from_request_parts(parts: &mut Parts, state: &Arc<AppState>) -> Result<Self, Self::Rejection> {
         let cookies = Cookies::from_request_parts(parts, state)
             .await
             .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;

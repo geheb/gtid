@@ -10,15 +10,14 @@ use std::sync::Arc;
 use tera::Context;
 use tower_cookies::Cookies;
 
+use crate::AppState;
 use crate::crypto::password;
 use crate::errors::AppError;
 use crate::middleware::csrf::{self, CsrfToken};
 use crate::middleware::language::Lang;
 use crate::routes::ctx::{
-    ErrorCtx, ForgotPasswordCtx, ForgotPasswordSentCtx, ResetPasswordCtx,
-    ResetPasswordSuccessCtx,
+    BaseCtx, ErrorCtx, ForgotPasswordCtx, ForgotPasswordSentCtx, ResetPasswordCtx, ResetPasswordSuccessCtx,
 };
-use crate::AppState;
 
 use super::{get_field, parse_form_fields, validate_password};
 
@@ -31,10 +30,12 @@ pub async fn forgot_password_form(
 ) -> Result<Response, AppError> {
     let t = state.locales.get(&lang.tag);
     let ctx = Context::from_serialize(ForgotPasswordCtx {
-        t,
-        lang: &lang.tag,
-        css_hash: &state.css_hash,
-        js_hash: &state.js_hash,
+        base: BaseCtx {
+            t,
+            lang: &lang.tag,
+            css_hash: &state.css_hash,
+            js_hash: &state.js_hash,
+        },
         csrf_token: &csrf.form_token,
         error: false,
         error_message: "",
@@ -58,8 +59,7 @@ pub async fn forgot_password_submit(
     let csrf_token = get_field(&fields, "csrf_token");
     let email = super::normalize_email(&get_field(&fields, "email"));
 
-    validate_forgot_fields(&csrf_token, &email)
-        .map_err(|e| AppError::BadRequest(e.into()))?;
+    validate_forgot_fields(&csrf_token, &email).map_err(|e| AppError::BadRequest(e.into()))?;
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
         return Err(AppError::BadRequest(
@@ -67,8 +67,7 @@ pub async fn forgot_password_submit(
         ));
     }
 
-    let ua = crate::routes::require_user_agent(&headers)
-        .map_err(AppError::BadRequest)?;
+    let ua = crate::routes::require_user_agent(&headers).map_err(AppError::BadRequest)?;
     let ip = crate::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let rl_key = state.login_rate_limiter.key("forgot", &ip, ua);
 
@@ -76,10 +75,12 @@ pub async fn forgot_password_submit(
         tracing::warn!(event = "rate_limited", ip = %ip, endpoint = "forgot_password", "Forgot password rate limited");
         let t = state.locales.get(&lang.tag);
         let ctx = Context::from_serialize(ErrorCtx {
-            t,
-            lang: &lang.tag,
-            css_hash: &state.css_hash,
-            js_hash: &state.js_hash,
+            base: BaseCtx {
+                t,
+                lang: &lang.tag,
+                css_hash: &state.css_hash,
+                js_hash: &state.js_hash,
+            },
             error_message: &t.login_error_rate_limited,
         })?;
         let rendered = state.tera.render("error.html", &ctx)?;
@@ -89,10 +90,12 @@ pub async fn forgot_password_submit(
     let render_sent = || -> Result<Response, AppError> {
         let t = state.locales.get(&lang.tag);
         let ctx = Context::from_serialize(ForgotPasswordSentCtx {
-            t,
-            lang: &lang.tag,
-            css_hash: &state.css_hash,
-            js_hash: &state.js_hash,
+            base: BaseCtx {
+                t,
+                lang: &lang.tag,
+                css_hash: &state.css_hash,
+                js_hash: &state.js_hash,
+            },
         })?;
         let rendered = state.tera.render("forgot_password_sent.html", &ctx)?;
         Ok(Html(rendered).into_response())
@@ -104,9 +107,7 @@ pub async fn forgot_password_submit(
         Some(user) if user.is_confirmed => {
             // Valid user — create token and send email
             let expiry_hours = state.config.password_reset_token_expiry_hours;
-            let expires_at = match chrono::Utc::now()
-                .checked_add_signed(chrono::Duration::hours(expiry_hours as i64))
-            {
+            let expires_at = match chrono::Utc::now().checked_add_signed(chrono::Duration::hours(expiry_hours as i64)) {
                 Some(t) => {
                     use crate::datetime::SqliteDateTimeExt;
                     t.to_sqlite()
@@ -115,11 +116,7 @@ pub async fn forgot_password_submit(
             };
 
             let _ = state.password_reset_tokens.delete_by_user_id(&user.id).await;
-            let token = match state
-                .password_reset_tokens
-                .create(&user.id, &expires_at)
-                .await
-            {
+            let token = match state.password_reset_tokens.create(&user.id, &expires_at).await {
                 Ok(t) => t,
                 Err(e) => {
                     tracing::error!(event = "reset_token_failed", error = %e, "Failed to create password reset token");
@@ -127,10 +124,7 @@ pub async fn forgot_password_submit(
                 }
             };
 
-            let link = format!(
-                "{}/reset-password?token={}",
-                state.config.public_ui_uri, token
-            );
+            let link = format!("{}/reset-password?token={}", state.config.public_ui_uri, token);
             let name = user.display_name.as_deref().unwrap_or(&user.email);
 
             let template = state
@@ -142,16 +136,14 @@ pub async fn forgot_password_submit(
 
             let t = state.locales.get(&lang.tag);
             let (subject, body_html) = super::render_email_template(
-                template.as_ref(), name, &link,
+                template.as_ref(),
+                name,
+                &link,
                 &t.email_default_reset_password_subject,
                 &t.email_default_reset_password_body,
             );
 
-            if let Err(e) = state
-                .email_queue
-                .enqueue(&user.email, &subject, &body_html)
-                .await
-            {
+            if let Err(e) = state.email_queue.enqueue(&user.email, &subject, &body_html).await {
                 tracing::error!(event = "reset_email_failed", error = %e, "Failed to enqueue password reset email");
             }
 
@@ -184,8 +176,7 @@ pub async fn reset_password_form(
     csrf: CsrfToken,
     lang: Lang,
 ) -> Result<Response, AppError> {
-    let ua = crate::routes::require_user_agent(&headers)
-        .map_err(AppError::BadRequest)?;
+    let ua = crate::routes::require_user_agent(&headers).map_err(AppError::BadRequest)?;
     let ip = crate::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let rl_key = state.login_rate_limiter.key("reset", &ip, ua);
 
@@ -193,10 +184,12 @@ pub async fn reset_password_form(
         tracing::warn!(event = "rate_limited", ip = %ip, endpoint = "reset_password", "Reset password rate limited");
         let t = state.locales.get(&lang.tag);
         let ctx = Context::from_serialize(ErrorCtx {
-            t,
-            lang: &lang.tag,
-            css_hash: &state.css_hash,
-            js_hash: &state.js_hash,
+            base: BaseCtx {
+                t,
+                lang: &lang.tag,
+                css_hash: &state.css_hash,
+                js_hash: &state.js_hash,
+            },
             error_message: &t.login_error_rate_limited,
         })?;
         let rendered = state.tera.render("error.html", &ctx)?;
@@ -210,10 +203,12 @@ pub async fn reset_password_form(
         tracing::warn!(event = "reset_token_invalid", ip = %ip, "Invalid or expired password reset token");
         let t = state.locales.get(&lang.tag);
         let ctx = Context::from_serialize(ErrorCtx {
-            t,
-            lang: &lang.tag,
-            css_hash: &state.css_hash,
-            js_hash: &state.js_hash,
+            base: BaseCtx {
+                t,
+                lang: &lang.tag,
+                css_hash: &state.css_hash,
+                js_hash: &state.js_hash,
+            },
             error_message: &t.reset_password_invalid_token,
         })?;
         let rendered = state.tera.render("error.html", &ctx)?;
@@ -222,10 +217,12 @@ pub async fn reset_password_form(
 
     let t = state.locales.get(&lang.tag);
     let ctx = Context::from_serialize(ResetPasswordCtx {
-        t,
-        lang: &lang.tag,
-        css_hash: &state.css_hash,
-        js_hash: &state.js_hash,
+        base: BaseCtx {
+            t,
+            lang: &lang.tag,
+            css_hash: &state.css_hash,
+            js_hash: &state.js_hash,
+        },
         csrf_token: &csrf.form_token,
         token: &query.token,
         error: false,
@@ -251,8 +248,7 @@ pub async fn reset_password_submit(
     let pw = get_field(&fields, "password");
     let pw_confirm = get_field(&fields, "password_confirm");
 
-    validate_reset_fields(&csrf_token, &token, &pw, &pw_confirm)
-        .map_err(|e| AppError::BadRequest(e.into()))?;
+    validate_reset_fields(&csrf_token, &token, &pw, &pw_confirm).map_err(|e| AppError::BadRequest(e.into()))?;
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
         return Err(AppError::BadRequest(
@@ -260,8 +256,7 @@ pub async fn reset_password_submit(
         ));
     }
 
-    let ua = crate::routes::require_user_agent(&headers)
-        .map_err(AppError::BadRequest)?;
+    let ua = crate::routes::require_user_agent(&headers).map_err(AppError::BadRequest)?;
     let ip = crate::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let rl_key = state.login_rate_limiter.key("reset", &ip, ua);
 
@@ -269,10 +264,12 @@ pub async fn reset_password_submit(
         tracing::warn!(event = "rate_limited", ip = %ip, endpoint = "reset_password_submit", "Reset password submit rate limited");
         let t = state.locales.get(&lang.tag);
         let ctx = Context::from_serialize(ErrorCtx {
-            t,
-            lang: &lang.tag,
-            css_hash: &state.css_hash,
-            js_hash: &state.js_hash,
+            base: BaseCtx {
+                t,
+                lang: &lang.tag,
+                css_hash: &state.css_hash,
+                js_hash: &state.js_hash,
+            },
             error_message: &t.login_error_rate_limited,
         })?;
         let rendered = state.tera.render("error.html", &ctx)?;
@@ -288,10 +285,12 @@ pub async fn reset_password_submit(
             tracing::warn!(event = "reset_token_invalid", ip = %ip, "Invalid or expired password reset token on submit");
             let t = state.locales.get(&lang.tag);
             let ctx = Context::from_serialize(ErrorCtx {
-                t,
-                lang: &lang.tag,
-                css_hash: &state.css_hash,
-                js_hash: &state.js_hash,
+                base: BaseCtx {
+                    t,
+                    lang: &lang.tag,
+                    css_hash: &state.css_hash,
+                    js_hash: &state.js_hash,
+                },
                 error_message: &t.reset_password_invalid_token,
             })?;
             let rendered = state.tera.render("error.html", &ctx)?;
@@ -302,10 +301,12 @@ pub async fn reset_password_submit(
     let render_form_error = |msg: &str| -> Result<Response, AppError> {
         let t = state.locales.get(&lang.tag);
         let ctx = Context::from_serialize(ResetPasswordCtx {
-            t,
-            lang: &lang.tag,
-            css_hash: &state.css_hash,
-            js_hash: &state.js_hash,
+            base: BaseCtx {
+                t,
+                lang: &lang.tag,
+                css_hash: &state.css_hash,
+                js_hash: &state.js_hash,
+            },
             csrf_token: &csrf_token,
             token: &token,
             error: true,
@@ -325,10 +326,7 @@ pub async fn reset_password_submit(
     }
 
     let hash = password::hash_password(&pw)?;
-    state
-        .users
-        .update_password(&reset_token.user_id, &hash)
-        .await?;
+    state.users.update_password(&reset_token.user_id, &hash).await?;
 
     // Single-use: delete all reset tokens for this user
     state
@@ -337,10 +335,7 @@ pub async fn reset_password_submit(
         .await?;
 
     // Invalidate all sessions (force re-login on all devices)
-    state
-        .sessions
-        .delete_by_user_id(&reset_token.user_id)
-        .await?;
+    state.sessions.delete_by_user_id(&reset_token.user_id).await?;
 
     state.login_rate_limiter.clear(rl_key);
 
@@ -352,10 +347,12 @@ pub async fn reset_password_submit(
 
     let t = state.locales.get(&lang.tag);
     let ctx = Context::from_serialize(ResetPasswordSuccessCtx {
-        t,
-        lang: &lang.tag,
-        css_hash: &state.css_hash,
-        js_hash: &state.js_hash,
+        base: BaseCtx {
+            t,
+            lang: &lang.tag,
+            css_hash: &state.css_hash,
+            js_hash: &state.js_hash,
+        },
     })?;
     let rendered = state.tera.render("reset_password_success.html", &ctx)?;
     Ok(Html(rendered).into_response())
@@ -369,7 +366,10 @@ fn validate_forgot_fields(csrf_token: &str, email: &str) -> Result<(), &'static 
 }
 
 fn validate_reset_fields(
-    csrf_token: &str, token: &str, password: &str, password_confirm: &str,
+    csrf_token: &str,
+    token: &str,
+    password: &str,
+    password_confirm: &str,
 ) -> Result<(), &'static str> {
     if csrf_token.len() > super::MAX_CSRF_TOKEN
         || token.len() > super::MAX_RESET_TOKEN

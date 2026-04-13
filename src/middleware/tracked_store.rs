@@ -23,7 +23,11 @@ impl<V> TrackedStore<V> {
 
     #[cfg(test)]
     pub fn with_seed(max_keys: usize, seed: u64) -> Self {
-        Self { map: Arc::new(DashMap::new()), max_keys, seed }
+        Self {
+            map: Arc::new(DashMap::new()),
+            max_keys,
+            seed,
+        }
     }
 
     /// Rapidhash of a single string with the runtime seed.

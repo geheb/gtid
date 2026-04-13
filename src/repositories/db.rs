@@ -1,21 +1,20 @@
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::SqlitePool;
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use std::str::FromStr;
 
 pub async fn init_pool(database_uri: &str) -> SqlitePool {
     // Ensure parent directory exists (e.g. ".db/")
-    if let Some(path) = database_uri.strip_prefix("sqlite:") {
-        if let Some(parent) = std::path::Path::new(path).parent() {
-            if !parent.as_os_str().is_empty() {
-                std::fs::create_dir_all(parent).expect("Failed to create database directory");
-            }
-        }
-        // Restrict file permissions to owner-only (Unix)
-        #[cfg(unix)]
-        if std::path::Path::new(path).exists() {
-            use std::os::unix::fs::PermissionsExt;
-            let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
-        }
+    if let Some(path) = database_uri.strip_prefix("sqlite:")
+        && let Some(parent) = std::path::Path::new(path).parent()
+        && !parent.as_os_str().is_empty()
+    {
+        std::fs::create_dir_all(parent).expect("Failed to create database directory");
+    }
+    // Restrict file permissions to owner-only (Unix)
+    #[cfg(unix)]
+    if std::path::Path::new(path).exists() {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
     }
 
     let options = SqliteConnectOptions::from_str(database_uri)
@@ -178,16 +177,14 @@ pub async fn run_emails_migrations(pool: &SqlitePool) {
 }
 
 pub async fn run_config_migrations(pool: &SqlitePool) {
-    let statements = [
-        "CREATE TABLE IF NOT EXISTS legal_pages (
+    let statements = ["CREATE TABLE IF NOT EXISTS legal_pages (
             id              TEXT PRIMARY KEY,
             page_type       TEXT NOT NULL,
             lang            TEXT NOT NULL DEFAULT 'de',
             body_html       TEXT NOT NULL DEFAULT '',
             updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
             UNIQUE(page_type, lang)
-        )",
-    ];
+        )"];
 
     for sql in &statements {
         sqlx::query(sql)

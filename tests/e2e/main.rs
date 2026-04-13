@@ -96,7 +96,9 @@ impl TestServer {
             .await
             .unwrap();
         let csrf = extract_csrf(&setup_page).expect("No CSRF token on setup page");
-        let token = setup_token.as_deref().expect("Setup token should be present for fresh DB");
+        let token = setup_token
+            .as_deref()
+            .expect("Setup token should be present for fresh DB");
         let resp = client
             .post(format!("http://127.0.0.1:{ui_port}/setup"))
             .form(&[
@@ -111,15 +113,20 @@ impl TestServer {
             .unwrap();
         assert_eq!(resp.status().as_u16(), 303, "Setup should redirect to 2FA setup");
         let totp_setup_location = resp.headers().get("location").unwrap().to_str().unwrap().to_string();
-        assert!(totp_setup_location.contains("/2fa/setup"), "Should redirect to /2fa/setup");
+        assert!(
+            totp_setup_location.contains("/2fa/setup"),
+            "Should redirect to /2fa/setup"
+        );
 
         // Complete 2FA setup
         let totp_setup_url = format!("http://127.0.0.1:{ui_port}{totp_setup_location}");
         let totp_resp = client.get(&totp_setup_url).send().await.unwrap();
         let totp_status = totp_resp.status();
         let totp_page = totp_resp.text().await.unwrap();
-        assert!(totp_status.is_success() || totp_status.as_u16() == 303,
-            "TOTP setup page returned {totp_status}: {totp_page}");
+        assert!(
+            totp_status.is_success() || totp_status.as_u16() == 303,
+            "TOTP setup page returned {totp_status}: {totp_page}"
+        );
         let totp_csrf = extract_csrf(&totp_page).expect("No CSRF on TOTP setup page");
         let totp_secret = extract_totp_secret(&totp_page).expect("No TOTP secret on setup page");
         let pending_id = extract_input_value(&totp_page, "p").expect("No pending ID on setup page");
@@ -238,13 +245,9 @@ pub async fn admin_login(server: &TestServer, client: &reqwest::Client) -> Strin
     } else {
         // Following-redirect client: landed on 2FA verify form page
         let body = resp.text().await.unwrap();
-        if let (Some(verify_csrf), Some(pending_id)) =
-            (extract_csrf(&body), extract_input_value(&body, "p"))
-        {
+        if let (Some(verify_csrf), Some(pending_id)) = (extract_csrf(&body), extract_input_value(&body, "p")) {
             let issuer_uri = server.ui_url("");
-            let totp = totp_crypto::build_totp(
-                &server.admin_totp_secret, ADMIN_EMAIL, &issuer_uri,
-            ).unwrap();
+            let totp = totp_crypto::build_totp(&server.admin_totp_secret, ADMIN_EMAIL, &issuer_uri).unwrap();
             let code = totp.generate_current().unwrap();
 
             client
@@ -264,16 +267,15 @@ pub async fn admin_login(server: &TestServer, client: &reqwest::Client) -> Strin
 }
 
 /// Complete the 2FA verification step during login.
-pub async fn complete_2fa_verify(
-    server: &TestServer,
-    client: &reqwest::Client,
-    location: &str,
-    totp_secret: &str,
-) {
+pub async fn complete_2fa_verify(server: &TestServer, client: &reqwest::Client, location: &str, totp_secret: &str) {
     let verify_page = client
         .get(server.ui_url(location))
-        .send().await.unwrap()
-        .text().await.unwrap();
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
     let verify_csrf = extract_csrf(&verify_page).expect("No CSRF on 2FA verify page");
     let pending_id = extract_input_value(&verify_page, "p").expect("No pending ID");
 
@@ -347,10 +349,7 @@ pub async fn setup_test_client(server: &TestServer, client: &reqwest::Client) {
 
 /// Get a fresh authorization code + code_verifier.
 /// Returns (auth_code, code_verifier).
-pub async fn get_fresh_code(
-    server: &TestServer,
-    client: &reqwest::Client,
-) -> (String, String) {
+pub async fn get_fresh_code(server: &TestServer, client: &reqwest::Client) -> (String, String) {
     let auth_resp = client
         .get(server.api_url(&format!(
             "/authorize-url?client_id={}&scope=openid+email+profile",
@@ -367,11 +366,7 @@ pub async fn get_fresh_code(
     let code_verifier = auth_resp["code_verifier"].as_str().unwrap().to_string();
 
     // Follow authorize URL - should auto-redirect since consent was already given
-    let redir_resp = client
-        .get(&authorize_url)
-        .send()
-        .await
-        .unwrap();
+    let redir_resp = client.get(&authorize_url).send().await.unwrap();
 
     let location = redir_resp
         .headers()

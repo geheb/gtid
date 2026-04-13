@@ -12,12 +12,7 @@ impl SessionRepository {
         Self { pool }
     }
 
-    pub async fn create(
-        &self,
-        id: &str,
-        user_id: &str,
-        expires_at: &str,
-    ) -> Result<(), sqlx::Error> {
+    pub async fn create(&self, id: &str, user_id: &str, expires_at: &str) -> Result<(), sqlx::Error> {
         sqlx::query("DELETE FROM sessions WHERE expires_at < datetime('now')")
             .execute(&self.pool)
             .await?;
@@ -32,12 +27,10 @@ impl SessionRepository {
     }
 
     pub async fn find_valid(&self, id: &str) -> Result<Option<Session>, sqlx::Error> {
-        sqlx::query_as::<_, Session>(
-            "SELECT * FROM sessions WHERE id = ? AND expires_at > datetime('now')",
-        )
-        .bind(id)
-        .fetch_optional(&self.pool)
-        .await
+        sqlx::query_as::<_, Session>("SELECT * FROM sessions WHERE id = ? AND expires_at > datetime('now')")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
     }
 
     pub async fn count_active_users(&self) -> Result<i64, sqlx::Error> {

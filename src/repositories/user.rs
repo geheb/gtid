@@ -72,12 +72,7 @@ impl UserRepository {
             .await
     }
 
-    pub async fn update(
-        &self,
-        id: &str,
-        display_name: Option<&str>,
-        roles: &str,
-    ) -> Result<(), sqlx::Error> {
+    pub async fn update(&self, id: &str, display_name: Option<&str>, roles: &str) -> Result<(), sqlx::Error> {
         sqlx::query("UPDATE users SET display_name = ?, roles = ? WHERE id = ?")
             .bind(display_name)
             .bind(roles)
@@ -87,11 +82,7 @@ impl UserRepository {
         Ok(())
     }
 
-    pub async fn update_password(
-        &self,
-        id: &str,
-        password_hash: &str,
-    ) -> Result<(), sqlx::Error> {
+    pub async fn update_password(&self, id: &str, password_hash: &str) -> Result<(), sqlx::Error> {
         sqlx::query("UPDATE users SET password_hash = ? WHERE id = ?")
             .bind(password_hash)
             .bind(id)
@@ -100,11 +91,7 @@ impl UserRepository {
         Ok(())
     }
 
-    pub async fn update_display_name(
-        &self,
-        id: &str,
-        display_name: Option<&str>,
-    ) -> Result<(), sqlx::Error> {
+    pub async fn update_display_name(&self, id: &str, display_name: Option<&str>) -> Result<(), sqlx::Error> {
         sqlx::query("UPDATE users SET display_name = ? WHERE id = ?")
             .bind(display_name)
             .bind(id)
@@ -113,11 +100,7 @@ impl UserRepository {
         Ok(())
     }
 
-    pub async fn update_email(
-        &self,
-        id: &str,
-        email: &str,
-    ) -> Result<(), sqlx::Error> {
+    pub async fn update_email(&self, id: &str, email: &str) -> Result<(), sqlx::Error> {
         sqlx::query("UPDATE users SET email = ? WHERE id = ?")
             .bind(email)
             .bind(id)
@@ -183,14 +166,18 @@ mod tests {
     #[tokio::test]
     async fn has_admin_with_multiple_roles() {
         let repo = test_repo().await;
-        repo.create("u1", "a@b.com", "h", None, "member,admin", true).await.unwrap();
+        repo.create("u1", "a@b.com", "h", None, "member,admin", true)
+            .await
+            .unwrap();
         assert!(repo.has_admin().await.unwrap());
     }
 
     #[tokio::test]
     async fn create_and_find_by_email() {
         let repo = test_repo().await;
-        repo.create("u1", "a@b.com", "hash", Some("Alice"), "member", true).await.unwrap();
+        repo.create("u1", "a@b.com", "hash", Some("Alice"), "member", true)
+            .await
+            .unwrap();
         let user = repo.find_by_email("a@b.com").await.unwrap().unwrap();
         assert_eq!(user.id, "u1");
         assert_eq!(user.email, "a@b.com");
@@ -208,7 +195,9 @@ mod tests {
     #[tokio::test]
     async fn list_users() {
         let repo = test_repo().await;
-        repo.create("u1", "a@b.com", "h", Some("Alice"), "", true).await.unwrap();
+        repo.create("u1", "a@b.com", "h", Some("Alice"), "", true)
+            .await
+            .unwrap();
         repo.create("u2", "b@b.com", "h", Some("Bob"), "", true).await.unwrap();
         let users = repo.list().await.unwrap();
         assert_eq!(users.len(), 2);

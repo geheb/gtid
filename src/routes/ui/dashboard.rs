@@ -1,13 +1,16 @@
-use axum::{extract::State, response::{Html, IntoResponse, Response}};
+use axum::{
+    extract::State,
+    response::{Html, IntoResponse, Response},
+};
 use std::sync::Arc;
 use tera::Context;
 
+use crate::AppState;
 use crate::errors::AppError;
 use crate::middleware::csrf::CsrfToken;
 use crate::middleware::language::Lang;
 use crate::middleware::session::AdminUser;
-use crate::routes::ctx::DashboardCtx;
-use crate::AppState;
+use crate::routes::ctx::{BaseCtx, DashboardCtx};
 
 pub async fn dashboard(
     State(state): State<Arc<AppState>>,
@@ -21,10 +24,12 @@ pub async fn dashboard(
     let pending_emails = state.email_queue.count_pending().await.unwrap_or(0);
     let unconfirmed_users = users.iter().filter(|u| !u.is_confirmed).count();
     let ctx = Context::from_serialize(DashboardCtx {
-        t: state.locales.get(&lang.tag),
-        lang: &lang.tag,
-        css_hash: &state.css_hash,
-        js_hash: &state.js_hash,
+        base: BaseCtx {
+            t: state.locales.get(&lang.tag),
+            lang: &lang.tag,
+            css_hash: &state.css_hash,
+            js_hash: &state.js_hash,
+        },
         active_page: "dashboard",
         csrf_token: &csrf.form_token,
         user_count: users.len(),

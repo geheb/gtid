@@ -14,35 +14,26 @@ impl LegalPageRepository {
     }
 
     pub async fn list_by_lang(&self, lang: &str) -> Result<Vec<LegalPage>, sqlx::Error> {
-        sqlx::query_as::<_, LegalPage>(
-            "SELECT * FROM legal_pages WHERE lang = ? ORDER BY page_type",
-        )
-        .bind(lang)
-        .fetch_all(&self.pool)
-        .await
+        sqlx::query_as::<_, LegalPage>("SELECT * FROM legal_pages WHERE lang = ? ORDER BY page_type")
+            .bind(lang)
+            .fetch_all(&self.pool)
+            .await
     }
 
-    pub async fn find_by_type_and_lang(
-        &self,
-        page_type: &str,
-        lang: &str,
-    ) -> Result<Option<LegalPage>, sqlx::Error> {
-        sqlx::query_as::<_, LegalPage>(
-            "SELECT * FROM legal_pages WHERE page_type = ? AND lang = ?",
-        )
-        .bind(page_type)
-        .bind(lang)
-        .fetch_optional(&self.pool)
-        .await
+    pub async fn find_by_type_and_lang(&self, page_type: &str, lang: &str) -> Result<Option<LegalPage>, sqlx::Error> {
+        sqlx::query_as::<_, LegalPage>("SELECT * FROM legal_pages WHERE page_type = ? AND lang = ?")
+            .bind(page_type)
+            .bind(lang)
+            .fetch_optional(&self.pool)
+            .await
     }
 
     pub async fn has_any_content(&self, page_type: &str) -> Result<bool, sqlx::Error> {
-        let row: Option<(i32,)> = sqlx::query_as(
-            "SELECT 1 FROM legal_pages WHERE page_type = ? AND trim(body_html) != '' LIMIT 1",
-        )
-        .bind(page_type)
-        .fetch_optional(&self.pool)
-        .await?;
+        let row: Option<(i32,)> =
+            sqlx::query_as("SELECT 1 FROM legal_pages WHERE page_type = ? AND trim(body_html) != '' LIMIT 1")
+                .bind(page_type)
+                .fetch_optional(&self.pool)
+                .await?;
         Ok(row.is_some())
     }
 
@@ -62,14 +53,12 @@ impl LegalPageRepository {
         for lang in SUPPORTED_LANGS {
             for lt in LegalPageType::all() {
                 let id = crate::crypto::id::new_id();
-                sqlx::query(
-                    "INSERT OR IGNORE INTO legal_pages (id, page_type, lang, body_html) VALUES (?, ?, ?, '')",
-                )
-                .bind(&id)
-                .bind(lt.as_str())
-                .bind(lang)
-                .execute(&self.pool)
-                .await?;
+                sqlx::query("INSERT OR IGNORE INTO legal_pages (id, page_type, lang, body_html) VALUES (?, ?, ?, '')")
+                    .bind(&id)
+                    .bind(lt.as_str())
+                    .bind(lang)
+                    .execute(&self.pool)
+                    .await?;
             }
         }
         tracing::info!("Legal pages seeded");
@@ -122,7 +111,9 @@ mod tests {
     async fn update_page() {
         let repo = test_repo().await;
         repo.seed().await.unwrap();
-        repo.update("imprint", "de", "<p>Deutsches Impressum</p>").await.unwrap();
+        repo.update("imprint", "de", "<p>Deutsches Impressum</p>")
+            .await
+            .unwrap();
         let de = repo.find_by_type_and_lang("imprint", "de").await.unwrap().unwrap();
         assert_eq!(de.body_html, "<p>Deutsches Impressum</p>");
 

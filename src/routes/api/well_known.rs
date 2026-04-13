@@ -1,7 +1,7 @@
+use axum::Json;
 use axum::extract::State;
 use axum::http::header;
 use axum::response::IntoResponse;
-use axum::Json;
 use std::sync::Arc;
 
 use crate::AppState;
@@ -30,8 +30,5 @@ pub async fn openid_configuration(State(state): State<Arc<AppState>>) -> impl In
         "code_challenge_methods_supported": ["S256"]
     });
 
-    (
-        [(header::CACHE_CONTROL, "no-cache, no-store")],
-        Json(config),
-    )
+    ([(header::CACHE_CONTROL, "no-cache, no-store")], Json(config))
 }

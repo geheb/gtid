@@ -61,11 +61,7 @@ impl ClientRepository {
         Ok(())
     }
 
-    pub async fn update_secret(
-        &self,
-        client_id: &str,
-        client_secret_hash: &str,
-    ) -> Result<(), sqlx::Error> {
+    pub async fn update_secret(&self, client_id: &str, client_secret_hash: &str) -> Result<(), sqlx::Error> {
         sqlx::query("UPDATE clients SET client_secret_hash = ? WHERE client_id = ?")
             .bind(client_secret_hash)
             .bind(client_id)
@@ -116,7 +112,9 @@ mod tests {
     #[tokio::test]
     async fn create_with_post_logout_uri() {
         let repo = test_repo().await;
-        repo.create("c1", "hash", "http://cb", Some("http://logout")).await.unwrap();
+        repo.create("c1", "hash", "http://cb", Some("http://logout"))
+            .await
+            .unwrap();
         let client = repo.find_by_id("c1").await.unwrap().unwrap();
         assert_eq!(client.client_post_logout_redirect_uri.as_deref(), Some("http://logout"));
     }

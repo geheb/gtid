@@ -5,22 +5,25 @@ use axum::{
 };
 use serde::Deserialize;
 use std::net::SocketAddr;
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use tera::Context;
-use tower_cookies::cookie::time::Duration;
 use tower_cookies::cookie::SameSite;
+use tower_cookies::cookie::time::Duration;
 use tower_cookies::{Cookie, Cookies};
 
-use crate::{crypto::{jwt, password}, middleware::{SESSION_ID_COOKIE_NAME, TRUST_DEVICE_COOKIE_NAME}};
+use crate::AppState;
 use crate::datetime::SqliteDateTimeExt;
 use crate::errors::AppError;
 use crate::middleware::csrf::{self, CsrfToken};
 use crate::middleware::language::Lang;
 use crate::middleware::session::{OptionalSessionUser, SessionUser};
-use crate::routes::ctx::LoginCtx;
+use crate::routes::ctx::{BaseCtx, LoginCtx};
 use crate::routes::ui::redirect;
-use crate::AppState;
+use crate::{
+    crypto::{jwt, password},
+    middleware::{SESSION_ID_COOKIE_NAME, TRUST_DEVICE_COOKIE_NAME},
+};
 
 /// RP-Initiated Logout per OpenID Connect RP-Initiated Logout 1.0.
 /// GET /logout?id_token_hint=...&post_logout_redirect_uri=...&state=...
@@ -59,7 +62,10 @@ pub async fn rp_initiated_logout(
         }
         let aud = decoded_aud.ok_or_else(|| AppError::BadRequest("Invalid id_token_hint".into()))?;
         // Verify the client exists in DB
-        state.clients.find_by_id(&aud).await
+        state
+            .clients
+            .find_by_id(&aud)
+            .await
             .map_err(|_| AppError::Internal("Database error".into()))?
             .ok_or_else(|| AppError::BadRequest("Invalid id_token_hint".into()))?;
         Some(aud)
@@ -69,15 +75,19 @@ pub async fn rp_initiated_logout(
 
     // Validate post_logout_redirect_uri - requires id_token_hint for client identification
     let redirect_to = if let Some(ref uri) = query.post_logout_redirect_uri {
-        let client_id = hint_client_id.as_deref()
-            .ok_or_else(|| AppError::BadRequest(
-                "id_token_hint required when post_logout_redirect_uri is provided".into(),
-            ))?;
-        let client = state.clients.find_by_id(client_id).await
+        let client_id = hint_client_id.as_deref().ok_or_else(|| {
+            AppError::BadRequest("id_token_hint required when post_logout_redirect_uri is provided".into())
+        })?;
+        let client = state
+            .clients
+            .find_by_id(client_id)
+            .await
             .map_err(|_| AppError::Internal("Database error".into()))?
             .ok_or_else(|| AppError::BadRequest("Invalid post_logout_redirect_uri".into()))?;
         let uri_valid = crate::crypto::constant_time::constant_time_str_eq(uri, &client.client_redirect_uri)
-            || client.client_post_logout_redirect_uri.as_ref()
+            || client
+                .client_post_logout_redirect_uri
+                .as_ref()
                 .map(|allowed| crate::crypto::constant_time::constant_time_str_eq(uri, allowed))
                 .unwrap_or(false);
         if !uri_valid {
@@ -156,10 +166,12 @@ pub async fn login_page(
         _ => "",
     };
     let ctx = Context::from_serialize(LoginCtx {
-        t: state.locales.get(&lang.tag),
-        lang: &lang.tag,
-        css_hash: &state.css_hash,
-        js_hash: &state.js_hash,
+        base: BaseCtx {
+            t: state.locales.get(&lang.tag),
+            lang: &lang.tag,
+            css_hash: &state.css_hash,
+            js_hash: &state.js_hash,
+        },
         error: false,
         error_message: "",
         rid,
@@ -183,11 +195,12 @@ pub async fn login_submit(
 ) -> Result<Response, AppError> {
     // CSRF verification
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
-        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
+        return Err(AppError::BadRequest(
+            state.locales.get(&lang.tag).csrf_token_invalid.clone(),
+        ));
     }
 
-    let ua = crate::routes::require_user_agent(&headers)
-        .map_err(|e| AppError::BadRequest(e))?;
+    let ua = crate::routes::require_user_agent(&headers).map_err(AppError::BadRequest)?;
     let ip = crate::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     // Generate fresh CSRF token for error pages
     let csrf_form_token = csrf::set_new_csrf_cookie(&cookies, state.config.secure_cookies);
@@ -205,10 +218,12 @@ pub async fn login_submit(
     let render_login_error =
         |msg: &str, status: StatusCode, rid: &str, csrf: &str, email: &str| -> Result<Response, AppError> {
             let ctx = Context::from_serialize(LoginCtx {
-                t,
-                lang: &lang.tag,
-                css_hash: &state.css_hash,
-                js_hash: &state.js_hash,
+                base: BaseCtx {
+                    t,
+                    lang: &lang.tag,
+                    css_hash: &state.css_hash,
+                    js_hash: &state.js_hash,
+                },
                 error: true,
                 error_message: msg,
                 rid,
@@ -224,13 +239,25 @@ pub async fn login_submit(
     // Check rate limit (IP + User-Agent)
     if state.login_rate_limiter.is_limited(rl_key) {
         tracing::warn!(event = "rate_limited", ip = %ip, email = %email, "Login rate limited");
-        return render_login_error(&t.login_error_rate_limited, StatusCode::TOO_MANY_REQUESTS, rid, &csrf_form_token, &email);
+        return render_login_error(
+            &t.login_error_rate_limited,
+            StatusCode::TOO_MANY_REQUESTS,
+            rid,
+            &csrf_form_token,
+            &email,
+        );
     }
 
     // Check account lockout (per email)
     if state.account_lockout.is_locked(&email) {
         tracing::warn!(event = "account_locked", ip = %ip, email = %email, "Login blocked by account lockout");
-        return render_login_error(&t.login_error_account_locked, StatusCode::FORBIDDEN, rid, &csrf_form_token, &email);
+        return render_login_error(
+            &t.login_error_account_locked,
+            StatusCode::FORBIDDEN,
+            rid,
+            &csrf_form_token,
+            &email,
+        );
     }
 
     let user = state.users.find_by_email(&email).await?;
@@ -244,14 +271,26 @@ pub async fn login_submit(
             tracing::warn!(event = "login_failed", ip = %ip, email = %email, "Failed login attempt");
             state.login_rate_limiter.record_failure(rl_key);
             state.account_lockout.record_failure(&email);
-            return render_login_error(&t.login_error_invalid, StatusCode::UNAUTHORIZED, rid, &csrf_form_token, &email);
+            return render_login_error(
+                &t.login_error_invalid,
+                StatusCode::UNAUTHORIZED,
+                rid,
+                &csrf_form_token,
+                &email,
+            );
         }
     };
 
     // Block unconfirmed users with same generic error (prevent account enumeration)
     if !user.is_confirmed {
         tracing::warn!(event = "login_unconfirmed", ip = %ip, email = %email, "Login attempt with unconfirmed email");
-        return render_login_error(&t.login_error_invalid, StatusCode::UNAUTHORIZED, rid, &csrf_form_token, &email);
+        return render_login_error(
+            &t.login_error_invalid,
+            StatusCode::UNAUTHORIZED,
+            rid,
+            &csrf_form_token,
+            &email,
+        );
     }
 
     // Successful login - clear rate limit and lockout, update last login
@@ -262,7 +301,7 @@ pub async fn login_submit(
     // 2FA: all users with TOTP, or forced setup for admins without TOTP
     let needs_2fa = if user.has_totp() {
         match cookies.get(TRUST_DEVICE_COOKIE_NAME).map(|c| c.value().to_string()) {
-            Some(token) => !state.trusted_devices.find_valid(&token).await?.is_some(),
+            Some(token) => state.trusted_devices.find_valid(&token).await?.is_none(),
             None => true,
         }
     } else if user.is_admin() {
@@ -273,7 +312,9 @@ pub async fn login_submit(
 
     if needs_2fa {
         let rid_for_2fa = form.rid.as_deref().filter(|r| !r.is_empty()).map(String::from);
-        let pending_id = state.pending_2fa.store(user.id.clone(), rid_for_2fa, None)
+        let pending_id = state
+            .pending_2fa
+            .store(user.id.clone(), rid_for_2fa, None)
             .ok_or_else(|| AppError::Internal("pending 2fa store full".into()))?;
 
         if user.has_totp() {
@@ -293,10 +334,7 @@ pub async fn login_submit(
         .ok_or_else(|| AppError::Internal("session expiry overflow".into()))?
         .to_sqlite();
 
-    state
-        .sessions
-        .create(&session_id, &user.id, &expires_at)
-        .await?;
+    state.sessions.create(&session_id, &user.id, &expires_at).await?;
 
     let mut builder = Cookie::build((SESSION_ID_COOKIE_NAME, session_id.clone()))
         .http_only(true)
@@ -318,12 +356,22 @@ pub async fn login_submit(
                     cookies.remove(Cookie::from(SESSION_ID_COOKIE_NAME));
 
                     let csrf_form_token = csrf::set_new_csrf_cookie(&cookies, state.config.secure_cookies);
-                    return render_login_error(&t.login_error_session_expired, StatusCode::UNAUTHORIZED, "", &csrf_form_token, &email);
+                    return render_login_error(
+                        &t.login_error_session_expired,
+                        StatusCode::UNAUTHORIZED,
+                        "",
+                        &csrf_form_token,
+                        &email,
+                    );
                 }
             }
         }
         _ => {
-            if user.is_admin() { "/admin".into() } else { "/profile".into() }
+            if user.is_admin() {
+                "/admin".into()
+            } else {
+                "/profile".into()
+            }
         }
     };
 
@@ -344,13 +392,12 @@ pub async fn logout(
     axum::Form(form): axum::Form<LogoutForm>,
 ) -> Result<Response, AppError> {
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
-        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
+        return Err(AppError::BadRequest(
+            state.locales.get(&lang.tag).csrf_token_invalid.clone(),
+        ));
     }
 
-    state
-        .sessions
-        .delete_by_user_id(&session_user.0.id)
-        .await?;
+    state.sessions.delete_by_user_id(&session_user.0.id).await?;
 
     cookies.remove(Cookie::from(SESSION_ID_COOKIE_NAME));
 

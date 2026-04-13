@@ -1,6 +1,6 @@
-use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 
+use crate::crypto::hash::sha256_hex;
 use crate::models::email_change::EmailChange;
 
 #[derive(Clone)]
@@ -8,44 +8,29 @@ pub struct EmailChangeRepository {
     pool: SqlitePool,
 }
 
-fn hash_token(token: &str) -> String {
-    let hash = Sha256::digest(token.as_bytes());
-    hash.iter().map(|b| format!("{b:02x}")).collect()
-}
-
 impl EmailChangeRepository {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
 
-    pub async fn create(
-        &self,
-        user_id: &str,
-        new_email: &str,
-        expires_at: &str,
-    ) -> Result<String, sqlx::Error> {
+    pub async fn create(&self, user_id: &str, new_email: &str, expires_at: &str) -> Result<String, sqlx::Error> {
         // Opportunistically clean up expired tokens
         self.delete_expired().await?;
 
         let token = crate::crypto::id::new_secure_token();
-        let token_hash = hash_token(&token);
-        sqlx::query(
-            "INSERT INTO email_changes (token_hash, user_id, new_email, expires_at) VALUES (?, ?, ?, ?)",
-        )
-        .bind(&token_hash)
-        .bind(user_id)
-        .bind(new_email)
-        .bind(expires_at)
-        .execute(&self.pool)
-        .await?;
+        let token_hash = sha256_hex(&token);
+        sqlx::query("INSERT INTO email_changes (token_hash, user_id, new_email, expires_at) VALUES (?, ?, ?, ?)")
+            .bind(&token_hash)
+            .bind(user_id)
+            .bind(new_email)
+            .bind(expires_at)
+            .execute(&self.pool)
+            .await?;
         Ok(token)
     }
 
-    pub async fn find_valid(
-        &self,
-        token: &str,
-    ) -> Result<Option<EmailChange>, sqlx::Error> {
-        let token_hash = hash_token(token);
+    pub async fn find_valid(&self, token: &str) -> Result<Option<EmailChange>, sqlx::Error> {
+        let token_hash = sha256_hex(token);
         sqlx::query_as::<_, EmailChange>(
             "SELECT * FROM email_changes WHERE token_hash = ? AND expires_at > datetime('now')",
         )
@@ -102,7 +87,7 @@ mod tests {
         let token = repo.create("u1", "new@b.com", &expires).await.unwrap();
         let found = repo.find_valid(&token).await.unwrap().unwrap();
         assert_ne!(found.token_hash, token);
-        assert_eq!(found.token_hash, hash_token(&token));
+        assert_eq!(found.token_hash, sha256_hex(&token));
     }
 
     #[tokio::test]

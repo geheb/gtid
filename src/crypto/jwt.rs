@@ -1,6 +1,6 @@
-use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use chrono::Utc;
-use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
+use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, encode};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
@@ -71,6 +71,7 @@ pub fn compute_at_hash(access_token: &str) -> String {
     URL_SAFE_NO_PAD.encode(&hash[..16])
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn issue_id_token(
     encoding_key: &EncodingKey,
     kid: &str,
@@ -131,9 +132,7 @@ pub fn decode_access_token_multi(
             Err(e) => last_err = Some(e),
         }
     }
-    Err(last_err.unwrap_or_else(|| {
-        jsonwebtoken::errors::Error::from(jsonwebtoken::errors::ErrorKind::InvalidToken)
-    }))
+    Err(last_err.unwrap_or_else(|| jsonwebtoken::errors::Error::from(jsonwebtoken::errors::ErrorKind::InvalidToken)))
 }
 
 #[cfg(test)]
@@ -179,10 +178,20 @@ mod tests {
         let (enc, dec, kid) = test_keys();
         let at = issue_access_token(&enc, &kid, ISSUER, CLIENT, USER, "openid", 900).unwrap();
         let id_token = issue_id_token(
-            &enc, &kid, ISSUER, CLIENT, USER,
-            "user@test.com", true, Some("Test User"), Some("nonce-1"), &at,
-            vec!["admin".to_string()], 600,
-        ).unwrap();
+            &enc,
+            &kid,
+            ISSUER,
+            CLIENT,
+            USER,
+            "user@test.com",
+            true,
+            Some("Test User"),
+            Some("nonce-1"),
+            &at,
+            vec!["admin".to_string()],
+            600,
+        )
+        .unwrap();
 
         let mut validation = Validation::new(Algorithm::EdDSA);
         validation.set_issuer(&[ISSUER]);

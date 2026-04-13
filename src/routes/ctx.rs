@@ -5,14 +5,22 @@ use serde::Serialize;
 use crate::i18n::I18n;
 use crate::models::{client::Client, email_template::EmailTemplate, user::User};
 
-// ── Admin UI ──────────────────────────────────────────────────────────────────
+// ── Base contexts ────────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
-pub struct DashboardCtx<'a> {
+pub struct BaseCtx<'a> {
     pub t: &'a I18n,
     pub lang: &'a str,
     pub css_hash: &'a str,
     pub js_hash: &'a str,
+}
+
+// ── Admin UI ──────────────────────────────────────────────────────────────────
+
+#[derive(Serialize)]
+pub struct DashboardCtx<'a> {
+    #[serde(flatten)]
+    pub base: BaseCtx<'a>,
     pub active_page: &'a str,
     pub csrf_token: &'a str,
     pub user_count: usize,
@@ -24,10 +32,8 @@ pub struct DashboardCtx<'a> {
 
 #[derive(Serialize)]
 pub struct UsersListCtx<'a> {
-    pub t: &'a I18n,
-    pub lang: &'a str,
-    pub css_hash: &'a str,
-    pub js_hash: &'a str,
+    #[serde(flatten)]
+    pub base: BaseCtx<'a>,
     pub active_page: &'a str,
     pub csrf_token: &'a str,
     pub users: &'a [User],
@@ -36,10 +42,8 @@ pub struct UsersListCtx<'a> {
 
 #[derive(Serialize)]
 pub struct UserCreateCtx<'a> {
-    pub t: &'a I18n,
-    pub lang: &'a str,
-    pub css_hash: &'a str,
-    pub js_hash: &'a str,
+    #[serde(flatten)]
+    pub base: BaseCtx<'a>,
     pub active_page: &'a str,
     pub csrf_token: &'a str,
     pub error: bool,
@@ -52,10 +56,8 @@ pub struct UserCreateCtx<'a> {
 
 #[derive(Serialize)]
 pub struct UserEditCtx<'a> {
-    pub t: &'a I18n,
-    pub lang: &'a str,
-    pub css_hash: &'a str,
-    pub js_hash: &'a str,
+    #[serde(flatten)]
+    pub base: BaseCtx<'a>,
     pub active_page: &'a str,
     pub csrf_token: &'a str,
     pub error: bool,
@@ -71,10 +73,8 @@ pub struct UserEditCtx<'a> {
 
 #[derive(Serialize)]
 pub struct ClientsListCtx<'a> {
-    pub t: &'a I18n,
-    pub lang: &'a str,
-    pub css_hash: &'a str,
-    pub js_hash: &'a str,
+    #[serde(flatten)]
+    pub base: BaseCtx<'a>,
     pub active_page: &'a str,
     pub csrf_token: &'a str,
     pub clients: &'a [Client],
@@ -82,10 +82,8 @@ pub struct ClientsListCtx<'a> {
 
 #[derive(Serialize)]
 pub struct ClientCreateCtx<'a> {
-    pub t: &'a I18n,
-    pub lang: &'a str,
-    pub css_hash: &'a str,
-    pub js_hash: &'a str,
+    #[serde(flatten)]
+    pub base: BaseCtx<'a>,
     pub active_page: &'a str,
     pub csrf_token: &'a str,
     pub error: bool,
@@ -97,10 +95,8 @@ pub struct ClientCreateCtx<'a> {
 
 #[derive(Serialize)]
 pub struct ClientEditCtx<'a> {
-    pub t: &'a I18n,
-    pub lang: &'a str,
-    pub css_hash: &'a str,
-    pub js_hash: &'a str,
+    #[serde(flatten)]
+    pub base: BaseCtx<'a>,
     pub active_page: &'a str,
     pub csrf_token: &'a str,
     pub error: bool,
@@ -112,10 +108,8 @@ pub struct ClientEditCtx<'a> {
 
 #[derive(Serialize)]
 pub struct EmailTemplatesListCtx<'a> {
-    pub t: &'a I18n,
-    pub lang: &'a str,
-    pub css_hash: &'a str,
-    pub js_hash: &'a str,
+    #[serde(flatten)]
+    pub base: BaseCtx<'a>,
     pub active_page: &'a str,
     pub csrf_token: &'a str,
     pub templates: &'a [EmailTemplate],
@@ -124,10 +118,8 @@ pub struct EmailTemplatesListCtx<'a> {
 
 #[derive(Serialize)]
 pub struct EmailTemplateEditCtx<'a> {
-    pub t: &'a I18n,
-    pub lang: &'a str,
-    pub css_hash: &'a str,
-    pub js_hash: &'a str,
+    #[serde(flatten)]
+    pub base: BaseCtx<'a>,
     pub active_page: &'a str,
     pub csrf_token: &'a str,
     pub template_type: &'a str,
@@ -145,10 +137,8 @@ pub struct EmailTemplateEditCtx<'a> {
 
 #[derive(Serialize)]
 pub struct SetupCtx<'a> {
-    pub t: &'a I18n,
-    pub lang: &'a str,
-    pub css_hash: &'a str,
-    pub js_hash: &'a str,
+    #[serde(flatten)]
+    pub base: BaseCtx<'a>,
     pub csrf_token: &'a str,
     pub error: bool,
     pub error_message: &'a str,
@@ -161,10 +151,8 @@ pub struct SetupCtx<'a> {
 
 #[derive(Serialize)]
 pub struct LoginCtx<'a> {
-    pub t: &'a I18n,
-    pub lang: &'a str,
-    pub css_hash: &'a str,
-    pub js_hash: &'a str,
+    #[serde(flatten)]
+    pub base: BaseCtx<'a>,
     pub error: bool,
     pub error_message: &'a str,
     pub rid: &'a str,
@@ -178,10 +166,8 @@ pub struct LoginCtx<'a> {
 
 #[derive(Serialize)]
 pub struct TotpSetupCtx<'a> {
-    pub t: &'a I18n,
-    pub lang: &'a str,
-    pub css_hash: &'a str,
-    pub js_hash: &'a str,
+    #[serde(flatten)]
+    pub base: BaseCtx<'a>,
     pub csrf_token: &'a str,
     pub qr_data_uri: &'a str,
     pub secret_display: &'a str,
@@ -192,10 +178,8 @@ pub struct TotpSetupCtx<'a> {
 
 #[derive(Serialize)]
 pub struct TotpVerifyCtx<'a> {
-    pub t: &'a I18n,
-    pub lang: &'a str,
-    pub css_hash: &'a str,
-    pub js_hash: &'a str,
+    #[serde(flatten)]
+    pub base: BaseCtx<'a>,
     pub csrf_token: &'a str,
     pub pending_id: &'a str,
     pub error: bool,
@@ -206,20 +190,16 @@ pub struct TotpVerifyCtx<'a> {
 
 #[derive(Serialize)]
 pub struct LegalCtx<'a> {
-    pub t: &'a I18n,
-    pub lang: &'a str,
-    pub css_hash: &'a str,
-    pub js_hash: &'a str,
+    #[serde(flatten)]
+    pub base: BaseCtx<'a>,
     pub page_title: &'a str,
     pub content: &'a str,
 }
 
 #[derive(Serialize)]
 pub struct LegalEditCtx<'a> {
-    pub t: &'a I18n,
-    pub lang: &'a str,
-    pub css_hash: &'a str,
-    pub js_hash: &'a str,
+    #[serde(flatten)]
+    pub base: BaseCtx<'a>,
     pub active_page: &'a str,
     pub csrf_token: &'a str,
     pub page_type: &'a str,
@@ -233,10 +213,8 @@ pub struct LegalEditCtx<'a> {
 
 #[derive(Serialize)]
 pub struct LegalListCtx<'a> {
-    pub t: &'a I18n,
-    pub lang: &'a str,
-    pub css_hash: &'a str,
-    pub js_hash: &'a str,
+    #[serde(flatten)]
+    pub base: BaseCtx<'a>,
     pub active_page: &'a str,
     pub csrf_token: &'a str,
     pub pages: &'a [crate::models::legal_page::LegalPage],
@@ -247,10 +225,8 @@ pub struct LegalListCtx<'a> {
 
 #[derive(Serialize)]
 pub struct AuthorizeCtx<'a> {
-    pub t: &'a I18n,
-    pub lang: &'a str,
-    pub css_hash: &'a str,
-    pub js_hash: &'a str,
+    #[serde(flatten)]
+    pub base: BaseCtx<'a>,
     pub csrf_token: &'a str,
     pub response_type: &'a str,
     pub client_id: &'a str,
@@ -269,10 +245,8 @@ pub struct AuthorizeCtx<'a> {
 
 #[derive(Serialize)]
 pub struct ProfileCtx<'a> {
-    pub t: &'a I18n,
-    pub lang: &'a str,
-    pub css_hash: &'a str,
-    pub js_hash: &'a str,
+    #[serde(flatten)]
+    pub base: BaseCtx<'a>,
     pub user: &'a User,
     pub user_roles: Vec<String>,
     pub csrf_token: &'a str,
@@ -295,10 +269,8 @@ pub struct ProfileCtx<'a> {
 
 #[derive(Serialize)]
 pub struct ConfirmEmailChangeSuccessCtx<'a> {
-    pub t: &'a I18n,
-    pub lang: &'a str,
-    pub css_hash: &'a str,
-    pub js_hash: &'a str,
+    #[serde(flatten)]
+    pub base: BaseCtx<'a>,
     pub anonymized_email: &'a str,
 }
 
@@ -306,10 +278,8 @@ pub struct ConfirmEmailChangeSuccessCtx<'a> {
 
 #[derive(Serialize)]
 pub struct ConfirmEmailSuccessCtx<'a> {
-    pub t: &'a I18n,
-    pub lang: &'a str,
-    pub css_hash: &'a str,
-    pub js_hash: &'a str,
+    #[serde(flatten)]
+    pub base: BaseCtx<'a>,
     pub anonymized_email: &'a str,
 }
 
@@ -317,10 +287,8 @@ pub struct ConfirmEmailSuccessCtx<'a> {
 
 #[derive(Serialize)]
 pub struct ForgotPasswordCtx<'a> {
-    pub t: &'a I18n,
-    pub lang: &'a str,
-    pub css_hash: &'a str,
-    pub js_hash: &'a str,
+    #[serde(flatten)]
+    pub base: BaseCtx<'a>,
     pub csrf_token: &'a str,
     pub error: bool,
     pub error_message: &'a str,
@@ -329,20 +297,16 @@ pub struct ForgotPasswordCtx<'a> {
 
 #[derive(Serialize)]
 pub struct ForgotPasswordSentCtx<'a> {
-    pub t: &'a I18n,
-    pub lang: &'a str,
-    pub css_hash: &'a str,
-    pub js_hash: &'a str,
+    #[serde(flatten)]
+    pub base: BaseCtx<'a>,
 }
 
 // ── Reset password ──────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
 pub struct ResetPasswordCtx<'a> {
-    pub t: &'a I18n,
-    pub lang: &'a str,
-    pub css_hash: &'a str,
-    pub js_hash: &'a str,
+    #[serde(flatten)]
+    pub base: BaseCtx<'a>,
     pub csrf_token: &'a str,
     pub token: &'a str,
     pub error: bool,
@@ -351,19 +315,15 @@ pub struct ResetPasswordCtx<'a> {
 
 #[derive(Serialize)]
 pub struct ResetPasswordSuccessCtx<'a> {
-    pub t: &'a I18n,
-    pub lang: &'a str,
-    pub css_hash: &'a str,
-    pub js_hash: &'a str,
+    #[serde(flatten)]
+    pub base: BaseCtx<'a>,
 }
 
 // ── Error page ────────────────────────────────────────────────────────────────
 
 #[derive(Serialize)]
 pub struct ErrorCtx<'a> {
-    pub t: &'a I18n,
-    pub lang: &'a str,
-    pub css_hash: &'a str,
-    pub js_hash: &'a str,
+    #[serde(flatten)]
+    pub base: BaseCtx<'a>,
     pub error_message: &'a str,
 }

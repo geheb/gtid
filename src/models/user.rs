@@ -15,11 +15,15 @@ pub struct User {
 
 impl User {
     pub fn is_admin(&self) -> bool {
-        self.roles().iter().any(|r| *r == "admin")
+        self.roles().contains(&"admin")
     }
 
     pub fn roles(&self) -> Vec<&str> {
-        self.roles.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()).collect()
+        self.roles
+            .split(',')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .collect()
     }
 
     pub fn has_role(&self, role: &str) -> bool {

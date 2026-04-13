@@ -8,10 +8,10 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tera::Context;
 
-use crate::{errors::AppError, routes::ui::anonymize_email};
-use crate::middleware::language::Lang;
-use crate::routes::ctx::{ConfirmEmailChangeSuccessCtx, ErrorCtx};
 use crate::AppState;
+use crate::middleware::language::Lang;
+use crate::routes::ctx::{BaseCtx, ConfirmEmailChangeSuccessCtx, ErrorCtx};
+use crate::{errors::AppError, routes::ui::anonymize_email};
 
 #[derive(Deserialize)]
 pub struct ConfirmQuery {
@@ -26,8 +26,7 @@ pub async fn confirm_email_change(
     Query(query): Query<ConfirmQuery>,
     lang: Lang,
 ) -> Result<Response, AppError> {
-    let ua = crate::routes::require_user_agent(&headers)
-        .map_err(|e| AppError::BadRequest(e))?;
+    let ua = crate::routes::require_user_agent(&headers).map_err(AppError::BadRequest)?;
     let ip = crate::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let rl_key = state.login_rate_limiter.key("email_change", &ip, ua);
 
@@ -35,10 +34,12 @@ pub async fn confirm_email_change(
         tracing::warn!(event = "rate_limited", ip = %ip, endpoint = "confirm_email_change", "Email change confirmation rate limited");
         let t = state.locales.get(&lang.tag);
         let ctx = Context::from_serialize(ErrorCtx {
-            t,
-            lang: &lang.tag,
-            css_hash: &state.css_hash,
-            js_hash: &state.js_hash,
+            base: BaseCtx {
+                t,
+                lang: &lang.tag,
+                css_hash: &state.css_hash,
+                js_hash: &state.js_hash,
+            },
             error_message: &t.login_error_rate_limited,
         })?;
         let rendered = state.tera.render("error.html", &ctx)?;
@@ -54,10 +55,12 @@ pub async fn confirm_email_change(
             tracing::warn!(event = "email_change_invalid", ip = %ip, "Invalid or expired email change token");
             let t = state.locales.get(&lang.tag);
             let ctx = Context::from_serialize(ErrorCtx {
-                t,
-                lang: &lang.tag,
-                css_hash: &state.css_hash,
-                js_hash: &state.js_hash,
+                base: BaseCtx {
+                    t,
+                    lang: &lang.tag,
+                    css_hash: &state.css_hash,
+                    js_hash: &state.js_hash,
+                },
                 error_message: &t.confirm_email_change_invalid,
             })?;
             let rendered = state.tera.render("error.html", &ctx)?;
@@ -70,10 +73,12 @@ pub async fn confirm_email_change(
         state.email_changes.delete_by_user_id(&change.user_id).await?;
         let t = state.locales.get(&lang.tag);
         let ctx = Context::from_serialize(ErrorCtx {
-            t,
-            lang: &lang.tag,
-            css_hash: &state.css_hash,
-            js_hash: &state.js_hash,
+            base: BaseCtx {
+                t,
+                lang: &lang.tag,
+                css_hash: &state.css_hash,
+                js_hash: &state.js_hash,
+            },
             error_message: &t.profile_change_email_error_taken,
         })?;
         let rendered = state.tera.render("error.html", &ctx)?;
@@ -92,10 +97,12 @@ pub async fn confirm_email_change(
     let anonymized = anonymize_email(&change.new_email);
 
     let ctx = Context::from_serialize(ConfirmEmailChangeSuccessCtx {
-        t: state.locales.get(&lang.tag),
-        lang: &lang.tag,
-        css_hash: &state.css_hash,
-        js_hash: &state.js_hash,
+        base: BaseCtx {
+            t: state.locales.get(&lang.tag),
+            lang: &lang.tag,
+            css_hash: &state.css_hash,
+            js_hash: &state.js_hash,
+        },
         anonymized_email: &anonymized,
     })?;
     let rendered = state.tera.render("confirm_email_change_success.html", &ctx)?;

@@ -15,12 +15,10 @@ impl EmailTemplateRepository {
     }
 
     pub async fn list_by_lang(&self, lang: &str) -> Result<Vec<EmailTemplate>, sqlx::Error> {
-        sqlx::query_as::<_, EmailTemplate>(
-            "SELECT * FROM email_templates WHERE lang = ? ORDER BY template_type",
-        )
-        .bind(lang)
-        .fetch_all(&self.pool)
-        .await
+        sqlx::query_as::<_, EmailTemplate>("SELECT * FROM email_templates WHERE lang = ? ORDER BY template_type")
+            .bind(lang)
+            .fetch_all(&self.pool)
+            .await
     }
 
     pub async fn find_by_type_and_lang(
@@ -28,13 +26,11 @@ impl EmailTemplateRepository {
         template_type: &str,
         lang: &str,
     ) -> Result<Option<EmailTemplate>, sqlx::Error> {
-        sqlx::query_as::<_, EmailTemplate>(
-            "SELECT * FROM email_templates WHERE template_type = ? AND lang = ?",
-        )
-        .bind(template_type)
-        .bind(lang)
-        .fetch_optional(&self.pool)
-        .await
+        sqlx::query_as::<_, EmailTemplate>("SELECT * FROM email_templates WHERE template_type = ? AND lang = ?")
+            .bind(template_type)
+            .bind(lang)
+            .fetch_optional(&self.pool)
+            .await
     }
 
     pub async fn update(
@@ -115,11 +111,19 @@ mod tests {
     async fn find_by_type_and_lang() {
         let (repo, locales) = test_repo().await;
         repo.seed(&locales).await.unwrap();
-        let de = repo.find_by_type_and_lang("confirm_registration", "de").await.unwrap().unwrap();
+        let de = repo
+            .find_by_type_and_lang("confirm_registration", "de")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(de.template_type, "confirm_registration");
         assert_eq!(de.lang, "de");
 
-        let en = repo.find_by_type_and_lang("confirm_registration", "en").await.unwrap().unwrap();
+        let en = repo
+            .find_by_type_and_lang("confirm_registration", "en")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(en.lang, "en");
 
         assert!(repo.find_by_type_and_lang("nonexistent", "de").await.unwrap().is_none());
@@ -129,13 +133,23 @@ mod tests {
     async fn update_template() {
         let (repo, locales) = test_repo().await;
         repo.seed(&locales).await.unwrap();
-        repo.update("confirm_registration", "de", "Neuer Betreff", "<p>Neuer Body</p>").await.unwrap();
-        let tmpl = repo.find_by_type_and_lang("confirm_registration", "de").await.unwrap().unwrap();
+        repo.update("confirm_registration", "de", "Neuer Betreff", "<p>Neuer Body</p>")
+            .await
+            .unwrap();
+        let tmpl = repo
+            .find_by_type_and_lang("confirm_registration", "de")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(tmpl.subject, "Neuer Betreff");
         assert_eq!(tmpl.body_html, "<p>Neuer Body</p>");
 
         // EN should be unchanged
-        let en = repo.find_by_type_and_lang("confirm_registration", "en").await.unwrap().unwrap();
+        let en = repo
+            .find_by_type_and_lang("confirm_registration", "en")
+            .await
+            .unwrap()
+            .unwrap();
         assert!(en.subject.contains("Confirm"));
     }
 }

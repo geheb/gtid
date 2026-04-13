@@ -1,12 +1,12 @@
+pub mod auth_code;
 pub mod client;
 pub mod email_change;
 pub mod email_confirmation_token;
-pub mod password_reset_token;
-pub mod user;
-pub mod auth_code;
 pub mod email_queue;
 pub mod email_template;
 pub mod legal_page;
+pub mod password_reset_token;
 pub mod refresh_token;
 pub mod session;
 pub mod trusted_device;
+pub mod user;

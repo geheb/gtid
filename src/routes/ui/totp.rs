@@ -9,13 +9,16 @@ use axum::{
 use serde::Deserialize;
 use tera::Context;
 
-use crate::{crypto::totp as totp_crypto, middleware::{SESSION_ID_COOKIE_NAME, TRUST_DEVICE_COOKIE_NAME}};
+use crate::AppState;
 use crate::datetime::SqliteDateTimeExt;
 use crate::errors::AppError;
 use crate::middleware::csrf::{self, CsrfToken};
 use crate::middleware::language::Lang;
-use crate::routes::ctx::{TotpSetupCtx, TotpVerifyCtx};
-use crate::AppState;
+use crate::routes::ctx::{BaseCtx, TotpSetupCtx, TotpVerifyCtx};
+use crate::{
+    crypto::totp as totp_crypto,
+    middleware::{SESSION_ID_COOKIE_NAME, TRUST_DEVICE_COOKIE_NAME},
+};
 
 use super::{get_field, parse_form_fields, redirect};
 
@@ -47,10 +50,12 @@ pub async fn totp_setup_form(
         Some(e) => e,
         None => {
             let ctx = Context::from_serialize(TotpSetupCtx {
-                t,
-                lang: &lang.tag,
-                css_hash: &state.css_hash,
-                js_hash: &state.js_hash,
+                base: BaseCtx {
+                    t,
+                    lang: &lang.tag,
+                    css_hash: &state.css_hash,
+                    js_hash: &state.js_hash,
+                },
                 csrf_token: "",
                 qr_data_uri: "",
                 secret_display: "",
@@ -74,21 +79,24 @@ pub async fn totp_setup_form(
         }
     };
 
-    let user = state.users.find_by_id(&user_id).await?
+    let user = state
+        .users
+        .find_by_id(&user_id)
+        .await?
         .ok_or_else(|| AppError::Internal("pending 2fa user not found".into()))?;
 
     let issuer = &state.config.public_ui_uri;
-    let totp = totp_crypto::build_totp(&secret, &user.email, issuer)
-        .map_err(|e| AppError::Internal(e))?;
-    let qr_data_uri = totp_crypto::generate_qr_data_uri(&totp)
-        .map_err(|e| AppError::Internal(e))?;
+    let totp = totp_crypto::build_totp(&secret, &user.email, issuer).map_err(AppError::Internal)?;
+    let qr_data_uri = totp_crypto::generate_qr_data_uri(&totp).map_err(AppError::Internal)?;
     let secret_display = totp_crypto::format_secret_for_display(&secret);
 
     let ctx = Context::from_serialize(TotpSetupCtx {
-        t,
-        lang: &lang.tag,
-        css_hash: &state.css_hash,
-        js_hash: &state.js_hash,
+        base: BaseCtx {
+            t,
+            lang: &lang.tag,
+            css_hash: &state.css_hash,
+            js_hash: &state.js_hash,
+        },
         csrf_token: &csrf.form_token,
         qr_data_uri: &qr_data_uri,
         secret_display: &secret_display,
@@ -115,8 +123,7 @@ pub async fn totp_setup_submit(
     let pending_id = get_field(&fields, "p");
     let code = get_field(&fields, "code");
 
-    validate_totp_fields(&csrf_token, &pending_id)
-        .map_err(|e| AppError::BadRequest(e.into()))?;
+    validate_totp_fields(&csrf_token, &pending_id).map_err(|e| AppError::BadRequest(e.into()))?;
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
         return Err(AppError::BadRequest(
@@ -124,8 +131,7 @@ pub async fn totp_setup_submit(
         ));
     }
 
-    let ua = crate::routes::require_user_agent(&headers)
-        .map_err(|e| AppError::BadRequest(e))?;
+    let ua = crate::routes::require_user_agent(&headers).map_err(AppError::BadRequest)?;
     let ip = crate::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let t = state.locales.get(&lang.tag);
 
@@ -144,27 +150,35 @@ pub async fn totp_setup_submit(
     let rid = entry.rid.clone();
     drop(entry); // release borrow
 
-    let user = state.users.find_by_id(&user_id).await?
+    let user = state
+        .users
+        .find_by_id(&user_id)
+        .await?
         .ok_or_else(|| AppError::Internal("pending 2fa user not found".into()))?;
 
     let issuer = &state.config.public_ui_uri;
-    let totp = totp_crypto::build_totp(&secret, &user.email, issuer)
-        .map_err(|e| AppError::Internal(e))?;
+    let totp = totp_crypto::build_totp(&secret, &user.email, issuer).map_err(AppError::Internal)?;
 
     // Helper: re-render setup form with error message
-    let render_setup_error = |state: &AppState, cookies: &tower_cookies::Cookies,
-                               totp: &totp_rs::TOTP, secret: &str, pending_id: &str,
-                               t: &crate::i18n::I18n, lang: &str,
-                               error_message: &str| -> Result<Response, AppError> {
-        let qr_data_uri = totp_crypto::generate_qr_data_uri(totp)
-            .map_err(|e| AppError::Internal(e))?;
+    let render_setup_error = |state: &AppState,
+                              cookies: &tower_cookies::Cookies,
+                              totp: &totp_rs::TOTP,
+                              secret: &str,
+                              pending_id: &str,
+                              t: &crate::i18n::I18n,
+                              lang: &str,
+                              error_message: &str|
+     -> Result<Response, AppError> {
+        let qr_data_uri = totp_crypto::generate_qr_data_uri(totp).map_err(AppError::Internal)?;
         let secret_display = totp_crypto::format_secret_for_display(secret);
         let csrf_form_token = csrf::set_new_csrf_cookie(cookies, state.config.secure_cookies);
         let ctx = Context::from_serialize(TotpSetupCtx {
-            t,
-            lang,
-            css_hash: &state.css_hash,
-            js_hash: &state.js_hash,
+            base: BaseCtx {
+                t,
+                lang,
+                css_hash: &state.css_hash,
+                js_hash: &state.js_hash,
+            },
             csrf_token: &csrf_form_token,
             qr_data_uri: &qr_data_uri,
             secret_display: &secret_display,
@@ -177,25 +191,61 @@ pub async fn totp_setup_submit(
     };
 
     if !is_valid_totp_code(&code) {
-        return render_setup_error(&state, &cookies, &totp, &secret, &pending_id, t, &lang.tag, &t.totp_setup_error_invalid_code);
+        return render_setup_error(
+            &state,
+            &cookies,
+            &totp,
+            &secret,
+            &pending_id,
+            t,
+            &lang.tag,
+            &t.totp_setup_error_invalid_code,
+        );
     }
 
     // Rate limiting (shared with login/2fa-verify)
     let rl_key = state.login_rate_limiter.key("2fa-setup", &ip, ua);
     if state.login_rate_limiter.is_limited(rl_key) {
-        return render_setup_error(&state, &cookies, &totp, &secret, &pending_id, t, &lang.tag, &t.login_error_rate_limited);
+        return render_setup_error(
+            &state,
+            &cookies,
+            &totp,
+            &secret,
+            &pending_id,
+            t,
+            &lang.tag,
+            &t.login_error_rate_limited,
+        );
     }
 
     // Replay prevention: reject codes already used in this pending session
     if state.pending_2fa.is_code_used(&pending_id, &code) {
-        return render_setup_error(&state, &cookies, &totp, &secret, &pending_id, t, &lang.tag, &t.totp_setup_error_invalid_code);
+        return render_setup_error(
+            &state,
+            &cookies,
+            &totp,
+            &secret,
+            &pending_id,
+            t,
+            &lang.tag,
+            &t.totp_setup_error_invalid_code,
+        );
     }
 
     if !totp_crypto::verify_code(&totp, &code) {
         state.login_rate_limiter.record_failure(rl_key);
         state.pending_2fa.mark_code_used(&pending_id, &code);
         tracing::warn!(event = "2fa_setup_failed", user_id = %user_id, ip = %ip, "Failed 2FA setup code verification");
-        return render_setup_error(&state, &cookies, &totp, &secret, &pending_id, t, &lang.tag, &t.totp_setup_error_invalid_code);
+        return render_setup_error(
+            &state,
+            &cookies,
+            &totp,
+            &secret,
+            &pending_id,
+            t,
+            &lang.tag,
+            &t.totp_setup_error_invalid_code,
+        );
     }
 
     // Mark valid code as used before consuming the entry
@@ -204,10 +254,9 @@ pub async fn totp_setup_submit(
     // Success - clear rate limit, encrypt and store secret
     state.login_rate_limiter.clear(rl_key);
 
-    let user_key = totp_crypto::derive_user_key(&state.config.totp_encryption_key, &user_id)
-        .map_err(|e| AppError::Internal(e))?;
-    let encrypted = totp_crypto::encrypt_secret(&secret, &user_key)
-        .map_err(|e| AppError::Internal(e))?;
+    let user_key =
+        totp_crypto::derive_user_key(&state.config.totp_encryption_key, &user_id).map_err(AppError::Internal)?;
+    let encrypted = totp_crypto::encrypt_secret(&secret, &user_key).map_err(AppError::Internal)?;
     state.users.set_totp_secret(&user_id, Some(&encrypted)).await?;
 
     // Consume the pending entry
@@ -217,12 +266,10 @@ pub async fn totp_setup_submit(
 
     // Redirect: resume OIDC flow if rid present, otherwise login
     let redirect_to = match rid {
-        Some(ref rid) if !rid.is_empty() => {
-            match state.pending_redirects.take(rid) {
-                Some(url) => url,
-                None => "/login".into(),
-            }
-        }
+        Some(ref rid) if !rid.is_empty() => match state.pending_redirects.take(rid) {
+            Some(url) => url,
+            None => "/login".into(),
+        },
         _ => "/login".into(),
     };
 
@@ -242,10 +289,12 @@ pub async fn totp_verify_form(
 
     if state.pending_2fa.get(pending_id).is_none() {
         let ctx = Context::from_serialize(TotpVerifyCtx {
-            t,
-            lang: &lang.tag,
-            css_hash: &state.css_hash,
-            js_hash: &state.js_hash,
+            base: BaseCtx {
+                t,
+                lang: &lang.tag,
+                css_hash: &state.css_hash,
+                js_hash: &state.js_hash,
+            },
             csrf_token: "",
             pending_id: "",
             error: true,
@@ -256,10 +305,12 @@ pub async fn totp_verify_form(
     }
 
     let ctx = Context::from_serialize(TotpVerifyCtx {
-        t,
-        lang: &lang.tag,
-        css_hash: &state.css_hash,
-        js_hash: &state.js_hash,
+        base: BaseCtx {
+            t,
+            lang: &lang.tag,
+            css_hash: &state.css_hash,
+            js_hash: &state.js_hash,
+        },
         csrf_token: &csrf.form_token,
         pending_id,
         error: false,
@@ -285,8 +336,7 @@ pub async fn totp_verify_submit(
     let code = get_field(&fields, "code");
     let trust_device = get_field(&fields, "trust_device") == "1";
 
-    validate_totp_fields(&csrf_token, &pending_id)
-        .map_err(|e| AppError::BadRequest(e.into()))?;
+    validate_totp_fields(&csrf_token, &pending_id).map_err(|e| AppError::BadRequest(e.into()))?;
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
         return Err(AppError::BadRequest(
@@ -294,21 +344,26 @@ pub async fn totp_verify_submit(
         ));
     }
 
-    let ua = crate::routes::require_user_agent(&headers)
-        .map_err(|e| AppError::BadRequest(e))?;
+    let ua = crate::routes::require_user_agent(&headers).map_err(AppError::BadRequest)?;
     let ip = crate::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let t = state.locales.get(&lang.tag);
 
     // Helper: re-render verify form with error message
-    let render_verify_error = |state: &AppState, cookies: &tower_cookies::Cookies,
-                                pending_id: &str, t: &crate::i18n::I18n, lang: &str,
-                                error_message: &str| -> Result<Response, AppError> {
+    let render_verify_error = |state: &AppState,
+                               cookies: &tower_cookies::Cookies,
+                               pending_id: &str,
+                               t: &crate::i18n::I18n,
+                               lang: &str,
+                               error_message: &str|
+     -> Result<Response, AppError> {
         let csrf_form_token = csrf::set_new_csrf_cookie(cookies, state.config.secure_cookies);
         let ctx = Context::from_serialize(TotpVerifyCtx {
-            t,
-            lang,
-            css_hash: &state.css_hash,
-            js_hash: &state.js_hash,
+            base: BaseCtx {
+                t,
+                lang,
+                css_hash: &state.css_hash,
+                js_hash: &state.js_hash,
+            },
             csrf_token: &csrf_form_token,
             pending_id,
             error: true,
@@ -319,7 +374,14 @@ pub async fn totp_verify_submit(
     };
 
     if !is_valid_totp_code(&code) {
-        return render_verify_error(&state, &cookies, &pending_id, t, &lang.tag, &t.totp_verify_error_invalid_code);
+        return render_verify_error(
+            &state,
+            &cookies,
+            &pending_id,
+            t,
+            &lang.tag,
+            &t.totp_verify_error_invalid_code,
+        );
     }
 
     // Rate limiting
@@ -340,27 +402,45 @@ pub async fn totp_verify_submit(
 
     // Account lockout check
     if state.account_lockout.is_locked(&user_id) {
-        return render_verify_error(&state, &cookies, &pending_id, t, &lang.tag, &t.login_error_account_locked);
+        return render_verify_error(
+            &state,
+            &cookies,
+            &pending_id,
+            t,
+            &lang.tag,
+            &t.login_error_account_locked,
+        );
     }
 
-    let user = state.users.find_by_id(&user_id).await?
+    let user = state
+        .users
+        .find_by_id(&user_id)
+        .await?
         .ok_or_else(|| AppError::Internal("pending 2fa user not found".into()))?;
 
-    let encrypted_secret = user.totp_secret.as_deref()
+    let encrypted_secret = user
+        .totp_secret
+        .as_deref()
         .ok_or_else(|| AppError::Internal("user has no totp secret".into()))?;
 
-    let user_key = totp_crypto::derive_user_key(&state.config.totp_encryption_key, &user_id)
-        .map_err(|e| AppError::Internal(e))?;
+    let user_key =
+        totp_crypto::derive_user_key(&state.config.totp_encryption_key, &user_id).map_err(AppError::Internal)?;
     let secret = totp_crypto::decrypt_secret(encrypted_secret, &user_key)
         .map_err(|e| AppError::Internal(format!("totp decrypt: {e}")))?;
 
     let issuer = &state.config.public_ui_uri;
-    let totp = totp_crypto::build_totp(&secret, &user.email, issuer)
-        .map_err(|e| AppError::Internal(e))?;
+    let totp = totp_crypto::build_totp(&secret, &user.email, issuer).map_err(AppError::Internal)?;
 
     // Replay prevention: reject codes already used in this pending session
     if state.pending_2fa.is_code_used(&pending_id, &code) {
-        return render_verify_error(&state, &cookies, &pending_id, t, &lang.tag, &t.totp_verify_error_invalid_code);
+        return render_verify_error(
+            &state,
+            &cookies,
+            &pending_id,
+            t,
+            &lang.tag,
+            &t.totp_verify_error_invalid_code,
+        );
     }
 
     if !totp_crypto::verify_code(&totp, &code) {
@@ -368,7 +448,14 @@ pub async fn totp_verify_submit(
         state.account_lockout.record_failure(&user_id);
         state.pending_2fa.mark_code_used(&pending_id, &code);
         tracing::warn!(event = "2fa_verify_failed", user_id = %user_id, ip = %ip, "Failed 2FA verification");
-        return render_verify_error(&state, &cookies, &pending_id, t, &lang.tag, &t.totp_verify_error_invalid_code);
+        return render_verify_error(
+            &state,
+            &cookies,
+            &pending_id,
+            t,
+            &lang.tag,
+            &t.totp_verify_error_invalid_code,
+        );
     }
 
     // Mark valid code as used (entry is consumed next, but defense-in-depth)
@@ -425,12 +512,10 @@ pub async fn totp_verify_submit(
     // Redirect: resume OIDC flow if rid present, otherwise role-based default
     let default_redirect = if user.is_admin() { "/admin" } else { "/profile" };
     let redirect_to = match rid {
-        Some(ref rid) if !rid.is_empty() => {
-            match state.pending_redirects.take(rid) {
-                Some(url) => url,
-                None => default_redirect.into(),
-            }
-        }
+        Some(ref rid) if !rid.is_empty() => match state.pending_redirects.take(rid) {
+            Some(url) => url,
+            None => default_redirect.into(),
+        },
         _ => default_redirect.into(),
     };
 

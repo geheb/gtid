@@ -1,4 +1,4 @@
-use lettre::message::{header::ContentType, Mailbox};
+use lettre::message::{Mailbox, header::ContentType};
 use lettre::transport::smtp::authentication::Credentials;
 use lettre::{AsyncSmtpTransport, AsyncTransport, Message, Tokio1Executor};
 
@@ -22,18 +22,19 @@ impl SmtpSender {
                 }
             }
         } else {
-            AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(host)
-                .port(config.smtp_port)
+            AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(host).port(config.smtp_port)
         };
 
         if let (Some(user), Some(pass)) = (&config.smtp_username, &config.smtp_password) {
             builder = builder.credentials(Credentials::new(user.clone(), pass.clone()));
         }
 
-        let fallback: Mailbox = "noreply@localhost".parse()
-            .expect("hardcoded fallback email is valid");
+        let fallback: Mailbox = "noreply@localhost".parse().expect("hardcoded fallback email is valid");
         let from: Mailbox = config.smtp_from.parse().unwrap_or_else(|_| {
-            tracing::warn!("Invalid SMTP_FROM '{}', falling back to noreply@localhost", config.smtp_from);
+            tracing::warn!(
+                "Invalid SMTP_FROM '{}', falling back to noreply@localhost",
+                config.smtp_from
+            );
             fallback.clone()
         });
 

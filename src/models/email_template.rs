@@ -35,7 +35,7 @@ impl EmailTemplateType {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<EmailTemplateType> {
+    pub fn parse(s: &str) -> Option<EmailTemplateType> {
         match s {
             "confirm_registration" => Some(EmailTemplateType::ConfirmRegistration),
             "change_email" => Some(EmailTemplateType::ChangeEmail),

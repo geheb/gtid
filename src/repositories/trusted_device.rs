@@ -1,6 +1,6 @@
-use sha2::{Digest, Sha256};
 use sqlx::SqlitePool;
 
+use crate::crypto::hash::sha256_hex;
 use crate::models::trusted_device::TrustedDevice;
 
 #[derive(Clone)]
@@ -8,41 +8,27 @@ pub struct TrustedDeviceRepository {
     pool: SqlitePool,
 }
 
-fn hash_token(token: &str) -> String {
-    let hash = Sha256::digest(token.as_bytes());
-    hash.iter().map(|b| format!("{b:02x}")).collect()
-}
-
 impl TrustedDeviceRepository {
     pub fn new(pool: SqlitePool) -> Self {
         Self { pool }
     }
 
-    pub async fn create(
-        &self,
-        user_id: &str,
-        expires_at: &str,
-    ) -> Result<String, sqlx::Error> {
+    pub async fn create(&self, user_id: &str, expires_at: &str) -> Result<String, sqlx::Error> {
         self.delete_expired().await?;
 
         let token = crate::crypto::id::new_secure_token();
-        let token_hash = hash_token(&token);
-        sqlx::query(
-            "INSERT INTO trusted_devices (token_hash, user_id, expires_at) VALUES (?, ?, ?)",
-        )
-        .bind(&token_hash)
-        .bind(user_id)
-        .bind(expires_at)
-        .execute(&self.pool)
-        .await?;
+        let token_hash = sha256_hex(&token);
+        sqlx::query("INSERT INTO trusted_devices (token_hash, user_id, expires_at) VALUES (?, ?, ?)")
+            .bind(&token_hash)
+            .bind(user_id)
+            .bind(expires_at)
+            .execute(&self.pool)
+            .await?;
         Ok(token)
     }
 
-    pub async fn find_valid(
-        &self,
-        token: &str,
-    ) -> Result<Option<TrustedDevice>, sqlx::Error> {
-        let token_hash = hash_token(token);
+    pub async fn find_valid(&self, token: &str) -> Result<Option<TrustedDevice>, sqlx::Error> {
+        let token_hash = sha256_hex(token);
         sqlx::query_as::<_, TrustedDevice>(
             "SELECT * FROM trusted_devices WHERE token_hash = ? AND expires_at > datetime('now')",
         )
@@ -98,7 +84,7 @@ mod tests {
         let token = repo.create("u1", &expires).await.unwrap();
         let found = repo.find_valid(&token).await.unwrap().unwrap();
         assert_ne!(found.token_hash, token);
-        assert_eq!(found.token_hash, hash_token(&token));
+        assert_eq!(found.token_hash, sha256_hex(&token));
     }
 
     #[tokio::test]

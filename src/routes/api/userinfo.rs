@@ -1,14 +1,14 @@
 use axum::{
-    extract::{ConnectInfo, State},
-    http::{header, StatusCode},
-    response::{IntoResponse, Response},
     Json,
+    extract::{ConnectInfo, State},
+    http::{StatusCode, header},
+    response::{IntoResponse, Response},
 };
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use crate::crypto::jwt;
 use crate::AppState;
+use crate::crypto::jwt;
 
 pub async fn userinfo(
     State(state): State<Arc<AppState>>,
@@ -16,13 +16,21 @@ pub async fn userinfo(
     headers: axum::http::HeaderMap,
 ) -> Result<Response, Response> {
     let ua = crate::routes::require_user_agent(&headers).map_err(|_| {
-        (StatusCode::BAD_REQUEST, Json(serde_json::json!({"error": "invalid_request"}))).into_response()
+        (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "invalid_request"})),
+        )
+            .into_response()
     })?;
     let ip = crate::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let rl_key = state.login_rate_limiter.key("userinfo", &ip, ua);
     if state.login_rate_limiter.is_limited(rl_key) {
         tracing::warn!(event = "rate_limited", ip = %ip, endpoint = "userinfo", "Userinfo rate limited");
-        return Err((StatusCode::TOO_MANY_REQUESTS, Json(serde_json::json!({"error": "too_many_requests"}))).into_response());
+        return Err((
+            StatusCode::TOO_MANY_REQUESTS,
+            Json(serde_json::json!({"error": "too_many_requests"})),
+        )
+            .into_response());
     }
 
     let auth_header = headers
@@ -53,9 +61,9 @@ pub async fn userinfo(
         validation.validate_aud = false;
         let mut result = None;
         for key in &decoding_keys {
-            match jsonwebtoken::decode::<jwt::AccessTokenClaims>(token, key, &validation) {
-                Ok(data) => { result = Some(data.claims); break; }
-                Err(_) => {}
+            if let Ok(data) = jsonwebtoken::decode::<jwt::AccessTokenClaims>(token, key, &validation) {
+                result = Some(data.claims);
+                break;
             }
         }
         result.ok_or_else(|| {
@@ -67,9 +75,24 @@ pub async fn userinfo(
         })?
     };
     // Verify the client in the token's audience exists
-    state.clients.find_by_id(&claims.aud).await
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, Json(serde_json::json!({"error": "server_error"}))).into_response())?
-        .ok_or_else(|| (StatusCode::UNAUTHORIZED, Json(serde_json::json!({"error": "invalid_token"}))).into_response())?;
+    state
+        .clients
+        .find_by_id(&claims.aud)
+        .await
+        .map_err(|_| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(serde_json::json!({"error": "server_error"})),
+            )
+                .into_response()
+        })?
+        .ok_or_else(|| {
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(serde_json::json!({"error": "invalid_token"})),
+            )
+                .into_response()
+        })?;
 
     let user = state
         .users
@@ -99,10 +122,10 @@ pub async fn userinfo(
         response["email"] = serde_json::json!(user.email);
         response["email_verified"] = serde_json::json!(user.is_confirmed);
     }
-    if claims.scope.contains("profile") {
-        if let Some(ref name) = user.display_name {
-            response["name"] = serde_json::json!(name);
-        }
+    if claims.scope.contains("profile")
+        && let Some(ref name) = user.display_name
+    {
+        response["name"] = serde_json::json!(name);
     }
 
     tracing::info!("Return userinfo={}", response);

@@ -1,15 +1,15 @@
 use axum::{
-    http::{header, HeaderMap, StatusCode},
-    response::{IntoResponse, Response},
     Json,
+    http::{HeaderMap, StatusCode, header},
+    response::{IntoResponse, Response},
 };
-use base64::{engine::general_purpose::STANDARD, Engine};
-use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
+use base64::{Engine, engine::general_purpose::STANDARD};
+use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use std::net::SocketAddr;
 
+use crate::AppState;
 use crate::crypto::password;
 use crate::models::client::Client;
-use crate::AppState;
 
 /// Extracts the User-Agent header, returning an error if missing or empty.
 pub fn require_user_agent(headers: &HeaderMap) -> Result<&str, String> {
@@ -22,14 +22,12 @@ pub fn require_user_agent(headers: &HeaderMap) -> Result<&str, String> {
 
 /// Extracts the client IP, using X-Forwarded-For when trusted_proxies is enabled.
 pub fn client_ip(headers: &HeaderMap, addr: &SocketAddr, trusted_proxies: bool) -> String {
-    if trusted_proxies {
-        if let Some(xff) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok()) {
-            if let Some(first_ip) = xff.split(',').next().map(|s| s.trim()) {
-                if !first_ip.is_empty() {
-                    return first_ip.to_string();
-                }
-            }
-        }
+    if trusted_proxies
+        && let Some(xff) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok())
+        && let Some(first_ip) = xff.split(',').next().map(|s| s.trim())
+        && !first_ip.is_empty()
+    {
+        return first_ip.to_string();
     }
     addr.ip().to_string()
 }
@@ -188,10 +186,7 @@ mod tests {
     #[test]
     fn extract_basic_auth_malformed() {
         let mut headers = HeaderMap::new();
-        headers.insert(
-            header::AUTHORIZATION,
-            HeaderValue::from_static("Basic !!!invalid!!!"),
-        );
+        headers.insert(header::AUTHORIZATION, HeaderValue::from_static("Basic !!!invalid!!!"));
         assert!(extract_basic_auth(&headers).is_none());
 
         let mut headers = HeaderMap::new();
@@ -206,10 +201,7 @@ mod tests {
     #[test]
     fn extract_basic_auth_bearer_ignored() {
         let mut headers = HeaderMap::new();
-        headers.insert(
-            header::AUTHORIZATION,
-            HeaderValue::from_static("Bearer some-token"),
-        );
+        headers.insert(header::AUTHORIZATION, HeaderValue::from_static("Bearer some-token"));
         assert!(extract_basic_auth(&headers).is_none());
     }
 }

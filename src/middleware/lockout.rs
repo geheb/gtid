@@ -32,12 +32,11 @@ impl AccountLockout {
     /// Returns true if the account (by email) is currently locked.
     pub fn is_locked(&self, email: &str) -> bool {
         let key = self.key(email);
-        if let Some(entry) = self.store.map.get(&key) {
-            if let Some(until) = entry.locked_until {
-                if until.checked_duration_since(Instant::now()).is_some() {
-                    return true;
-                }
-            }
+        if let Some(entry) = self.store.map.get(&key)
+            && let Some(until) = entry.locked_until
+            && until.checked_duration_since(Instant::now()).is_some()
+        {
+            return true;
         }
         // Lock expired - clean up outside read guard
         self.store.map.remove_if(&key, |_, e| {
@@ -72,20 +71,22 @@ impl AccountLockout {
         self.store
             .map
             .iter()
-            .filter(|e| e.locked_until.is_some_and(|until| until.checked_duration_since(now).is_some()))
+            .filter(|e| {
+                e.locked_until
+                    .is_some_and(|until| until.checked_duration_since(now).is_some())
+            })
             .count()
     }
 
     /// Returns the UTC timestamp until which the account is locked, or `None`.
     pub fn locked_until_utc(&self, email: &str) -> Option<String> {
         let key = self.key(email);
-        if let Some(entry) = self.store.map.get(&key) {
-            if let Some(until) = entry.locked_until {
-                if let Some(remaining) = until.checked_duration_since(Instant::now()) {
-                    let dt = Utc::now() + remaining;
-                    return Some(dt.format("%Y-%m-%dT%H:%M:%SZ").to_string());
-                }
-            }
+        if let Some(entry) = self.store.map.get(&key)
+            && let Some(until) = entry.locked_until
+            && let Some(remaining) = until.checked_duration_since(Instant::now())
+        {
+            let dt = Utc::now() + remaining;
+            return Some(dt.format("%Y-%m-%dT%H:%M:%SZ").to_string());
         }
         None
     }

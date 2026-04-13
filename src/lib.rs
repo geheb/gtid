@@ -1,13 +1,13 @@
 rust_i18n::i18n!("locales");
 
 use std::net::SocketAddr;
-use std::sync::atomic::AtomicBool;
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
-use axum::extract::ConnectInfo;
-use axum::http::{header, StatusCode};
-use axum::response::IntoResponse;
 use axum::Router;
+use axum::extract::ConnectInfo;
+use axum::http::{StatusCode, header};
+use axum::response::IntoResponse;
 use hyper_util::rt::{TokioExecutor, TokioIo};
 use hyper_util::server::conn::auto::Builder as AutoBuilder;
 use hyper_util::service::TowerToHyperService;
@@ -37,13 +37,13 @@ use middleware::rate_limit::LoginRateLimiter;
 use repositories::auth_code::AuthCodeRepository;
 use repositories::client::ClientRepository;
 use repositories::consent::ConsentRepository;
+use repositories::email_change::EmailChangeRepository;
+use repositories::email_confirmation_token::EmailConfirmationTokenRepository;
 use repositories::email_template::EmailTemplateRepository;
 use repositories::legal_page::LegalPageRepository;
+use repositories::password_reset_token::PasswordResetTokenRepository;
 use repositories::refresh_token::RefreshTokenRepository;
 use repositories::session::SessionRepository;
-use repositories::email_confirmation_token::EmailConfirmationTokenRepository;
-use repositories::email_change::EmailChangeRepository;
-use repositories::password_reset_token::PasswordResetTokenRepository;
 use repositories::trusted_device::TrustedDeviceRepository;
 use repositories::user::UserRepository;
 
@@ -77,7 +77,6 @@ pub struct AppState {
     pub setup_needed: Arc<AtomicBool>,
     pub setup_token: Option<String>,
 }
-
 
 /// Starts the GT Id server with the given config.
 /// Returns the actual (api_port, ui_port) the listeners bound to.
@@ -126,51 +125,12 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
 
     crypto::password::init_dummy_hash();
     let key_store = Arc::new(crypto::keys::generate_keys().expect("Failed to generate initial keys"));
-    let mut tera = tera::Tera::default();
-    tera.add_raw_templates(vec![
-        ("base.html", include_str!("../static/base.html")),
-        ("login.html", include_str!("../static/login.html")),
-        ("authorize.html", include_str!("../static/authorize.html")),
-        ("error.html", include_str!("../static/error.html")),
-        ("admin/_sidebar.html", include_str!("../static/admin/_sidebar.html")),
-        ("admin/dashboard.html", include_str!("../static/admin/dashboard.html")),
-        ("admin/users.html", include_str!("../static/admin/users.html")),
-        ("admin/user_create.html", include_str!("../static/admin/user_create.html")),
-        ("admin/user_edit.html", include_str!("../static/admin/user_edit.html")),
-        ("admin/email_templates.html", include_str!("../static/admin/email_templates.html")),
-        ("admin/email_template_edit.html", include_str!("../static/admin/email_template_edit.html")),
-        ("profile.html", include_str!("../static/profile.html")),
-        ("admin/clients.html", include_str!("../static/admin/clients.html")),
-        ("admin/client_create.html", include_str!("../static/admin/client_create.html")),
-        ("admin/client_edit.html", include_str!("../static/admin/client_edit.html")),
-        ("legal.html", include_str!("../static/legal.html")),
-        ("admin/legal_pages.html", include_str!("../static/admin/legal_pages.html")),
-        ("admin/legal_page_edit.html", include_str!("../static/admin/legal_page_edit.html")),
-        ("setup.html", include_str!("../static/setup.html")),
-        ("confirm_email_success.html", include_str!("../static/confirm_email_success.html")),
-        ("confirm_email_change_success.html", include_str!("../static/confirm_email_change_success.html")),
-        ("forgot_password.html", include_str!("../static/forgot_password.html")),
-        ("forgot_password_sent.html", include_str!("../static/forgot_password_sent.html")),
-        ("reset_password.html", include_str!("../static/reset_password.html")),
-        ("reset_password_success.html", include_str!("../static/reset_password_success.html")),
-        ("totp_setup.html", include_str!("../static/totp_setup.html")),
-        ("totp_verify.html", include_str!("../static/totp_verify.html")),
-    ]).expect("Failed to load embedded templates");
-
+    let tera = load_templates();
     let locales = i18n::build_locales();
 
-    let users = UserRepository::new(users_db.clone());
-    let confirmation_tokens = EmailConfirmationTokenRepository::new(users_db.clone());
-    let password_reset_tokens = PasswordResetTokenRepository::new(users_db.clone());
-    let email_changes = EmailChangeRepository::new(users_db.clone());
-    let trusted_devices = TrustedDeviceRepository::new(users_db.clone());
-    let sessions = SessionRepository::new(users_db);
-
-    let clients = ClientRepository::new(clients_db.clone());
-    let auth_codes = AuthCodeRepository::new(clients_db.clone());
-    let consents = ConsentRepository::new(clients_db.clone());
-    let refresh_tokens = RefreshTokenRepository::new(clients_db);
-
+    let (users, confirmation_tokens, password_reset_tokens, email_changes, trusted_devices, sessions) =
+        init_user_repos(&users_db);
+    let (clients, auth_codes, consents, refresh_tokens) = init_client_repos(&clients_db);
     let email_templates = EmailTemplateRepository::new(emails_db.clone());
     let email_queue = repositories::email_queue::EmailQueueRepository::new(emails_db);
     let legal_pages = LegalPageRepository::new(config_db);
@@ -185,13 +145,16 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
         None
     };
 
-    email_templates.seed(&locales).await.expect("Failed to seed email templates");
+    email_templates
+        .seed(&locales)
+        .await
+        .expect("Failed to seed email templates");
     legal_pages.seed().await.expect("Failed to seed legal pages");
 
     let initial_clients = clients.list().await.unwrap_or_default();
-    let csp = Arc::new(std::sync::RwLock::new(
-        middleware::security_headers::build_csp(&initial_clients),
-    ));
+    let csp = Arc::new(std::sync::RwLock::new(middleware::security_headers::build_csp(
+        &initial_clients,
+    )));
 
     let (css_hash, js_hash) = routes::ui::static_files::asset_hashes();
 
@@ -235,10 +198,14 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
                 bot_trap_fallback(st.clone(), conn, req)
             }
         })
-        .layer(axum::middleware::from_fn(middleware::content_type::validate_content_type))
+        .layer(axum::middleware::from_fn(
+            middleware::content_type::validate_content_type,
+        ))
         .layer(cors_layer)
         .layer(RequestBodyLimitLayer::new(config.max_request_body_bytes))
-        .layer(axum::middleware::from_fn(middleware::security_headers::api_security_headers))
+        .layer(axum::middleware::from_fn(
+            middleware::security_headers::api_security_headers,
+        ))
         .layer(TraceLayer::new_for_http())
         .layer(axum::middleware::from_fn_with_state(state.clone(), bot_trap_guard))
         .with_state(state.clone());
@@ -251,10 +218,15 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
                 bot_trap_fallback(st.clone(), conn, req)
             }
         })
-        .layer(axum::middleware::from_fn(middleware::content_type::validate_content_type))
+        .layer(axum::middleware::from_fn(
+            middleware::content_type::validate_content_type,
+        ))
         .layer(RequestBodyLimitLayer::new(config.max_request_body_bytes))
         .layer(CookieManagerLayer::new())
-        .layer(axum::middleware::from_fn_with_state(state.clone(), middleware::security_headers::ui_security_headers))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            middleware::security_headers::ui_security_headers,
+        ))
         .layer(TraceLayer::new_for_http())
         .layer(axum::middleware::from_fn_with_state(state.clone(), bot_trap_guard))
         .with_state(state);
@@ -288,8 +260,112 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
     (actual_api_port, actual_ui_port, setup_token)
 }
 
+fn load_templates() -> tera::Tera {
+    let mut tera = tera::Tera::default();
+    tera.add_raw_templates(vec![
+        ("base.html", include_str!("../static/base.html")),
+        ("login.html", include_str!("../static/login.html")),
+        ("authorize.html", include_str!("../static/authorize.html")),
+        ("error.html", include_str!("../static/error.html")),
+        ("admin/_sidebar.html", include_str!("../static/admin/_sidebar.html")),
+        ("admin/dashboard.html", include_str!("../static/admin/dashboard.html")),
+        ("admin/users.html", include_str!("../static/admin/users.html")),
+        (
+            "admin/user_create.html",
+            include_str!("../static/admin/user_create.html"),
+        ),
+        ("admin/user_edit.html", include_str!("../static/admin/user_edit.html")),
+        (
+            "admin/email_templates.html",
+            include_str!("../static/admin/email_templates.html"),
+        ),
+        (
+            "admin/email_template_edit.html",
+            include_str!("../static/admin/email_template_edit.html"),
+        ),
+        ("profile.html", include_str!("../static/profile.html")),
+        ("admin/clients.html", include_str!("../static/admin/clients.html")),
+        (
+            "admin/client_create.html",
+            include_str!("../static/admin/client_create.html"),
+        ),
+        (
+            "admin/client_edit.html",
+            include_str!("../static/admin/client_edit.html"),
+        ),
+        ("legal.html", include_str!("../static/legal.html")),
+        (
+            "admin/legal_pages.html",
+            include_str!("../static/admin/legal_pages.html"),
+        ),
+        (
+            "admin/legal_page_edit.html",
+            include_str!("../static/admin/legal_page_edit.html"),
+        ),
+        ("setup.html", include_str!("../static/setup.html")),
+        (
+            "confirm_email_success.html",
+            include_str!("../static/confirm_email_success.html"),
+        ),
+        (
+            "confirm_email_change_success.html",
+            include_str!("../static/confirm_email_change_success.html"),
+        ),
+        ("forgot_password.html", include_str!("../static/forgot_password.html")),
+        (
+            "forgot_password_sent.html",
+            include_str!("../static/forgot_password_sent.html"),
+        ),
+        ("reset_password.html", include_str!("../static/reset_password.html")),
+        (
+            "reset_password_success.html",
+            include_str!("../static/reset_password_success.html"),
+        ),
+        ("totp_setup.html", include_str!("../static/totp_setup.html")),
+        ("totp_verify.html", include_str!("../static/totp_verify.html")),
+    ])
+    .expect("Failed to load embedded templates");
+    tera
+}
+
+fn init_user_repos(
+    pool: &sqlx::SqlitePool,
+) -> (
+    UserRepository,
+    EmailConfirmationTokenRepository,
+    PasswordResetTokenRepository,
+    EmailChangeRepository,
+    TrustedDeviceRepository,
+    SessionRepository,
+) {
+    (
+        UserRepository::new(pool.clone()),
+        EmailConfirmationTokenRepository::new(pool.clone()),
+        PasswordResetTokenRepository::new(pool.clone()),
+        EmailChangeRepository::new(pool.clone()),
+        TrustedDeviceRepository::new(pool.clone()),
+        SessionRepository::new(pool.clone()),
+    )
+}
+
+fn init_client_repos(
+    pool: &sqlx::SqlitePool,
+) -> (
+    ClientRepository,
+    AuthCodeRepository,
+    ConsentRepository,
+    RefreshTokenRepository,
+) {
+    (
+        ClientRepository::new(pool.clone()),
+        AuthCodeRepository::new(pool.clone()),
+        ConsentRepository::new(pool.clone()),
+        RefreshTokenRepository::new(pool.clone()),
+    )
+}
+
 fn build_cors_layer(allowed_origins: &[String]) -> CorsLayer {
-    use axum::http::{header, Method};
+    use axum::http::{Method, header};
 
     let origins = if allowed_origins.is_empty() {
         AllowOrigin::list(std::iter::empty::<axum::http::HeaderValue>())
@@ -393,7 +469,7 @@ async fn bot_trap_fallback(
         tracing::info!(event = "bot_strike", ip = %ip, ua = %ua, path = %path, "Unknown path probe recorded");
     }
 
-    return StatusCode::NOT_FOUND;
+    StatusCode::NOT_FOUND
 }
 
 fn unwrap_infallible<T>(result: Result<T, std::convert::Infallible>) -> T {
@@ -415,4 +491,3 @@ fn validate_issuer_uri(uri: &str) {
         panic!("ISSUER_URI must not end with a trailing slash, got: {uri}");
     }
 }
-

@@ -1,5 +1,5 @@
-use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::sync::atomic::Ordering;
 
 use axum::{
     body::Bytes,
@@ -10,12 +10,12 @@ use axum::{
 use tera::Context;
 use tower_cookies::Cookies;
 
+use crate::AppState;
 use crate::crypto::password;
 use crate::errors::AppError;
 use crate::middleware::csrf::{self, CsrfToken};
 use crate::middleware::language::Lang;
-use crate::routes::ctx::SetupCtx;
-use crate::AppState;
+use crate::routes::ctx::{BaseCtx, SetupCtx};
 
 use super::{get_field, get_field_opt, parse_form_fields, redirect, validate_password};
 
@@ -28,20 +28,18 @@ pub async fn root_redirect(State(state): State<Arc<AppState>>) -> Response {
     redirect(target)
 }
 
-pub async fn setup_form(
-    State(state): State<Arc<AppState>>,
-    csrf: CsrfToken,
-    lang: Lang,
-) -> Result<Response, AppError> {
+pub async fn setup_form(State(state): State<Arc<AppState>>, csrf: CsrfToken, lang: Lang) -> Result<Response, AppError> {
     if !state.setup_needed.load(Ordering::Acquire) {
         return Ok(redirect("/login"));
     }
 
     let ctx = Context::from_serialize(SetupCtx {
-        t: state.locales.get(&lang.tag),
-        lang: &lang.tag,
-        css_hash: &state.css_hash,
-        js_hash: &state.js_hash,
+        base: BaseCtx {
+            t: state.locales.get(&lang.tag),
+            lang: &lang.tag,
+            css_hash: &state.css_hash,
+            js_hash: &state.js_hash,
+        },
         csrf_token: &csrf.form_token,
         error: false,
         error_message: "",
@@ -83,10 +81,12 @@ pub async fn setup_submit(
 
     let render_error = |msg: &str, status: StatusCode| -> Result<Response, AppError> {
         let ctx = Context::from_serialize(SetupCtx {
-            t,
-            lang: &lang.tag,
-            css_hash: &state.css_hash,
-            js_hash: &state.js_hash,
+            base: BaseCtx {
+                t,
+                lang: &lang.tag,
+                css_hash: &state.css_hash,
+                js_hash: &state.js_hash,
+            },
             csrf_token: &csrf_token,
             error: true,
             error_message: msg,
@@ -129,14 +129,19 @@ pub async fn setup_submit(
     tracing::info!(event = "setup_complete", user_id = %id, email = %email, "Initial admin user created via setup");
 
     // Redirect to 2FA setup (mandatory for admin)
-    let pending_id = state.pending_2fa.store(id.clone(), None, None)
+    let pending_id = state
+        .pending_2fa
+        .store(id.clone(), None, None)
         .ok_or_else(|| AppError::Internal("pending 2fa store full".into()))?;
     Ok(redirect(&format!("/2fa/setup?p={pending_id}")))
 }
 
 fn validate_setup_fields(
-    csrf_token: &str, setup_token: &str, email: &str,
-    display_name: Option<&str>, password: &str,
+    csrf_token: &str,
+    setup_token: &str,
+    email: &str,
+    display_name: Option<&str>,
+    password: &str,
 ) -> Result<(), &'static str> {
     if csrf_token.len() > super::MAX_CSRF_TOKEN
         || setup_token.len() > super::MAX_SETUP_TOKEN

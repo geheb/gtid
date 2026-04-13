@@ -12,22 +12,15 @@ impl EmailQueueRepository {
         Self { pool }
     }
 
-    pub async fn enqueue(
-        &self,
-        recipient: &str,
-        subject: &str,
-        body_html: &str,
-    ) -> Result<String, sqlx::Error> {
+    pub async fn enqueue(&self, recipient: &str, subject: &str, body_html: &str) -> Result<String, sqlx::Error> {
         let id = crate::crypto::id::new_id();
-        sqlx::query(
-            "INSERT INTO email_queue (id, recipient, subject, body_html) VALUES (?, ?, ?, ?)",
-        )
-        .bind(&id)
-        .bind(recipient)
-        .bind(subject)
-        .bind(body_html)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("INSERT INTO email_queue (id, recipient, subject, body_html) VALUES (?, ?, ?, ?)")
+            .bind(&id)
+            .bind(recipient)
+            .bind(subject)
+            .bind(body_html)
+            .execute(&self.pool)
+            .await?;
         Ok(id)
     }
 
@@ -49,20 +42,13 @@ impl EmailQueueRepository {
     }
 
     pub async fn count_pending(&self) -> Result<i64, sqlx::Error> {
-        let (count,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM email_queue WHERE sent_on IS NULL",
-        )
-        .fetch_one(&self.pool)
-        .await?;
+        let (count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM email_queue WHERE sent_on IS NULL")
+            .fetch_one(&self.pool)
+            .await?;
         Ok(count)
     }
 
-    pub async fn mark_failed(
-        &self,
-        id: &str,
-        error: &str,
-        current_retry_count: i32,
-    ) -> Result<(), sqlx::Error> {
+    pub async fn mark_failed(&self, id: &str, error: &str, current_retry_count: i32) -> Result<(), sqlx::Error> {
         let backoff_secs = std::cmp::min(60_i64 * 2_i64.pow(current_retry_count as u32), 3600);
         let offset = format!("+{backoff_secs} seconds");
         sqlx::query(
@@ -132,7 +118,9 @@ mod tests {
     async fn fetch_pending_respects_limit() {
         let repo = test_repo().await;
         for i in 0..5 {
-            repo.enqueue(&format!("user{i}@example.com"), "Sub", "<p>Body</p>").await.unwrap();
+            repo.enqueue(&format!("user{i}@example.com"), "Sub", "<p>Body</p>")
+                .await
+                .unwrap();
         }
         let pending = repo.fetch_pending(2).await.unwrap();
         assert_eq!(pending.len(), 2);

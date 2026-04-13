@@ -8,14 +8,14 @@ use std::sync::Arc;
 use tera::Context;
 use tower_cookies::Cookies;
 
+use crate::AppState;
 use crate::crypto::password;
 use crate::errors::AppError;
 use crate::middleware::csrf::{self, CsrfToken};
 use crate::middleware::language::Lang;
 use crate::middleware::session::SessionUser;
-use crate::routes::ctx::ProfileCtx;
+use crate::routes::ctx::{BaseCtx, ProfileCtx};
 use crate::routes::ui::redirect;
-use crate::AppState;
 
 #[derive(Deserialize)]
 pub struct ProfileQuery {
@@ -29,42 +29,49 @@ pub struct ProfileQuery {
     pub totp_saved: Option<String>,
 }
 
+#[derive(Default)]
+struct ProfileRenderOpts<'a> {
+    saved: bool,
+    pw_saved: bool,
+    pw_error_message: &'a str,
+    email_saved: bool,
+    email_error_message: &'a str,
+    totp_saved: bool,
+    totp_error_message: &'a str,
+}
+
 fn render_profile(
     state: &AppState,
     user: &crate::models::user::User,
     csrf_token: &str,
-    saved: bool,
-    pw_saved: bool,
-    pw_error_message: &str,
-    email_saved: bool,
-    email_error_message: &str,
-    totp_saved: bool,
-    totp_error_message: &str,
+    opts: &ProfileRenderOpts<'_>,
     lang: &str,
 ) -> Result<String, AppError> {
     let user_roles: Vec<String> = user.roles().into_iter().map(String::from).collect();
     let display_name = user.display_name.clone().unwrap_or_default();
     let ctx = Context::from_serialize(ProfileCtx {
-        t: state.locales.get(lang),
-        lang,
-        css_hash: &state.css_hash,
-        js_hash: &state.js_hash,
+        base: BaseCtx {
+            t: state.locales.get(lang),
+            lang,
+            css_hash: &state.css_hash,
+            js_hash: &state.js_hash,
+        },
         user,
         user_roles,
         csrf_token,
-        saved,
-        pw_saved,
-        pw_error: !pw_error_message.is_empty(),
-        pw_error_message,
-        email_saved,
-        email_error: !email_error_message.is_empty(),
-        email_error_message,
+        saved: opts.saved,
+        pw_saved: opts.pw_saved,
+        pw_error: !opts.pw_error_message.is_empty(),
+        pw_error_message: opts.pw_error_message,
+        email_saved: opts.email_saved,
+        email_error: !opts.email_error_message.is_empty(),
+        email_error_message: opts.email_error_message,
         form_display_name: &display_name,
         has_totp: user.has_totp(),
         is_admin: user.is_admin(),
-        totp_saved,
-        totp_error: !totp_error_message.is_empty(),
-        totp_error_message,
+        totp_saved: opts.totp_saved,
+        totp_error: !opts.totp_error_message.is_empty(),
+        totp_error_message: opts.totp_error_message,
     })?;
     Ok(state.tera.render("profile.html", &ctx)?)
 }
@@ -83,10 +90,16 @@ pub async fn profile_page(
         .ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
     let rendered = render_profile(
-        &state, &user, &csrf.form_token,
-        query.saved.is_some(), query.pw_saved.is_some(), "",
-        query.email_saved.is_some(), "",
-        query.totp_saved.is_some(), "",
+        &state,
+        &user,
+        &csrf.form_token,
+        &ProfileRenderOpts {
+            saved: query.saved.is_some(),
+            pw_saved: query.pw_saved.is_some(),
+            email_saved: query.email_saved.is_some(),
+            totp_saved: query.totp_saved.is_some(),
+            ..Default::default()
+        },
         &lang.tag,
     )?;
 
@@ -104,9 +117,7 @@ pub struct ProfileForm {
 impl ProfileForm {
     pub fn validate(&self) -> Result<(), &'static str> {
         use crate::routes::ui::{MAX_CSRF_TOKEN, MAX_DISPLAY_NAME};
-        if self.csrf_token.len() > MAX_CSRF_TOKEN
-            || self.display_name.len() > MAX_DISPLAY_NAME
-        {
+        if self.csrf_token.len() > MAX_CSRF_TOKEN || self.display_name.len() > MAX_DISPLAY_NAME {
             return Err("invalid request");
         }
         Ok(())
@@ -122,7 +133,9 @@ pub async fn profile_submit(
 ) -> Result<Response, AppError> {
     form.validate().map_err(|e| AppError::BadRequest(e.into()))?;
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
-        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
+        return Err(AppError::BadRequest(
+            state.locales.get(&lang.tag).csrf_token_invalid.clone(),
+        ));
     }
 
     let display_name = if form.display_name.trim().is_empty() {
@@ -173,7 +186,9 @@ pub async fn password_submit(
 ) -> Result<Response, AppError> {
     form.validate().map_err(|e| AppError::BadRequest(e.into()))?;
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
-        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
+        return Err(AppError::BadRequest(
+            state.locales.get(&lang.tag).csrf_token_invalid.clone(),
+        ));
     }
 
     let t = state.locales.get(&lang.tag);
@@ -186,20 +201,47 @@ pub async fn password_submit(
     // Verify current password
     if !password::verify_password(&form.current_password, &user.password_hash) {
         let msg = &t.profile_password_error_wrong;
-        let rendered = render_profile(&state, &user, &form.csrf_token, false, false, msg, false, "", false, "", &lang.tag)?;
+        let rendered = render_profile(
+            &state,
+            &user,
+            &form.csrf_token,
+            &ProfileRenderOpts {
+                pw_error_message: msg,
+                ..Default::default()
+            },
+            &lang.tag,
+        )?;
         return Ok((StatusCode::BAD_REQUEST, Html(rendered)).into_response());
     }
 
     // Check that new passwords match
     if form.new_password != form.new_password_confirm {
         let msg = &t.profile_password_error_mismatch;
-        let rendered = render_profile(&state, &user, &form.csrf_token, false, false, msg, false, "", false, "", &lang.tag)?;
+        let rendered = render_profile(
+            &state,
+            &user,
+            &form.csrf_token,
+            &ProfileRenderOpts {
+                pw_error_message: msg,
+                ..Default::default()
+            },
+            &lang.tag,
+        )?;
         return Ok((StatusCode::BAD_REQUEST, Html(rendered)).into_response());
     }
 
     // Validate new password strength
     if let Err(msg) = crate::routes::ui::validate_password(&form.new_password, t) {
-        let rendered = render_profile(&state, &user, &form.csrf_token, false, false, &msg, false, "", false, "", &lang.tag)?;
+        let rendered = render_profile(
+            &state,
+            &user,
+            &form.csrf_token,
+            &ProfileRenderOpts {
+                pw_error_message: &msg,
+                ..Default::default()
+            },
+            &lang.tag,
+        )?;
         return Ok((StatusCode::BAD_REQUEST, Html(rendered)).into_response());
     }
 
@@ -241,7 +283,9 @@ pub async fn email_change_submit(
 ) -> Result<Response, AppError> {
     form.validate().map_err(|e| AppError::BadRequest(e.into()))?;
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
-        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
+        return Err(AppError::BadRequest(
+            state.locales.get(&lang.tag).csrf_token_invalid.clone(),
+        ));
     }
 
     let t = state.locales.get(&lang.tag);
@@ -253,8 +297,14 @@ pub async fn email_change_submit(
 
     let render_email_error = |msg: &str| -> Result<Response, AppError> {
         let rendered = render_profile(
-            &state, &user, &form.csrf_token,
-            false, false, "", false, msg, false, "", &lang.tag,
+            &state,
+            &user,
+            &form.csrf_token,
+            &ProfileRenderOpts {
+                email_error_message: msg,
+                ..Default::default()
+            },
+            &lang.tag,
         )?;
         Ok((StatusCode::BAD_REQUEST, Html(rendered)).into_response())
     };
@@ -287,15 +337,9 @@ pub async fn email_change_submit(
     };
 
     let _ = state.email_changes.delete_by_user_id(&user.id).await;
-    let token = state
-        .email_changes
-        .create(&user.id, &new_email, &expires_at)
-        .await?;
+    let token = state.email_changes.create(&user.id, &new_email, &expires_at).await?;
 
-    let link = format!(
-        "{}/confirm-email-change?token={}",
-        state.config.public_ui_uri, token
-    );
+    let link = format!("{}/confirm-email-change?token={}", state.config.public_ui_uri, token);
     let name = user.display_name.as_deref().unwrap_or(&user.email);
 
     // Load email template
@@ -308,7 +352,9 @@ pub async fn email_change_submit(
 
     let t_loc = state.locales.get(&lang.tag);
     let (subject, body_html) = crate::routes::ui::render_email_template(
-        template.as_ref(), name, &link,
+        template.as_ref(),
+        name,
+        &link,
         &t_loc.email_default_change_email_subject,
         &t_loc.email_default_change_email_body,
     );
@@ -333,7 +379,9 @@ pub async fn totp_setup_initiate(
 ) -> Result<Response, AppError> {
     form.validate().map_err(|e| AppError::BadRequest(e.into()))?;
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
-        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
+        return Err(AppError::BadRequest(
+            state.locales.get(&lang.tag).csrf_token_invalid.clone(),
+        ));
     }
 
     let user = &session_user.0;
@@ -343,7 +391,9 @@ pub async fn totp_setup_initiate(
 
     // Create a pending redirect back to profile
     let rid = state.pending_redirects.store("/profile?totp_saved=1".into());
-    let pending_id = state.pending_2fa.store(user.id.clone(), rid, None)
+    let pending_id = state
+        .pending_2fa
+        .store(user.id.clone(), rid, None)
         .ok_or_else(|| AppError::Internal("pending 2fa store full".into()))?;
 
     Ok(redirect(&format!("/2fa/setup?p={pending_id}")))
@@ -362,9 +412,7 @@ pub struct TotpDisableForm {
 impl TotpDisableForm {
     pub fn validate(&self) -> Result<(), &'static str> {
         use crate::routes::ui::{MAX_CSRF_TOKEN, MAX_PASSWORD};
-        if self.csrf_token.len() > MAX_CSRF_TOKEN
-            || self.current_password.len() > MAX_PASSWORD
-        {
+        if self.csrf_token.len() > MAX_CSRF_TOKEN || self.current_password.len() > MAX_PASSWORD {
             return Err("invalid request");
         }
         Ok(())
@@ -380,11 +428,16 @@ pub async fn totp_disable_submit(
 ) -> Result<Response, AppError> {
     form.validate().map_err(|e| AppError::BadRequest(e.into()))?;
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
-        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
+        return Err(AppError::BadRequest(
+            state.locales.get(&lang.tag).csrf_token_invalid.clone(),
+        ));
     }
 
     let t = state.locales.get(&lang.tag);
-    let user = state.users.find_by_id(&session_user.0.id).await?
+    let user = state
+        .users
+        .find_by_id(&session_user.0.id)
+        .await?
         .ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
     // Admins cannot disable 2FA
@@ -400,9 +453,13 @@ pub async fn totp_disable_submit(
     if !password::verify_password(&form.current_password, &user.password_hash) {
         let csrf_form_token = csrf::set_new_csrf_cookie(&cookies, state.config.secure_cookies);
         let rendered = render_profile(
-            &state, &user, &csrf_form_token,
-            false, false, "", false, "",
-            false, &t.profile_2fa_error_wrong_password,
+            &state,
+            &user,
+            &csrf_form_token,
+            &ProfileRenderOpts {
+                totp_error_message: &t.profile_2fa_error_wrong_password,
+                ..Default::default()
+            },
             &lang.tag,
         )?;
         return Ok((StatusCode::BAD_REQUEST, Html(rendered)).into_response());

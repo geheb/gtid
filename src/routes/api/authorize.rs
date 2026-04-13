@@ -9,6 +9,7 @@ use std::sync::Arc;
 use tera::Context;
 use tower_cookies::Cookies;
 
+use crate::AppState;
 use crate::crypto::constant_time;
 use crate::datetime::SqliteDateTimeExt;
 use crate::errors::AppError;
@@ -16,9 +17,8 @@ use crate::middleware::csrf::{self, CsrfToken};
 use crate::middleware::language::Lang;
 use crate::middleware::session::OptionalSessionUser;
 use crate::models::client::Client;
-use crate::routes::ctx::{AuthorizeCtx, ErrorCtx};
+use crate::routes::ctx::{AuthorizeCtx, BaseCtx, ErrorCtx};
 use crate::routes::ui::redirect;
-use crate::AppState;
 
 #[derive(Debug, Deserialize)]
 pub struct AuthorizeParams {
@@ -41,8 +41,7 @@ pub async fn authorize_get(
     csrf: CsrfToken,
     lang: Lang,
 ) -> Result<Response, AppError> {
-    let ua = crate::routes::require_user_agent(&headers)
-        .map_err(|e| AppError::BadRequest(e))?;
+    let ua = crate::routes::require_user_agent(&headers).map_err(AppError::BadRequest)?;
     let ip = crate::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let rl_key = state.login_rate_limiter.key("authorize", &ip, ua);
     if state.login_rate_limiter.is_limited(rl_key) {
@@ -51,7 +50,7 @@ pub async fn authorize_get(
 
     if let Err(e) = validate_authorize_params(&params, &state).await {
         state.login_rate_limiter.record_failure(rl_key);
-        return Ok(error_response(&state, &e, &lang.tag)?);
+        return error_response(&state, &e, &lang.tag);
     }
 
     let user = match session.0 {
@@ -59,7 +58,9 @@ pub async fn authorize_get(
         None => {
             let query = build_query_string(&params);
             let redirect_url = format!("/authorize?{query}");
-            let rid = state.pending_redirects.store(redirect_url)
+            let rid = state
+                .pending_redirects
+                .store(redirect_url)
                 .ok_or_else(|| AppError::Internal("Server overloaded, please try again".into()))?;
             let login_url = format!("/login?rid={rid}");
             return Ok(redirect(&login_url));
@@ -99,10 +100,12 @@ pub async fn authorize_get(
 
     // No grant → render the consent page
     let ctx = Context::from_serialize(AuthorizeCtx {
-        t: state.locales.get(&lang.tag),
-        lang: &lang.tag,
-        css_hash: &state.css_hash,
-        js_hash: &state.js_hash,
+        base: BaseCtx {
+            t: state.locales.get(&lang.tag),
+            lang: &lang.tag,
+            css_hash: &state.css_hash,
+            js_hash: &state.js_hash,
+        },
         csrf_token: &csrf.form_token,
         response_type: params.response_type.as_deref().unwrap_or("code"),
         client_id: params.client_id.as_deref().unwrap_or(""),
@@ -160,8 +163,7 @@ pub async fn authorize_post(
 ) -> Result<Response, AppError> {
     form.validate().map_err(|e| AppError::BadRequest(e.into()))?;
 
-    let ua = crate::routes::require_user_agent(&headers)
-        .map_err(|e| AppError::BadRequest(e))?;
+    let ua = crate::routes::require_user_agent(&headers).map_err(AppError::BadRequest)?;
     let ip = crate::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let rl_key = state.login_rate_limiter.key("authorize", &ip, ua);
     if state.login_rate_limiter.is_limited(rl_key) {
@@ -170,12 +172,17 @@ pub async fn authorize_post(
 
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
         state.login_rate_limiter.record_failure(rl_key);
-        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
+        return Err(AppError::BadRequest(
+            state.locales.get(&lang.tag).csrf_token_invalid.clone(),
+        ));
     }
 
     // Validate client_id, redirect_uri, code_challenge_method, and scope BEFORE
     // checking consent - prevents open redirect via the deny path.
-    let client = state.clients.find_by_id(&form.client_id).await
+    let client = state
+        .clients
+        .find_by_id(&form.client_id)
+        .await
         .map_err(|_| AppError::Internal("Database error".into()))?
         .ok_or_else(|| {
             state.login_rate_limiter.record_failure(rl_key);
@@ -186,23 +193,21 @@ pub async fn authorize_post(
         return Err(AppError::BadRequest("Invalid client_id or redirect_uri".into()));
     }
     if form.code_challenge_method != "S256" {
-        return Err(AppError::BadRequest(
-            "Only S256 code_challenge_method supported".into(),
-        ));
+        return Err(AppError::BadRequest("Only S256 code_challenge_method supported".into()));
     }
     if form.code_challenge.len() < 43 || form.code_challenge.len() > 128 {
         return Err(AppError::BadRequest("code_challenge must be 43–128 characters".into()));
     }
 
     // #11: Nonce required
-    if form.nonce.as_ref().map_or(true, |n| n.is_empty()) {
+    if form.nonce.as_ref().is_none_or(|n| n.is_empty()) {
         return Err(AppError::BadRequest("Missing nonce".into()));
     }
 
-    if let Some(ref s) = form.state {
-        if s.len() > 1024 {
-            return Err(AppError::BadRequest("state parameter too long".into()));
-        }
+    if let Some(ref s) = form.state
+        && s.len() > 1024
+    {
+        return Err(AppError::BadRequest("state parameter too long".into()));
     }
 
     let scope = form.scope.as_deref().unwrap_or("openid");
@@ -217,14 +222,12 @@ pub async fn authorize_post(
     }
 
     if form.consent != "allow" {
-        let state_encoded = form.state.as_deref()
-            .map(|s| crate::routes::urlencoding(s))
+        let state_encoded = form
+            .state
+            .as_deref()
+            .map(crate::routes::urlencoding)
             .unwrap_or_default();
-        let deny_url = format!(
-            "{}?error=access_denied&state={}",
-            form.redirect_uri,
-            state_encoded
-        );
+        let deny_url = format!("{}?error=access_denied&state={}", form.redirect_uri, state_encoded);
         return Ok(redirect(&deny_url));
     }
 
@@ -260,23 +263,20 @@ pub async fn authorize_post(
 }
 
 async fn validate_authorize_params(params: &AuthorizeParams, state: &AppState) -> Result<Client, String> {
-    let response_type = params
-        .response_type
-        .as_deref()
-        .ok_or("Missing response_type")?;
+    let response_type = params.response_type.as_deref().ok_or("Missing response_type")?;
     if response_type != "code" {
         return Err("Unsupported response_type, must be 'code'".into());
     }
 
     let client_id = params.client_id.as_deref().ok_or("Missing client_id")?;
-    let client = state.clients.find_by_id(client_id).await
+    let client = state
+        .clients
+        .find_by_id(client_id)
+        .await
         .map_err(|_| "Database error".to_string())?
         .ok_or_else(|| "Unknown client_id".to_string())?;
 
-    let redirect_uri = params
-        .redirect_uri
-        .as_deref()
-        .ok_or("Missing redirect_uri")?;
+    let redirect_uri = params.redirect_uri.as_deref().ok_or("Missing redirect_uri")?;
     if !constant_time::constant_time_str_eq(redirect_uri, &client.client_redirect_uri) {
         return Err("Invalid redirect_uri".into());
     }
@@ -322,10 +322,12 @@ async fn validate_authorize_params(params: &AuthorizeParams, state: &AppState) -
 
 fn error_response(state: &AppState, message: &str, lang: &str) -> Result<Response, AppError> {
     let ctx = Context::from_serialize(ErrorCtx {
-        t: state.locales.get(lang),
-        lang,
-        css_hash: &state.css_hash,
-        js_hash: &state.js_hash,
+        base: BaseCtx {
+            t: state.locales.get(lang),
+            lang,
+            css_hash: &state.css_hash,
+            js_hash: &state.js_hash,
+        },
         error_message: message,
     })?;
     let rendered = state.tera.render("error.html", &ctx)?;

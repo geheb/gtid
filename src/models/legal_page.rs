@@ -26,7 +26,7 @@ impl LegalPageType {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<LegalPageType> {
+    pub fn parse(s: &str) -> Option<LegalPageType> {
         match s {
             "imprint" => Some(LegalPageType::Imprint),
             "privacy" => Some(LegalPageType::Privacy),

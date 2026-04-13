@@ -29,11 +29,9 @@ impl RefreshTokenRepository {
         token_family: &str,
         expires_at: &str,
     ) -> Result<(), sqlx::Error> {
-        sqlx::query(
-            "DELETE FROM refresh_tokens WHERE expires_at < datetime('now') AND revoked = 1",
-        )
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("DELETE FROM refresh_tokens WHERE expires_at < datetime('now') AND revoked = 1")
+            .execute(&self.pool)
+            .await?;
 
         sqlx::query(
             "INSERT INTO refresh_tokens (token, client_id, user_id, scope, token_family, expires_at) VALUES (?, ?, ?, ?, ?, ?)",
@@ -51,17 +49,13 @@ impl RefreshTokenRepository {
 
     /// Find a valid (non-revoked, non-expired) refresh token.
     pub async fn find_valid(&self, token: &str) -> Result<RefreshResult, sqlx::Error> {
-        let row = sqlx::query_as::<_, RefreshToken>(
-            "SELECT * FROM refresh_tokens WHERE token = ?",
-        )
-        .bind(token)
-        .fetch_optional(&self.pool)
-        .await?;
+        let row = sqlx::query_as::<_, RefreshToken>("SELECT * FROM refresh_tokens WHERE token = ?")
+            .bind(token)
+            .fetch_optional(&self.pool)
+            .await?;
 
         match row {
-            Some(rt) if rt.revoked == 0 && !self.is_expired(&rt.expires_at) => {
-                Ok(RefreshResult::Ok(rt))
-            }
+            Some(rt) if rt.revoked == 0 && !self.is_expired(&rt.expires_at) => Ok(RefreshResult::Ok(rt)),
             Some(rt) if rt.revoked == 1 => {
                 // Already revoked - this is a reuse attempt (possible theft)
                 Ok(RefreshResult::Reused(rt.token_family))
@@ -80,12 +74,10 @@ impl RefreshTokenRepository {
 
     /// Revoke all refresh tokens in a token family (cascade on code replay or token reuse).
     pub async fn revoke_family(&self, token_family: &str) -> Result<u64, sqlx::Error> {
-        let result = sqlx::query(
-            "UPDATE refresh_tokens SET revoked = 1 WHERE token_family = ? AND revoked = 0",
-        )
-        .bind(token_family)
-        .execute(&self.pool)
-        .await?;
+        let result = sqlx::query("UPDATE refresh_tokens SET revoked = 1 WHERE token_family = ? AND revoked = 0")
+            .bind(token_family)
+            .execute(&self.pool)
+            .await?;
         Ok(result.rows_affected())
     }
 
@@ -120,7 +112,9 @@ mod tests {
     #[tokio::test]
     async fn create_and_find() {
         let repo = setup().await;
-        repo.create("rt1", "c1", "u1", "openid", "family1", &future_time()).await.unwrap();
+        repo.create("rt1", "c1", "u1", "openid", "family1", &future_time())
+            .await
+            .unwrap();
         match repo.find_valid("rt1").await.unwrap() {
             RefreshResult::Ok(rt) => {
                 assert_eq!(rt.token, "rt1");
@@ -133,7 +127,9 @@ mod tests {
     #[tokio::test]
     async fn revoke_single() {
         let repo = setup().await;
-        repo.create("rt1", "c1", "u1", "openid", "family1", &future_time()).await.unwrap();
+        repo.create("rt1", "c1", "u1", "openid", "family1", &future_time())
+            .await
+            .unwrap();
         repo.revoke("rt1").await.unwrap();
         match repo.find_valid("rt1").await.unwrap() {
             RefreshResult::Reused(family) => assert_eq!(family, "family1"),
@@ -144,17 +140,30 @@ mod tests {
     #[tokio::test]
     async fn revoke_family() {
         let repo = setup().await;
-        repo.create("rt1", "c1", "u1", "openid", "family1", &future_time()).await.unwrap();
-        repo.create("rt2", "c1", "u1", "openid", "family1", &future_time()).await.unwrap();
+        repo.create("rt1", "c1", "u1", "openid", "family1", &future_time())
+            .await
+            .unwrap();
+        repo.create("rt2", "c1", "u1", "openid", "family1", &future_time())
+            .await
+            .unwrap();
         let count = repo.revoke_family("family1").await.unwrap();
         assert_eq!(count, 2);
-        assert!(matches!(repo.find_valid("rt1").await.unwrap(), RefreshResult::Reused(_)));
-        assert!(matches!(repo.find_valid("rt2").await.unwrap(), RefreshResult::Reused(_)));
+        assert!(matches!(
+            repo.find_valid("rt1").await.unwrap(),
+            RefreshResult::Reused(_)
+        ));
+        assert!(matches!(
+            repo.find_valid("rt2").await.unwrap(),
+            RefreshResult::Reused(_)
+        ));
     }
 
     #[tokio::test]
     async fn not_found_for_missing() {
         let repo = setup().await;
-        assert!(matches!(repo.find_valid("missing").await.unwrap(), RefreshResult::NotFound));
+        assert!(matches!(
+            repo.find_valid("missing").await.unwrap(),
+            RefreshResult::NotFound
+        ));
     }
 }

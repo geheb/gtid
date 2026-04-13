@@ -10,7 +10,11 @@ async fn main() {
 
     let config = AppConfig::from_env();
 
-    tracing::info!("Starting GT Id - UI on localhost:{}, API on localhost:{}", config.ui_listen_port, config.api_listen_port);
+    tracing::info!(
+        "Starting GT Id - UI on localhost:{}, API on localhost:{}",
+        config.ui_listen_port,
+        config.api_listen_port
+    );
 
     let _ = gtid::start_server(config).await;
 

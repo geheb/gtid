@@ -8,15 +8,15 @@ use std::sync::Arc;
 use tera::Context;
 use tower_cookies::Cookies;
 
+use crate::AppState;
 use crate::crypto::password;
 use crate::errors::AppError;
 use crate::middleware::csrf::{self, CsrfToken};
 use crate::middleware::language::Lang;
 use crate::middleware::session::AdminUser;
-use crate::routes::ctx::{UserCreateCtx, UserEditCtx, UsersListCtx};
-use crate::AppState;
+use crate::routes::ctx::{BaseCtx, UserCreateCtx, UserEditCtx, UsersListCtx};
 
-use super::{get_all, get_field, get_field_opt, parse_form_fields, redirect, validate_password, DeleteForm};
+use super::{DeleteForm, get_all, get_field, get_field_opt, parse_form_fields, redirect, validate_password};
 
 pub async fn users_list(
     State(state): State<Arc<AppState>>,
@@ -28,15 +28,19 @@ pub async fn users_list(
     let locked_until: std::collections::HashMap<String, String> = users
         .iter()
         .filter_map(|u| {
-            state.account_lockout.locked_until_utc(&u.email)
+            state
+                .account_lockout
+                .locked_until_utc(&u.email)
                 .map(|until| (u.id.clone(), until))
         })
         .collect();
     let ctx = Context::from_serialize(UsersListCtx {
-        t: state.locales.get(&lang.tag),
-        lang: &lang.tag,
-        css_hash: &state.css_hash,
-        js_hash: &state.js_hash,
+        base: BaseCtx {
+            t: state.locales.get(&lang.tag),
+            lang: &lang.tag,
+            css_hash: &state.css_hash,
+            js_hash: &state.js_hash,
+        },
         active_page: "users",
         csrf_token: &csrf.form_token,
         users: &users,
@@ -53,10 +57,12 @@ pub async fn user_create_form(
     lang: Lang,
 ) -> Result<Response, AppError> {
     let ctx = Context::from_serialize(UserCreateCtx {
-        t: state.locales.get(&lang.tag),
-        lang: &lang.tag,
-        css_hash: &state.css_hash,
-        js_hash: &state.js_hash,
+        base: BaseCtx {
+            t: state.locales.get(&lang.tag),
+            lang: &lang.tag,
+            css_hash: &state.css_hash,
+            js_hash: &state.js_hash,
+        },
         active_page: "create",
         csrf_token: &csrf.form_token,
         error: false,
@@ -88,15 +94,19 @@ pub async fn user_create_submit(
         .map_err(|e| AppError::BadRequest(e.into()))?;
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
-        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
+        return Err(AppError::BadRequest(
+            state.locales.get(&lang.tag).csrf_token_invalid.clone(),
+        ));
     }
 
     let render_error = |msg: &str, status: StatusCode| -> Result<Response, AppError> {
         let ctx = Context::from_serialize(UserCreateCtx {
-            t: state.locales.get(&lang.tag),
-            lang: &lang.tag,
-            css_hash: &state.css_hash,
-            js_hash: &state.js_hash,
+            base: BaseCtx {
+                t: state.locales.get(&lang.tag),
+                lang: &lang.tag,
+                css_hash: &state.css_hash,
+                js_hash: &state.js_hash,
+            },
             active_page: "create",
             csrf_token: &csrf_token,
             error: true,
@@ -111,7 +121,10 @@ pub async fn user_create_submit(
     };
 
     if roles.is_empty() {
-        return render_error(&state.locales.get(&lang.tag).user_create_error_no_roles, StatusCode::BAD_REQUEST);
+        return render_error(
+            &state.locales.get(&lang.tag).user_create_error_no_roles,
+            StatusCode::BAD_REQUEST,
+        );
     }
 
     if let Err(msg) = validate_password(&pw, state.locales.get(&lang.tag)) {
@@ -119,13 +132,19 @@ pub async fn user_create_submit(
     }
 
     if state.users.find_by_email(&email).await?.is_some() {
-        return render_error(&state.locales.get(&lang.tag).user_create_error_email_exists, StatusCode::CONFLICT);
+        return render_error(
+            &state.locales.get(&lang.tag).user_create_error_email_exists,
+            StatusCode::CONFLICT,
+        );
     }
 
     let id = crate::crypto::id::new_id();
     let hash = password::hash_password(&pw)?;
     let roles_str = roles.join(",");
-    state.users.create(&id, &email, &hash, display_name.as_deref(), &roles_str, false).await?;
+    state
+        .users
+        .create(&id, &email, &hash, display_name.as_deref(), &roles_str, false)
+        .await?;
     tracing::info!(event = "user_created", user_id = %id, email = %email, roles = %roles_str, "Admin created user");
 
     // Enqueue confirmation email
@@ -141,7 +160,10 @@ pub async fn user_edit_form(
     csrf: CsrfToken,
     lang: Lang,
 ) -> Result<Response, AppError> {
-    let user = state.users.find_by_id(&id).await?
+    let user = state
+        .users
+        .find_by_id(&id)
+        .await?
         .ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
     let user_roles: Vec<String> = user.roles().into_iter().map(String::from).collect();
@@ -149,10 +171,12 @@ pub async fn user_edit_form(
     let display_name = user.display_name.as_deref().unwrap_or("");
 
     let ctx = Context::from_serialize(UserEditCtx {
-        t: state.locales.get(&lang.tag),
-        lang: &lang.tag,
-        css_hash: &state.css_hash,
-        js_hash: &state.js_hash,
+        base: BaseCtx {
+            t: state.locales.get(&lang.tag),
+            lang: &lang.tag,
+            css_hash: &state.css_hash,
+            js_hash: &state.js_hash,
+        },
         active_page: "users",
         csrf_token: &csrf.form_token,
         error: false,
@@ -188,18 +212,25 @@ pub async fn user_edit_submit(
         .map_err(|e| AppError::BadRequest(e.into()))?;
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
-        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
+        return Err(AppError::BadRequest(
+            state.locales.get(&lang.tag).csrf_token_invalid.clone(),
+        ));
     }
 
-    let user = state.users.find_by_id(&id).await?
+    let user = state
+        .users
+        .find_by_id(&id)
+        .await?
         .ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
     let render_error = |msg: &str| -> Result<Response, AppError> {
         let ctx = Context::from_serialize(UserEditCtx {
-            t: state.locales.get(&lang.tag),
-            lang: &lang.tag,
-            css_hash: &state.css_hash,
-            js_hash: &state.js_hash,
+            base: BaseCtx {
+                t: state.locales.get(&lang.tag),
+                lang: &lang.tag,
+                css_hash: &state.css_hash,
+                js_hash: &state.js_hash,
+            },
             active_page: "users",
             csrf_token: &csrf_token,
             error: true,
@@ -269,7 +300,9 @@ pub async fn user_delete(
     axum::Form(form): axum::Form<DeleteForm>,
 ) -> Result<Response, AppError> {
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
-        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
+        return Err(AppError::BadRequest(
+            state.locales.get(&lang.tag).csrf_token_invalid.clone(),
+        ));
     }
 
     // Clean up cross-DB references before deleting the user
@@ -296,9 +329,7 @@ async fn enqueue_confirmation_email(
     lang: &str,
 ) {
     let expiry_hours = state.config.email_confirm_token_expiry_hours;
-    let expires_at = match chrono::Utc::now()
-        .checked_add_signed(chrono::Duration::hours(expiry_hours as i64))
-    {
+    let expires_at = match chrono::Utc::now().checked_add_signed(chrono::Duration::hours(expiry_hours as i64)) {
         Some(t) => {
             use crate::datetime::SqliteDateTimeExt;
             t.to_sqlite()
@@ -320,7 +351,8 @@ async fn enqueue_confirmation_email(
     let name = display_name.unwrap_or(email);
 
     // Load template and enqueue email
-    let template = state.email_templates
+    let template = state
+        .email_templates
         .find_by_type_and_lang("confirm_registration", lang)
         .await
         .ok()
@@ -328,7 +360,9 @@ async fn enqueue_confirmation_email(
 
     let t = state.locales.get(lang);
     let (subject, body_html) = super::render_email_template(
-        template.as_ref(), name, &link,
+        template.as_ref(),
+        name,
+        &link,
         &t.email_default_confirm_registration_subject,
         &t.email_default_confirm_registration_body,
     );
@@ -347,10 +381,15 @@ pub async fn user_reset_2fa(
     axum::Form(form): axum::Form<DeleteForm>,
 ) -> Result<Response, AppError> {
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
-        return Err(AppError::BadRequest(state.locales.get(&lang.tag).csrf_token_invalid.clone()));
+        return Err(AppError::BadRequest(
+            state.locales.get(&lang.tag).csrf_token_invalid.clone(),
+        ));
     }
 
-    let user = state.users.find_by_id(&id).await?
+    let user = state
+        .users
+        .find_by_id(&id)
+        .await?
         .ok_or_else(|| AppError::NotFound("User not found".into()))?;
 
     if user.has_totp() {
@@ -361,8 +400,12 @@ pub async fn user_reset_2fa(
 
     // Self-reset: admin lost their own TOTP → clear trust cookie, redirect to 2FA setup
     if admin.0.id == id {
-        cookies.remove(tower_cookies::Cookie::from(crate::middleware::session::TRUST_DEVICE_COOKIE_NAME));
-        let pending_id = state.pending_2fa.store(id, None, None)
+        cookies.remove(tower_cookies::Cookie::from(
+            crate::middleware::session::TRUST_DEVICE_COOKIE_NAME,
+        ));
+        let pending_id = state
+            .pending_2fa
+            .store(id, None, None)
             .ok_or_else(|| AppError::Internal("pending 2fa store full".into()))?;
         return Ok(redirect(&format!("/2fa/setup?p={pending_id}")));
     }
@@ -371,8 +414,12 @@ pub async fn user_reset_2fa(
 }
 
 fn validate_user_fields(
-    csrf_token: &str, id: Option<&str>, email: &str,
-    display_name: Option<&str>, password: &str, roles: &[String],
+    csrf_token: &str,
+    id: Option<&str>,
+    email: &str,
+    display_name: Option<&str>,
+    password: &str,
+    roles: &[String],
 ) -> Result<(), &'static str> {
     if csrf_token.len() > super::MAX_CSRF_TOKEN
         || id.is_some_and(|i| i.len() > super::MAX_UUID)

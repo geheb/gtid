@@ -11,14 +11,26 @@ pub struct LoginRateLimiter {
     window: Duration,
 }
 
+impl Default for LoginRateLimiter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LoginRateLimiter {
     pub fn new() -> Self {
-        Self { store: TrackedStore::new(MAX_TRACKED_KEYS), window: WINDOW }
+        Self {
+            store: TrackedStore::new(MAX_TRACKED_KEYS),
+            window: WINDOW,
+        }
     }
 
     #[cfg(test)]
     fn with_limits(window: Duration, max_tracked_keys: usize) -> Self {
-        Self { store: TrackedStore::with_seed(max_tracked_keys, 0), window }
+        Self {
+            store: TrackedStore::with_seed(max_tracked_keys, 0),
+            window,
+        }
     }
 
     pub fn key(&self, prefix: &str, ip: &str, ua: &str) -> u64 {
@@ -42,7 +54,9 @@ impl LoginRateLimiter {
         let window = self.window;
         // Evict keys whose windows have fully expired
         self.store.evict(|times| {
-            !times.iter().any(|t| now.checked_duration_since(*t).is_some_and(|d| d < window))
+            !times
+                .iter()
+                .any(|t| now.checked_duration_since(*t).is_some_and(|d| d < window))
         });
 
         if !self.store.can_insert(key) {

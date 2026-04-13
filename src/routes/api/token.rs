@@ -1,18 +1,18 @@
 use axum::{
-    extract::{ConnectInfo, State},
-    http::{header, StatusCode},
-    response::{IntoResponse, Response},
     Json,
+    extract::{ConnectInfo, State},
+    http::{StatusCode, header},
+    response::{IntoResponse, Response},
 };
 use serde::Deserialize;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
+use crate::AppState;
 use crate::crypto::{constant_time, jwt, pkce};
 use crate::datetime::SqliteDateTimeExt;
 use crate::repositories::auth_code::ConsumeResult;
 use crate::repositories::refresh_token::RefreshResult;
-use crate::AppState;
 
 #[derive(Deserialize)]
 pub struct TokenRequest {
@@ -29,8 +29,8 @@ pub struct TokenRequest {
 impl TokenRequest {
     pub fn validate(&self) -> Result<(), &'static str> {
         use crate::routes::ui::{
-            MAX_CLIENT_ID, MAX_CLIENT_SECRET, MAX_CODE_VERIFIER, MAX_GRANT_TYPE,
-            MAX_REFRESH_TOKEN, MAX_SCOPE, MAX_URI, MAX_UUID,
+            MAX_CLIENT_ID, MAX_CLIENT_SECRET, MAX_CODE_VERIFIER, MAX_GRANT_TYPE, MAX_REFRESH_TOKEN, MAX_SCOPE, MAX_URI,
+            MAX_UUID,
         };
         if self.grant_type.len() > MAX_GRANT_TYPE
             || self.code.as_ref().is_some_and(|c| c.len() > MAX_UUID)
@@ -53,12 +53,17 @@ pub async fn token(
     headers: axum::http::HeaderMap,
     axum::Form(form): axum::Form<TokenRequest>,
 ) -> Result<Response, Response> {
-    form.validate().map_err(|e| crate::routes::oauth_error("invalid_request", e))?;
+    form.validate()
+        .map_err(|e| crate::routes::oauth_error("invalid_request", e))?;
 
-    tracing::info!("Calling token client_id={}, grant_type={} ...", form.client_id.as_deref().unwrap_or(""), form.grant_type);
+    tracing::info!(
+        "Calling token client_id={}, grant_type={} ...",
+        form.client_id.as_deref().unwrap_or(""),
+        form.grant_type
+    );
 
-    let ua = crate::routes::require_user_agent(&headers)
-        .map_err(|e| crate::routes::oauth_error("invalid_request", &e))?;
+    let ua =
+        crate::routes::require_user_agent(&headers).map_err(|e| crate::routes::oauth_error("invalid_request", &e))?;
     let ip = crate::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let rl_key = state.login_rate_limiter.key("token", &ip, ua);
     if state.login_rate_limiter.is_limited(rl_key) {
@@ -92,34 +97,55 @@ async fn handle_authorization_code(
     let client = crate::routes::verify_client_credentials(
         form.client_id.as_deref(),
         form.client_secret.as_deref(),
-        headers, &state, key,
-    ).await?;
+        headers,
+        &state,
+        key,
+    )
+    .await?;
 
-    let code = form.code.as_deref()
+    let code = form
+        .code
+        .as_deref()
         .ok_or_else(|| crate::routes::oauth_error("invalid_request", "Missing code"))?;
-    let code_verifier = form.code_verifier.as_deref()
+    let code_verifier = form
+        .code_verifier
+        .as_deref()
         .ok_or_else(|| crate::routes::oauth_error("invalid_request", "Missing code_verifier"))?;
-    let redirect_uri = form.redirect_uri.as_deref()
+    let redirect_uri = form
+        .redirect_uri
+        .as_deref()
         .ok_or_else(|| crate::routes::oauth_error("invalid_request", "Missing redirect_uri"))?;
 
     // #4: Replay detection with cascade revocation
-    let auth_code = match state.auth_codes.consume(code).await
+    let auth_code = match state
+        .auth_codes
+        .consume(code)
+        .await
         .map_err(|_| crate::routes::oauth_error("server_error", "Database error"))?
     {
         ConsumeResult::Ok(ac) => ac,
         ConsumeResult::Replayed(ac) => {
             tracing::warn!(event = "auth_code_replay", client_id = %client.client_id, "Auth code replay detected, revoking token family");
             let _ = state.refresh_tokens.revoke_family(&ac.code).await;
-            return Err(crate::routes::oauth_error("invalid_grant", "Authorization code already used"));
+            return Err(crate::routes::oauth_error(
+                "invalid_grant",
+                "Authorization code already used",
+            ));
         }
         ConsumeResult::NotFound => {
-            return Err(crate::routes::oauth_error("invalid_grant", "Invalid or expired authorization code"));
+            return Err(crate::routes::oauth_error(
+                "invalid_grant",
+                "Invalid or expired authorization code",
+            ));
         }
     };
 
     // #2: Verify auth code was issued to this client
     if !constant_time::constant_time_str_eq(&auth_code.client_id, &client.client_id) {
-        return Err(crate::routes::oauth_error("invalid_grant", "Code was not issued to this client"));
+        return Err(crate::routes::oauth_error(
+            "invalid_grant",
+            "Code was not issued to this client",
+        ));
     }
 
     if !constant_time::constant_time_str_eq(&auth_code.redirect_uri, redirect_uri) {
@@ -211,30 +237,47 @@ async fn handle_refresh_token(
     let client = crate::routes::verify_client_credentials(
         form.client_id.as_deref(),
         form.client_secret.as_deref(),
-        headers, &state, key,
-    ).await?;
+        headers,
+        &state,
+        key,
+    )
+    .await?;
 
-    let refresh_token_str = form.refresh_token.as_deref()
+    let refresh_token_str = form
+        .refresh_token
+        .as_deref()
         .ok_or_else(|| crate::routes::oauth_error("invalid_request", "Missing refresh_token"))?;
 
     // #12: Detect refresh token reuse → revoke entire family
-    let refresh_token = match state.refresh_tokens.find_valid(refresh_token_str).await
+    let refresh_token = match state
+        .refresh_tokens
+        .find_valid(refresh_token_str)
+        .await
         .map_err(|_| crate::routes::oauth_error("server_error", "Database error"))?
     {
         RefreshResult::Ok(rt) => rt,
         RefreshResult::Reused(family) => {
             tracing::warn!(event = "refresh_token_reuse", client_id = %client.client_id, family = %family, "Refresh token reuse detected, revoking token family");
             let _ = state.refresh_tokens.revoke_family(&family).await;
-            return Err(crate::routes::oauth_error("invalid_grant", "Token reuse detected, all tokens revoked"));
+            return Err(crate::routes::oauth_error(
+                "invalid_grant",
+                "Token reuse detected, all tokens revoked",
+            ));
         }
         RefreshResult::NotFound => {
-            return Err(crate::routes::oauth_error("invalid_grant", "Invalid or expired refresh token"));
+            return Err(crate::routes::oauth_error(
+                "invalid_grant",
+                "Invalid or expired refresh token",
+            ));
         }
     };
 
     // #3: Verify refresh token was issued to this client
     if !constant_time::constant_time_str_eq(&refresh_token.client_id, &client.client_id) {
-        return Err(crate::routes::oauth_error("invalid_grant", "Token was not issued to this client"));
+        return Err(crate::routes::oauth_error(
+            "invalid_grant",
+            "Token was not issued to this client",
+        ));
     }
 
     // Revoke old token before issuing new one
@@ -253,8 +296,7 @@ async fn handle_refresh_token(
 
     // #7: Scope downscoping - client may request a subset of the original scope
     let effective_scope = if let Some(ref requested_scope) = form.scope {
-        let original_scopes: std::collections::HashSet<&str> =
-            refresh_token.scope.split_whitespace().collect();
+        let original_scopes: std::collections::HashSet<&str> = refresh_token.scope.split_whitespace().collect();
         for s in requested_scope.split_whitespace() {
             if !original_scopes.contains(s) {
                 return Err(crate::routes::oauth_error(

@@ -1,6 +1,6 @@
 use super::*;
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 
 /// Complete OIDC Authorization Code Flow with PKCE (Steps 0-10)
 #[tokio::test]
@@ -23,7 +23,10 @@ async fn oidc_complete_flow() {
         .unwrap();
 
     assert!(disc["issuer"].as_str().is_some(), "issuer missing");
-    assert!(disc["authorization_endpoint"].as_str().is_some(), "authorization_endpoint missing");
+    assert!(
+        disc["authorization_endpoint"].as_str().is_some(),
+        "authorization_endpoint missing"
+    );
     assert!(disc["token_endpoint"].as_str().is_some(), "token_endpoint missing");
     assert!(disc["jwks_uri"].as_str().is_some(), "jwks_uri missing");
 
@@ -95,16 +98,21 @@ async fn oidc_complete_flow() {
     assert_eq!(login_resp.status(), 303, "Login should redirect with 303");
 
     // ── Step 4b: Complete 2FA ──
-    let location = login_resp.headers().get("location").unwrap().to_str().unwrap().to_string();
-    assert!(location.contains("/2fa/verify"), "Admin login should redirect to 2FA verify");
+    let location = login_resp
+        .headers()
+        .get("location")
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .to_string();
+    assert!(
+        location.contains("/2fa/verify"),
+        "Admin login should redirect to 2FA verify"
+    );
     complete_2fa_verify(&server, &login_client, &location, &server.admin_totp_secret).await;
 
     // ── Step 5: Consent ──
-    let consent_resp = login_client
-        .get(authorize_url)
-        .send()
-        .await
-        .unwrap();
+    let consent_resp = login_client.get(authorize_url).send().await.unwrap();
 
     let auth_code;
     if let Some(location) = consent_resp.headers().get("location") {
@@ -126,7 +134,8 @@ async fn oidc_complete_flow() {
         let form_scope = extract_input_value(&consent_html, "scope").unwrap_or_default();
         let form_state = extract_input_value(&consent_html, "state").unwrap_or_default();
         let form_code_challenge = extract_input_value(&consent_html, "code_challenge").unwrap_or_default();
-        let form_code_challenge_method = extract_input_value(&consent_html, "code_challenge_method").unwrap_or_default();
+        let form_code_challenge_method =
+            extract_input_value(&consent_html, "code_challenge_method").unwrap_or_default();
         let form_nonce = extract_input_value(&consent_html, "nonce").unwrap_or_default();
         let form_response_type = extract_input_value(&consent_html, "response_type").unwrap_or("code".to_string());
 
@@ -232,7 +241,9 @@ async fn oidc_complete_flow() {
         .unwrap();
 
     let new_access = refresh_resp["access_token"].as_str().expect("New access_token missing");
-    let new_refresh = refresh_resp["refresh_token"].as_str().expect("New refresh_token missing");
+    let new_refresh = refresh_resp["refresh_token"]
+        .as_str()
+        .expect("New refresh_token missing");
     assert_ne!(new_refresh, refresh_token, "Refresh token was not rotated");
     assert!(!new_access.is_empty());
 
@@ -240,10 +251,7 @@ async fn oidc_complete_flow() {
     let revoke_status = login_client
         .post(server.api_url("/revoke"))
         .basic_auth(CLIENT_ID, Some(CLIENT_SECRET))
-        .form(&[
-            ("token", new_refresh),
-            ("token_type_hint", "refresh_token"),
-        ])
+        .form(&[("token", new_refresh), ("token_type_hint", "refresh_token")])
         .send()
         .await
         .unwrap()
@@ -264,9 +272,5 @@ async fn oidc_complete_flow() {
         .await
         .unwrap();
 
-    assert_ne!(
-        revoked_resp.status(),
-        200,
-        "Revoked token should be rejected"
-    );
+    assert_ne!(revoked_resp.status(), 200, "Revoked token should be rejected");
 }

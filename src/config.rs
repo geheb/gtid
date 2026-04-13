@@ -58,20 +58,12 @@ impl AppConfig {
         Self {
             issuer_uri: get("ISSUER_URI").unwrap_or_else(|| "http://localhost:3000".into()),
             public_ui_uri: get("PUBLIC_UI_URI").unwrap_or_else(|| "http://localhost:3001".into()),
-            ui_listen_port: get("UI_LISTEN_PORT")
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(3001),
-            api_listen_port: get("API_LISTEN_PORT")
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(3000),
-            database_uri_users: get("DATABASE_URI_USERS")
-                .unwrap_or_else(|| "sqlite:gtid_users.db".into()),
-            database_uri_clients: get("DATABASE_URI_CLIENTS")
-                .unwrap_or_else(|| "sqlite:gtid_clients.db".into()),
-            database_uri_emails: get("DATABASE_URI_EMAILS")
-                .unwrap_or_else(|| "sqlite:gtid_emails.db".into()),
-            database_uri_config: get("DATABASE_URI_CONFIG")
-                .unwrap_or_else(|| "sqlite:gtid_config.db".into()),
+            ui_listen_port: get("UI_LISTEN_PORT").and_then(|v| v.parse().ok()).unwrap_or(3001),
+            api_listen_port: get("API_LISTEN_PORT").and_then(|v| v.parse().ok()).unwrap_or(3000),
+            database_uri_users: get("DATABASE_URI_USERS").unwrap_or_else(|| "sqlite:gtid_users.db".into()),
+            database_uri_clients: get("DATABASE_URI_CLIENTS").unwrap_or_else(|| "sqlite:gtid_clients.db".into()),
+            database_uri_emails: get("DATABASE_URI_EMAILS").unwrap_or_else(|| "sqlite:gtid_emails.db".into()),
+            database_uri_config: get("DATABASE_URI_CONFIG").unwrap_or_else(|| "sqlite:gtid_config.db".into()),
             roles: {
                 let mut roles = vec!["admin".to_string()];
                 if let Some(val) = get("ROLES") {
@@ -84,15 +76,11 @@ impl AppConfig {
                 }
                 roles
             },
-            lockout_max_attempts: get("LOCKOUT_MAX_ATTEMPTS")
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(3),
+            lockout_max_attempts: get("LOCKOUT_MAX_ATTEMPTS").and_then(|v| v.parse().ok()).unwrap_or(3),
             lockout_duration_secs: get("LOCKOUT_DURATION_SECS")
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(3600),
-            secure_cookies: get("SECURE_COOKIES")
-                .map(|v| v == "true" || v == "1")
-                .unwrap_or(true),
+            secure_cookies: get("SECURE_COOKIES").map(|v| v == "true" || v == "1").unwrap_or(true),
             session_lifetime_secs: get("SESSION_LIFETIME_SECS")
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(86400),
@@ -106,34 +94,30 @@ impl AppConfig {
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(86400),
             cors_allowed_origins: get("CORS_ALLOWED_ORIGINS")
-                .map(|v| v.split(',').map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect())
+                .map(|v| {
+                    v.split(',')
+                        .map(|s| s.trim().to_string())
+                        .filter(|s| !s.is_empty())
+                        .collect()
+                })
                 .unwrap_or_default(),
             max_request_body_bytes: get("MAX_REQUEST_BODY_BYTES")
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(64 * 1024), // 64 KB
-            trusted_proxies: get("TRUSTED_PROXIES")
-                .map(|v| v == "true" || v == "1")
-                .unwrap_or(false),
+            trusted_proxies: get("TRUSTED_PROXIES").map(|v| v == "true" || v == "1").unwrap_or(false),
             access_token_expiry_secs: get("ACCESS_TOKEN_EXPIRY_SECS")
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(900), // 15 minutes
-            id_token_expiry_secs: get("ID_TOKEN_EXPIRY_SECS")
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(600), // 10 minutes
+            id_token_expiry_secs: get("ID_TOKEN_EXPIRY_SECS").and_then(|v| v.parse().ok()).unwrap_or(600), // 10 minutes
             refresh_token_expiry_days: get("REFRESH_TOKEN_EXPIRY_DAYS")
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(30),
             smtp_host: get("SMTP_HOST"),
-            smtp_port: get("SMTP_PORT")
-                .and_then(|v| v.parse().ok())
-                .unwrap_or(587),
+            smtp_port: get("SMTP_PORT").and_then(|v| v.parse().ok()).unwrap_or(587),
             smtp_username: get("SMTP_USERNAME"),
             smtp_password: get("SMTP_PASSWORD"),
-            smtp_from: get("SMTP_FROM")
-                .unwrap_or_else(|| "noreply@localhost".into()),
-            smtp_starttls: get("SMTP_STARTTLS")
-                .map(|v| v != "false" && v != "0")
-                .unwrap_or(true),
+            smtp_from: get("SMTP_FROM").unwrap_or_else(|| "noreply@localhost".into()),
+            smtp_starttls: get("SMTP_STARTTLS").map(|v| v != "false" && v != "0").unwrap_or(true),
             email_confirm_token_expiry_hours: get("EMAIL_CONFIRM_TOKEN_EXPIRY_HOURS")
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(24),
@@ -144,12 +128,14 @@ impl AppConfig {
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(2_592_000), // 30 days
             totp_encryption_key: {
-                let hex_str = get("TOTP_ENCRYPTION_KEY")
-                    .unwrap_or_else(|| "0".repeat(64));
-                let bytes = hex::decode(&hex_str)
-                    .expect("TOTP_ENCRYPTION_KEY must be valid hex (64 hex chars = 32 bytes)");
+                let hex_str = get("TOTP_ENCRYPTION_KEY").unwrap_or_else(|| "0".repeat(64));
+                let bytes =
+                    hex::decode(&hex_str).expect("TOTP_ENCRYPTION_KEY must be valid hex (64 hex chars = 32 bytes)");
                 let mut key = [0u8; 32];
-                assert!(bytes.len() == 32, "TOTP_ENCRYPTION_KEY must be exactly 32 bytes (64 hex chars)");
+                assert!(
+                    bytes.len() == 32,
+                    "TOTP_ENCRYPTION_KEY must be exactly 32 bytes (64 hex chars)"
+                );
                 key.copy_from_slice(&bytes);
                 key
             },
@@ -212,59 +198,45 @@ mod tests {
 
     #[test]
     fn custom_ports() {
-        let c = config_from(&[
-            ("API_LISTEN_PORT", "8080"), ("UI_LISTEN_PORT", "9090"),
-        ]);
+        let c = config_from(&[("API_LISTEN_PORT", "8080"), ("UI_LISTEN_PORT", "9090")]);
         assert_eq!(c.api_listen_port, 8080);
         assert_eq!(c.ui_listen_port, 9090);
     }
 
     #[test]
     fn invalid_port_falls_back_to_default() {
-        let c = config_from(&[
-            ("API_LISTEN_PORT", "not_a_number"),
-        ]);
+        let c = config_from(&[("API_LISTEN_PORT", "not_a_number")]);
         assert_eq!(c.api_listen_port, 3000);
     }
 
     #[test]
     fn roles_always_includes_admin() {
-        let c = config_from(&[
-            ("ROLES", "editor,viewer"),
-        ]);
+        let c = config_from(&[("ROLES", "editor,viewer")]);
         assert_eq!(c.roles, vec!["admin", "editor", "viewer"]);
     }
 
     #[test]
     fn roles_deduplicates_admin() {
-        let c = config_from(&[
-            ("ROLES", "Admin,editor"),
-        ]);
+        let c = config_from(&[("ROLES", "Admin,editor")]);
         assert_eq!(c.roles, vec!["admin", "editor"]);
     }
 
     #[test]
     fn roles_trims_whitespace_and_lowercases() {
-        let c = config_from(&[
-            ("ROLES", " Editor , VIEWER "),
-        ]);
+        let c = config_from(&[("ROLES", " Editor , VIEWER ")]);
         assert_eq!(c.roles, vec!["admin", "editor", "viewer"]);
     }
 
     #[test]
     fn roles_ignores_empty_segments() {
-        let c = config_from(&[
-            ("ROLES", "editor,,, ,viewer"),
-        ]);
+        let c = config_from(&[("ROLES", "editor,,, ,viewer")]);
         assert_eq!(c.roles, vec!["admin", "editor", "viewer"]);
     }
 
     #[test]
     fn secure_cookies_variants() {
         let check = |val: &str, expected: bool| {
-            let c = config_from(&[
-                    ("SECURE_COOKIES", val),
-            ]);
+            let c = config_from(&[("SECURE_COOKIES", val)]);
             assert_eq!(c.secure_cookies, expected, "SECURE_COOKIES={val}");
         };
         check("true", true);
@@ -276,44 +248,40 @@ mod tests {
 
     #[test]
     fn grant_type_allowed_checks_list() {
-        let c = config_from(&[
-            ("ALLOWED_GRANT_TYPES", "authorization_code"),
-        ]);
+        let c = config_from(&[("ALLOWED_GRANT_TYPES", "authorization_code")]);
         assert!(c.grant_type_allowed("authorization_code"));
         assert!(!c.grant_type_allowed("refresh_token"));
     }
 
     #[test]
     fn custom_lockout_settings() {
-        let c = config_from(&[
-            ("LOCKOUT_MAX_ATTEMPTS", "5"), ("LOCKOUT_DURATION_SECS", "7200"),
-        ]);
+        let c = config_from(&[("LOCKOUT_MAX_ATTEMPTS", "5"), ("LOCKOUT_DURATION_SECS", "7200")]);
         assert_eq!(c.lockout_max_attempts, 5);
         assert_eq!(c.lockout_duration_secs, 7200);
     }
 
     #[test]
     fn custom_session_lifetime() {
-        let c = config_from(&[
-            ("SESSION_LIFETIME_SECS", "3600"),
-        ]);
+        let c = config_from(&[("SESSION_LIFETIME_SECS", "3600")]);
         assert_eq!(c.session_lifetime_secs, 3600);
     }
 
     #[test]
     fn custom_key_rotation_interval() {
-        let c = config_from(&[
-            ("KEY_ROTATION_INTERVAL_SECS", "43200"),
-        ]);
+        let c = config_from(&[("KEY_ROTATION_INTERVAL_SECS", "43200")]);
         assert_eq!(c.key_rotation_interval_secs, 43200);
     }
 
     #[test]
     fn cors_allowed_origins_parsed() {
-        let c = config_from(&[
-            ("CORS_ALLOWED_ORIGINS", "https://app.example.com, https://other.example.com"),
-        ]);
-        assert_eq!(c.cors_allowed_origins, vec!["https://app.example.com", "https://other.example.com"]);
+        let c = config_from(&[(
+            "CORS_ALLOWED_ORIGINS",
+            "https://app.example.com, https://other.example.com",
+        )]);
+        assert_eq!(
+            c.cors_allowed_origins,
+            vec!["https://app.example.com", "https://other.example.com"]
+        );
     }
 
     #[test]
@@ -324,9 +292,7 @@ mod tests {
 
     #[test]
     fn trusted_proxies_enabled() {
-        let c = config_from(&[
-            ("TRUSTED_PROXIES", "true"),
-        ]);
+        let c = config_from(&[("TRUSTED_PROXIES", "true")]);
         assert!(c.trusted_proxies);
     }
 
@@ -362,25 +328,19 @@ mod tests {
 
     #[test]
     fn custom_email_confirm_token_expiry() {
-        let c = config_from(&[
-            ("EMAIL_CONFIRM_TOKEN_EXPIRY_HOURS", "48"),
-        ]);
+        let c = config_from(&[("EMAIL_CONFIRM_TOKEN_EXPIRY_HOURS", "48")]);
         assert_eq!(c.email_confirm_token_expiry_hours, 48);
     }
 
     #[test]
     fn custom_trust_device_lifetime() {
-        let c = config_from(&[
-            ("TRUST_DEVICE_LIFETIME_SECS", "604800"),
-        ]);
+        let c = config_from(&[("TRUST_DEVICE_LIFETIME_SECS", "604800")]);
         assert_eq!(c.trust_device_lifetime_secs, 604800); // 7 days
     }
 
     #[test]
     fn custom_max_request_body_bytes() {
-        let c = config_from(&[
-            ("MAX_REQUEST_BODY_BYTES", "131072"),
-        ]);
+        let c = config_from(&[("MAX_REQUEST_BODY_BYTES", "131072")]);
         assert_eq!(c.max_request_body_bytes, 131072);
     }
 }

@@ -28,10 +28,13 @@ pub async fn revoke(
     headers: axum::http::HeaderMap,
     axum::Form(form): axum::Form<RevokeRequest>,
 ) -> Result<Response, Response> {
-    tracing::info!("Calling revoke client_id={} ...", form.client_id.as_deref().unwrap_or(""));
+    tracing::info!(
+        "Calling revoke client_id={} ...",
+        form.client_id.as_deref().unwrap_or("")
+    );
 
-    let ua = crate::routes::require_user_agent(&headers)
-        .map_err(|e| crate::routes::oauth_error("invalid_request", &e))?;
+    let ua =
+        crate::routes::require_user_agent(&headers).map_err(|e| crate::routes::oauth_error("invalid_request", &e))?;
     let ip = crate::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let rl_key = state.login_rate_limiter.key("revoke", &ip, ua);
     if state.login_rate_limiter.is_limited(rl_key) {
@@ -41,8 +44,11 @@ pub async fn revoke(
     crate::routes::verify_client_credentials(
         form.client_id.as_deref(),
         form.client_secret.as_deref(),
-        &headers, &state, rl_key,
-    ).await?;
+        &headers,
+        &state,
+        rl_key,
+    )
+    .await?;
 
     // Look up the token to find its family, then revoke the entire family
     if let Ok(crate::repositories::refresh_token::RefreshResult::Ok(rt)) =

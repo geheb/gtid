@@ -1,7 +1,7 @@
 use axum::{
     body::Body,
     extract::Request,
-    http::{header, Method, StatusCode},
+    http::{Method, StatusCode, header},
     middleware::Next,
     response::{IntoResponse, Response},
 };
@@ -26,17 +26,13 @@ pub async fn validate_content_type(request: Request<Body>, next: Next) -> Respon
         return next.run(request).await;
     }
 
-    (
-        StatusCode::UNSUPPORTED_MEDIA_TYPE,
-        "Unsupported Content-Type",
-    )
-        .into_response()
+    (StatusCode::UNSUPPORTED_MEDIA_TYPE, "Unsupported Content-Type").into_response()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::{routing::get, Router};
+    use axum::{Router, routing::get};
     use tower::ServiceExt;
 
     fn app() -> Router {
@@ -69,10 +65,7 @@ mod tests {
 
     #[tokio::test]
     async fn post_json() {
-        assert_eq!(
-            run(Method::POST, Some("application/json")).await,
-            StatusCode::OK
-        );
+        assert_eq!(run(Method::POST, Some("application/json")).await, StatusCode::OK);
     }
 
     #[tokio::test]
@@ -85,10 +78,7 @@ mod tests {
 
     #[tokio::test]
     async fn post_missing_content_type() {
-        assert_eq!(
-            run(Method::POST, None).await,
-            StatusCode::UNSUPPORTED_MEDIA_TYPE
-        );
+        assert_eq!(run(Method::POST, None).await, StatusCode::UNSUPPORTED_MEDIA_TYPE);
     }
 
     #[tokio::test]
