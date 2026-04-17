@@ -1,3 +1,5 @@
+pub mod auth;
+pub mod authorize;
 pub mod clients;
 pub mod confirm_email;
 pub mod confirm_email_change;
@@ -6,6 +8,7 @@ pub mod email_templates;
 mod helpers;
 pub mod legal;
 pub mod password_reset;
+pub mod profile;
 pub mod setup;
 pub mod static_files;
 pub mod totp;

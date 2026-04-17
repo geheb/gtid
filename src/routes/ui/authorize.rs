@@ -12,11 +12,12 @@ use tower_cookies::Cookies;
 use crate::AppState;
 use crate::crypto::constant_time;
 use crate::datetime::SqliteDateTimeExt;
+use crate::entities::client::Client;
 use crate::errors::AppError;
 use crate::middleware::csrf::{self, CsrfToken};
 use crate::middleware::language::Lang;
 use crate::middleware::session::OptionalSessionUser;
-use crate::entities::client::Client;
+use crate::routes::api::urlencoding;
 use crate::routes::ctx::{AuthorizeCtx, BaseCtx, ErrorCtx};
 use crate::routes::ui::redirect;
 
@@ -93,7 +94,7 @@ pub async fn authorize_get(
             .await?;
         let mut redirect_url = format!("{}?code={}", redirect_uri, code);
         if let Some(ref s) = params.state {
-            redirect_url.push_str(&format!("&state={}", super::urlencoding(s)));
+            redirect_url.push_str(&format!("&state={}", urlencoding(s)));
         }
         return Ok(redirect(&redirect_url));
     }
@@ -219,7 +220,7 @@ pub async fn authorize_post(
         let state_encoded = form
             .state
             .as_deref()
-            .map(super::urlencoding)
+            .map(urlencoding)
             .unwrap_or_default();
         let deny_url = format!("{}?error=access_denied&state={}", form.redirect_uri, state_encoded);
         return Ok(redirect(&deny_url));
@@ -250,7 +251,7 @@ pub async fn authorize_post(
 
     let mut redirect_url = format!("{}?code={}", form.redirect_uri, code);
     if let Some(ref s) = form.state {
-        redirect_url.push_str(&format!("&state={}", super::urlencoding(s)));
+        redirect_url.push_str(&format!("&state={}", urlencoding(s)));
     }
 
     Ok(redirect(&redirect_url))
@@ -321,7 +322,7 @@ fn error_response(state: &AppState, message: &str, lang: &str) -> Result<Respons
 }
 
 fn build_query_string(params: &AuthorizeParams) -> String {
-    let enc = super::urlencoding;
+    let enc = urlencoding;
     let mut parts = Vec::new();
     if let Some(ref v) = params.response_type {
         parts.push(format!("response_type={}", enc(v)));

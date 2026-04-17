@@ -48,28 +48,28 @@ pub fn build_ui_router() -> Router<Arc<AppState>> {
         .route("/", get(ui::root_redirect))
         .route("/setup", get(ui::setup_form).post(ui::setup_submit))
         .route("/static/{*path}", get(ui::static_files::serve))
-        .route("/login", get(api::auth::login_page).post(api::auth::login_submit))
+        .route("/login", get(ui::auth::login_page).post(ui::auth::login_submit))
         .route(
             "/logout",
-            axum::routing::post(api::auth::logout).get(api::auth::rp_initiated_logout),
+            axum::routing::post(ui::auth::logout).get(ui::auth::rp_initiated_logout),
         )
         .route(
             "/authorize",
-            get(api::authorize::authorize_get).post(api::authorize::authorize_post),
+            get(ui::authorize::authorize_get).post(ui::authorize::authorize_post),
         )
         .route(
             "/profile",
-            get(api::profile::profile_page).post(api::profile::profile_submit),
+            get(ui::profile::profile_page).post(ui::profile::profile_submit),
         )
-        .route("/profile/password", axum::routing::post(api::profile::password_submit))
-        .route("/profile/email", axum::routing::post(api::profile::email_change_submit))
+        .route("/profile/password", axum::routing::post(ui::profile::password_submit))
+        .route("/profile/email", axum::routing::post(ui::profile::email_change_submit))
         .route(
             "/profile/2fa/setup",
-            axum::routing::post(api::profile::totp_setup_initiate),
+            axum::routing::post(ui::profile::totp_setup_initiate),
         )
         .route(
             "/profile/2fa/disable",
-            axum::routing::post(api::profile::totp_disable_submit),
+            axum::routing::post(ui::profile::totp_disable_submit),
         )
         .route("/admin", get(ui::dashboard))
         .route("/admin/clients", get(ui::clients_list))

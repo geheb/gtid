@@ -18,6 +18,7 @@ use crate::errors::AppError;
 use crate::middleware::csrf::{self, CsrfToken};
 use crate::middleware::language::Lang;
 use crate::middleware::session::{OptionalSessionUser, SessionUser};
+use crate::routes::api::urlencoding;
 use crate::routes::ctx::{BaseCtx, LoginCtx};
 use crate::routes::ui::redirect;
 use crate::{
@@ -98,7 +99,7 @@ pub async fn rp_initiated_logout(
             if s.len() > 1024 {
                 return Err(AppError::BadRequest("state parameter too long".into()));
             }
-            url.push_str(&format!("?state={}", super::urlencoding(s)));
+            url.push_str(&format!("?state={}", urlencoding(s)));
         }
         url
     } else {
