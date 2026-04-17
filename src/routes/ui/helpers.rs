@@ -80,7 +80,7 @@ pub fn validate_client_secret(secret: &str, i18n: &crate::i18n::I18n) -> Result<
 }
 
 /// Normalize an email address: trim, lowercase, and convert the domain to Punycode (IDNA).
-/// E.g. `User@Müller.de` → `user@xn--mller-kva.de`
+/// E.g. `User@Müller.de` -> `user@xn--mller-kva.de`
 pub fn normalize_email(email: &str) -> String {
     let trimmed = email.trim();
     let Some((local, domain)) = trimmed.rsplit_once('@') else {
@@ -91,7 +91,7 @@ pub fn normalize_email(email: &str) -> String {
     format!("{local}@{ascii_domain}")
 }
 
-/// Anonymize an email address: `thomas@example.com` → `t...s@example.com`
+/// Anonymize an email address: `thomas@example.com` -> `t...s@example.com`
 pub fn anonymize_email(email: &str) -> String {
     let Some((local, domain)) = email.split_once('@') else {
         return "***".to_string();
@@ -107,7 +107,7 @@ pub fn anonymize_email(email: &str) -> String {
 /// Render an email template by replacing `{{name}}` and `{{link}}` placeholders.
 /// Falls back to the provided default subject/body when no custom template exists.
 pub fn render_email_template(
-    template: Option<&crate::models::email_template::EmailTemplate>,
+    template: Option<&crate::entities::email_template::EmailTemplate>,
     name: &str,
     link: &str,
     default_subject: &str,

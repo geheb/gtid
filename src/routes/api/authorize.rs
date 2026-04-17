@@ -16,7 +16,7 @@ use crate::errors::AppError;
 use crate::middleware::csrf::{self, CsrfToken};
 use crate::middleware::language::Lang;
 use crate::middleware::session::OptionalSessionUser;
-use crate::models::client::Client;
+use crate::entities::client::Client;
 use crate::routes::ctx::{AuthorizeCtx, BaseCtx, ErrorCtx};
 use crate::routes::ui::redirect;
 
@@ -80,16 +80,16 @@ pub async fn authorize_get(
             .to_sqlite();
         state
             .auth_codes
-            .create(
-                &code,
+            .create(&crate::entities::authorization_code::NewAuthorizationCode {
+                code: &code,
                 client_id,
-                &user.id,
+                user_id: &user.id,
                 redirect_uri,
                 scope,
                 code_challenge,
-                params.nonce.as_deref(),
-                &expires_at,
-            )
+                nonce: params.nonce.as_deref(),
+                expires_at: &expires_at,
+            })
             .await?;
         let mut redirect_url = format!("{}?code={}", redirect_uri, code);
         if let Some(ref s) = params.state {
@@ -98,7 +98,7 @@ pub async fn authorize_get(
         return Ok(redirect(&redirect_url));
     }
 
-    // No grant → render the consent page
+    // No grant -> render the consent page
     let ctx = Context::from_serialize(AuthorizeCtx {
         base: BaseCtx {
             t: state.locales.get(&lang.tag),
@@ -211,14 +211,8 @@ pub async fn authorize_post(
     }
 
     let scope = form.scope.as_deref().unwrap_or("openid");
-    let supported = ["openid", "profile", "email"];
-    for part in scope.split_whitespace() {
-        if !supported.contains(&part) {
-            return Err(AppError::BadRequest(format!("Unsupported scope: {part}")));
-        }
-    }
-    if !scope.split_whitespace().any(|s| s == "openid") {
-        return Err(AppError::BadRequest("scope must include 'openid'".into()));
+    if let Err(msg) = crate::routes::api::validate_scope(scope) {
+        return Err(AppError::BadRequest(msg));
     }
 
     if form.consent != "allow" {
@@ -239,16 +233,16 @@ pub async fn authorize_post(
 
     state
         .auth_codes
-        .create(
-            &code,
-            &form.client_id,
-            &session.0.id,
-            &form.redirect_uri,
+        .create(&crate::entities::authorization_code::NewAuthorizationCode {
+            code: &code,
+            client_id: &form.client_id,
+            user_id: &session.0.id,
+            redirect_uri: &form.redirect_uri,
             scope,
-            &form.code_challenge,
-            form.nonce.as_deref(),
-            &expires_at,
-        )
+            code_challenge: &form.code_challenge,
+            nonce: form.nonce.as_deref(),
+            expires_at: &expires_at,
+        })
         .await?;
 
     // Persist consent grant
@@ -282,15 +276,7 @@ async fn validate_authorize_params(params: &AuthorizeParams, state: &AppState) -
     }
 
     let scope = params.scope.as_deref().ok_or("Missing scope")?;
-    let supported = ["openid", "profile", "email"];
-    for part in scope.split_whitespace() {
-        if !supported.contains(&part) {
-            return Err(format!("Unsupported scope: {part}"));
-        }
-    }
-    if !scope.split_whitespace().any(|s| s == "openid") {
-        return Err("scope must include 'openid'".into());
-    }
+    crate::routes::api::validate_scope(scope)?;
 
     let state_val = params.state.as_deref().ok_or("Missing state")?;
     if state_val.len() > 1024 {

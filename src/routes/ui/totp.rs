@@ -16,7 +16,7 @@ use crate::middleware::csrf::{self, CsrfToken};
 use crate::middleware::language::Lang;
 use crate::routes::ctx::{BaseCtx, TotpSetupCtx, TotpVerifyCtx};
 use crate::{
-    crypto::totp as totp_crypto,
+    crypto::totp,
     middleware::{SESSION_ID_COOKIE_NAME, TRUST_DEVICE_COOKIE_NAME},
 };
 
@@ -72,7 +72,7 @@ pub async fn totp_setup_form(
     let secret = match &entry.totp_secret {
         Some(s) => s.clone(),
         None => {
-            let s = totp_crypto::generate_secret();
+            let s = totp::generate_secret();
             drop(entry); // release borrow before mutating
             state.pending_2fa.set_totp_secret(pending_id, s.clone());
             s
@@ -86,9 +86,9 @@ pub async fn totp_setup_form(
         .ok_or_else(|| AppError::Internal("pending 2fa user not found".into()))?;
 
     let issuer = &state.config.public_ui_uri;
-    let totp = totp_crypto::build_totp(&secret, &user.email, issuer).map_err(AppError::Internal)?;
-    let qr_data_uri = totp_crypto::generate_qr_data_uri(&totp).map_err(AppError::Internal)?;
-    let secret_display = totp_crypto::format_secret_for_display(&secret);
+    let totp = totp::build_totp(&secret, &user.email, issuer).map_err(AppError::Internal)?;
+    let qr_data_uri = totp::generate_qr_data_uri(&totp).map_err(AppError::Internal)?;
+    let secret_display = totp::format_secret_for_display(&secret);
 
     let ctx = Context::from_serialize(TotpSetupCtx {
         base: BaseCtx {
@@ -157,7 +157,7 @@ pub async fn totp_setup_submit(
         .ok_or_else(|| AppError::Internal("pending 2fa user not found".into()))?;
 
     let issuer = &state.config.public_ui_uri;
-    let totp = totp_crypto::build_totp(&secret, &user.email, issuer).map_err(AppError::Internal)?;
+    let totp = totp::build_totp(&secret, &user.email, issuer).map_err(AppError::Internal)?;
 
     // Helper: re-render setup form with error message
     let render_setup_error = |state: &AppState,
@@ -169,8 +169,8 @@ pub async fn totp_setup_submit(
                               lang: &str,
                               error_message: &str|
      -> Result<Response, AppError> {
-        let qr_data_uri = totp_crypto::generate_qr_data_uri(totp).map_err(AppError::Internal)?;
-        let secret_display = totp_crypto::format_secret_for_display(secret);
+        let qr_data_uri = totp::generate_qr_data_uri(totp).map_err(AppError::Internal)?;
+        let secret_display = totp::format_secret_for_display(secret);
         let csrf_form_token = csrf::set_new_csrf_cookie(cookies, state.config.secure_cookies);
         let ctx = Context::from_serialize(TotpSetupCtx {
             base: BaseCtx {
@@ -232,7 +232,7 @@ pub async fn totp_setup_submit(
         );
     }
 
-    if !totp_crypto::verify_code(&totp, &code) {
+    if !totp::verify_code(&totp, &code) {
         state.login_rate_limiter.record_failure(rl_key);
         state.pending_2fa.mark_code_used(&pending_id, &code);
         tracing::warn!(event = "2fa_setup_failed", user_id = %user_id, ip = %ip, "Failed 2FA setup code verification");
@@ -255,8 +255,8 @@ pub async fn totp_setup_submit(
     state.login_rate_limiter.clear(rl_key);
 
     let user_key =
-        totp_crypto::derive_user_key(&state.config.totp_encryption_key, &user_id).map_err(AppError::Internal)?;
-    let encrypted = totp_crypto::encrypt_secret(&secret, &user_key).map_err(AppError::Internal)?;
+        totp::derive_user_key(&state.config.totp_encryption_key, &user_id).map_err(AppError::Internal)?;
+    let encrypted = totp::encrypt_secret(&secret, &user_key).map_err(AppError::Internal)?;
     state.users.set_totp_secret(&user_id, Some(&encrypted)).await?;
 
     // Consume the pending entry
@@ -424,12 +424,12 @@ pub async fn totp_verify_submit(
         .ok_or_else(|| AppError::Internal("user has no totp secret".into()))?;
 
     let user_key =
-        totp_crypto::derive_user_key(&state.config.totp_encryption_key, &user_id).map_err(AppError::Internal)?;
-    let secret = totp_crypto::decrypt_secret(encrypted_secret, &user_key)
+        totp::derive_user_key(&state.config.totp_encryption_key, &user_id).map_err(AppError::Internal)?;
+    let secret = totp::decrypt_secret(encrypted_secret, &user_key)
         .map_err(|e| AppError::Internal(format!("totp decrypt: {e}")))?;
 
     let issuer = &state.config.public_ui_uri;
-    let totp = totp_crypto::build_totp(&secret, &user.email, issuer).map_err(AppError::Internal)?;
+    let totp = totp::build_totp(&secret, &user.email, issuer).map_err(AppError::Internal)?;
 
     // Replay prevention: reject codes already used in this pending session
     if state.pending_2fa.is_code_used(&pending_id, &code) {
@@ -443,7 +443,7 @@ pub async fn totp_verify_submit(
         );
     }
 
-    if !totp_crypto::verify_code(&totp, &code) {
+    if !totp::verify_code(&totp, &code) {
         state.login_rate_limiter.record_failure(rl_key);
         state.account_lockout.record_failure(&user_id);
         state.pending_2fa.mark_code_used(&pending_id, &code);

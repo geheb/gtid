@@ -1,7 +1,7 @@
 use sqlx::SqlitePool;
 
 use crate::crypto::hash::sha256_hex;
-use crate::models::email_change::EmailChange;
+use crate::entities::email_change::EmailChange;
 
 #[derive(Clone)]
 pub struct EmailChangeRepository {
@@ -14,9 +14,6 @@ impl EmailChangeRepository {
     }
 
     pub async fn create(&self, user_id: &str, new_email: &str, expires_at: &str) -> Result<String, sqlx::Error> {
-        // Opportunistically clean up expired tokens
-        self.delete_expired().await?;
-
         let token = crate::crypto::id::new_secure_token();
         let token_hash = sha256_hex(&token);
         sqlx::query("INSERT INTO email_changes (token_hash, user_id, new_email, expires_at) VALUES (?, ?, ?, ?)")

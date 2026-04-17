@@ -71,37 +71,38 @@ pub fn compute_at_hash(access_token: &str) -> String {
     URL_SAFE_NO_PAD.encode(&hash[..16])
 }
 
-#[allow(clippy::too_many_arguments)]
-pub fn issue_id_token(
-    encoding_key: &EncodingKey,
-    kid: &str,
-    issuer: &str,
-    client_id: &str,
-    user_id: &str,
-    email: &str,
-    email_verified: bool,
-    display_name: Option<&str>,
-    nonce: Option<&str>,
-    access_token: &str,
-    roles: Vec<String>,
-    expiry_secs: i64,
-) -> Result<String, jsonwebtoken::errors::Error> {
+pub struct IdTokenParams<'a> {
+    pub encoding_key: &'a EncodingKey,
+    pub kid: &'a str,
+    pub issuer: &'a str,
+    pub client_id: &'a str,
+    pub user_id: &'a str,
+    pub email: &'a str,
+    pub email_verified: bool,
+    pub display_name: Option<&'a str>,
+    pub nonce: Option<&'a str>,
+    pub access_token: &'a str,
+    pub roles: Vec<String>,
+    pub expiry_secs: i64,
+}
+
+pub fn issue_id_token(params: IdTokenParams<'_>) -> Result<String, jsonwebtoken::errors::Error> {
     let now = Utc::now().timestamp();
     let claims = IdTokenClaims {
-        sub: user_id.to_string(),
-        iss: issuer.to_string(),
-        aud: client_id.to_string(),
-        exp: now + expiry_secs,
+        sub: params.user_id.to_string(),
+        iss: params.issuer.to_string(),
+        aud: params.client_id.to_string(),
+        exp: now + params.expiry_secs,
         iat: now,
-        email: email.to_string(),
-        email_verified,
-        name: display_name.map(|s| s.to_string()),
-        nonce: nonce.map(|s| s.to_string()),
-        at_hash: Some(compute_at_hash(access_token)),
-        roles,
+        email: params.email.to_string(),
+        email_verified: params.email_verified,
+        name: params.display_name.map(|s| s.to_string()),
+        nonce: params.nonce.map(|s| s.to_string()),
+        at_hash: Some(compute_at_hash(params.access_token)),
+        roles: params.roles,
     };
 
-    encode_token(encoding_key, kid, claims)
+    encode_token(params.encoding_key, params.kid, claims)
 }
 
 pub fn decode_access_token(
@@ -177,20 +178,20 @@ mod tests {
     fn id_token_roundtrip() {
         let (enc, dec, kid) = test_keys();
         let at = issue_access_token(&enc, &kid, ISSUER, CLIENT, USER, "openid", 900).unwrap();
-        let id_token = issue_id_token(
-            &enc,
-            &kid,
-            ISSUER,
-            CLIENT,
-            USER,
-            "user@test.com",
-            true,
-            Some("Test User"),
-            Some("nonce-1"),
-            &at,
-            vec!["admin".to_string()],
-            600,
-        )
+        let id_token = issue_id_token(IdTokenParams {
+            encoding_key: &enc,
+            kid: &kid,
+            issuer: ISSUER,
+            client_id: CLIENT,
+            user_id: USER,
+            email: "user@test.com",
+            email_verified: true,
+            display_name: Some("Test User"),
+            nonce: Some("nonce-1"),
+            access_token: &at,
+            roles: vec!["admin".to_string()],
+            expiry_secs: 600,
+        })
         .unwrap();
 
         let mut validation = Validation::new(Algorithm::EdDSA);

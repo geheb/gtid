@@ -128,7 +128,7 @@ pub async fn userinfo(
         response["name"] = serde_json::json!(name);
     }
 
-    tracing::info!("Return userinfo={}", response);
+    tracing::info!(event = "userinfo", sub = %user.id, scope = %claims.scope, "Returning userinfo");
 
     Ok(Json(response).into_response())
 }

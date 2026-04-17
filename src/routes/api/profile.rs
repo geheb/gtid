@@ -42,7 +42,7 @@ struct ProfileRenderOpts<'a> {
 
 fn render_profile(
     state: &AppState,
-    user: &crate::models::user::User,
+    user: &crate::entities::user::User,
     csrf_token: &str,
     opts: &ProfileRenderOpts<'_>,
     lang: &str,
@@ -336,7 +336,9 @@ pub async fn email_change_submit(
         expires_at.to_sqlite()
     };
 
-    let _ = state.email_changes.delete_by_user_id(&user.id).await;
+    if let Err(e) = state.email_changes.delete_by_user_id(&user.id).await {
+        tracing::error!("Failed to delete old email changes: {e}");
+    }
     let token = state.email_changes.create(&user.id, &new_email, &expires_at).await?;
 
     let link = format!("{}/confirm-email-change?token={}", state.config.public_ui_uri, token);

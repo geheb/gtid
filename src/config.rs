@@ -15,6 +15,7 @@ pub struct AppConfig {
     pub lockout_duration_secs: u64,
     pub secure_cookies: bool,
     pub session_lifetime_secs: i64,
+    pub session_idle_timeout_secs: i64,
     pub allowed_grant_types: Vec<String>,
     pub key_rotation_interval_secs: u64,
     pub cors_allowed_origins: Vec<String>,
@@ -84,6 +85,9 @@ impl AppConfig {
             session_lifetime_secs: get("SESSION_LIFETIME_SECS")
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(86400),
+            session_idle_timeout_secs: get("SESSION_IDLE_TIMEOUT_SECS")
+                .and_then(|v| v.parse().ok())
+                .unwrap_or(3600),
             allowed_grant_types: get("ALLOWED_GRANT_TYPES")
                 .unwrap_or_else(|| "authorization_code,refresh_token".into())
                 .split(',')
@@ -128,7 +132,8 @@ impl AppConfig {
                 .and_then(|v| v.parse().ok())
                 .unwrap_or(2_592_000), // 30 days
             totp_encryption_key: {
-                let hex_str = get("TOTP_ENCRYPTION_KEY").unwrap_or_else(|| "0".repeat(64));
+                let hex_str = get("TOTP_ENCRYPTION_KEY")
+                    .expect("TOTP_ENCRYPTION_KEY is required. Generate with: openssl rand -hex 32");
                 let bytes =
                     hex::decode(&hex_str).expect("TOTP_ENCRYPTION_KEY must be valid hex (64 hex chars = 32 bytes)");
                 let mut key = [0u8; 32];
@@ -152,8 +157,12 @@ mod tests {
     use super::*;
     use std::collections::HashMap;
 
+    const TEST_TOTP_KEY: &str = "0000000000000000000000000000000000000000000000000000000000000000";
+
     fn config_from(vars: &[(&str, &str)]) -> AppConfig {
-        let map: HashMap<String, String> = vars.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+        let mut map: HashMap<String, String> = vars.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+        map.entry("TOTP_ENCRYPTION_KEY".to_string())
+            .or_insert_with(|| TEST_TOTP_KEY.to_string());
         AppConfig::from_vars(|key| map.get(key).cloned())
     }
 
@@ -176,6 +185,7 @@ mod tests {
         assert_eq!(c.lockout_duration_secs, 3600);
         assert!(c.secure_cookies);
         assert_eq!(c.session_lifetime_secs, 86400);
+        assert_eq!(c.session_idle_timeout_secs, 3600);
         assert_eq!(c.key_rotation_interval_secs, 86400);
         assert_eq!(c.allowed_grant_types, vec!["authorization_code", "refresh_token"]);
         assert_eq!(c.roles, vec!["admin"]);
@@ -342,5 +352,18 @@ mod tests {
     fn custom_max_request_body_bytes() {
         let c = config_from(&[("MAX_REQUEST_BODY_BYTES", "131072")]);
         assert_eq!(c.max_request_body_bytes, 131072);
+    }
+
+    #[test]
+    fn custom_session_idle_timeout() {
+        let c = config_from(&[("SESSION_IDLE_TIMEOUT_SECS", "1800")]);
+        assert_eq!(c.session_idle_timeout_secs, 1800);
+    }
+
+    #[test]
+    #[should_panic(expected = "TOTP_ENCRYPTION_KEY is required")]
+    fn totp_encryption_key_mandatory() {
+        let map: HashMap<String, String> = HashMap::new();
+        AppConfig::from_vars(|key| map.get(key).cloned());
     }
 }

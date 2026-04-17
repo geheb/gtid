@@ -1,6 +1,6 @@
 use sqlx::SqlitePool;
 
-use crate::models::user::User;
+use crate::entities::user::User;
 
 #[derive(Clone)]
 pub struct UserRepository {

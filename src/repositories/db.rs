@@ -3,18 +3,19 @@ use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use std::str::FromStr;
 
 pub async fn init_pool(database_uri: &str) -> SqlitePool {
-    // Ensure parent directory exists (e.g. ".db/")
-    if let Some(path) = database_uri.strip_prefix("sqlite:")
+    let path = database_uri.strip_prefix("sqlite:");
+    if let Some(path) = path
         && let Some(parent) = std::path::Path::new(path).parent()
         && !parent.as_os_str().is_empty()
     {
         std::fs::create_dir_all(parent).expect("Failed to create database directory");
     }
-    // Restrict file permissions to owner-only (Unix)
     #[cfg(unix)]
-    if std::path::Path::new(path).exists() {
-        use std::os::unix::fs::PermissionsExt;
-        let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+    if let Some(path) = path {
+        if std::path::Path::new(path).exists() {
+            use std::os::unix::fs::PermissionsExt;
+            let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
+        }
     }
 
     let options = SqliteConnectOptions::from_str(database_uri)
@@ -52,6 +53,7 @@ pub async fn run_users_migrations(pool: &SqlitePool) {
             id              TEXT PRIMARY KEY,
             user_id         TEXT NOT NULL REFERENCES users(id),
             expires_at      TEXT NOT NULL,
+            last_seen_at    TEXT NOT NULL DEFAULT (datetime('now')),
             created_at      TEXT NOT NULL DEFAULT (datetime('now'))
         )",
         "CREATE TABLE IF NOT EXISTS email_confirmations (

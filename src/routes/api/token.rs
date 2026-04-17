@@ -126,7 +126,9 @@ async fn handle_authorization_code(
         ConsumeResult::Ok(ac) => ac,
         ConsumeResult::Replayed(ac) => {
             tracing::warn!(event = "auth_code_replay", client_id = %client.client_id, "Auth code replay detected, revoking token family");
-            let _ = state.refresh_tokens.revoke_family(&ac.code).await;
+            if let Err(e) = state.refresh_tokens.revoke_family(&ac.code).await {
+                tracing::error!("Failed to revoke token family on code replay: {e}");
+            }
             return Err(super::oauth_error(
                 "invalid_grant",
                 "Authorization code already used",
@@ -177,20 +179,20 @@ async fn handle_authorization_code(
     .map_err(|_| super::oauth_error("server_error", "Failed to issue access token"))?;
 
     // #1: at_hash - pass access_token to id_token issuer
-    let id_token = jwt::issue_id_token(
-        &encoding_key,
-        &kid,
-        &state.config.issuer_uri,
-        &client.client_id,
-        &user.id,
-        &user.email,
-        user.is_confirmed,
-        user.display_name.as_deref(),
-        auth_code.nonce.as_deref(),
-        &access_token,
-        user.roles().into_iter().map(String::from).collect(),
-        state.config.id_token_expiry_secs,
-    )
+    let id_token = jwt::issue_id_token(jwt::IdTokenParams {
+        encoding_key: &encoding_key,
+        kid: &kid,
+        issuer: &state.config.issuer_uri,
+        client_id: &client.client_id,
+        user_id: &user.id,
+        email: &user.email,
+        email_verified: user.is_confirmed,
+        display_name: user.display_name.as_deref(),
+        nonce: auth_code.nonce.as_deref(),
+        access_token: &access_token,
+        roles: user.roles().into_iter().map(String::from).collect(),
+        expiry_secs: state.config.id_token_expiry_secs,
+    })
     .map_err(|_| super::oauth_error("server_error", "Failed to issue ID token"))?;
 
     // #3 + #12: Refresh token bound to client_id and token family (auth code)
@@ -248,7 +250,7 @@ async fn handle_refresh_token(
         .as_deref()
         .ok_or_else(|| super::oauth_error("invalid_request", "Missing refresh_token"))?;
 
-    // #12: Detect refresh token reuse → revoke entire family
+    // #12: Detect refresh token reuse -> revoke entire family
     let refresh_token = match state
         .refresh_tokens
         .find_valid(refresh_token_str)
@@ -258,7 +260,9 @@ async fn handle_refresh_token(
         RefreshResult::Ok(rt) => rt,
         RefreshResult::Reused(family) => {
             tracing::warn!(event = "refresh_token_reuse", client_id = %client.client_id, family = %family, "Refresh token reuse detected, revoking token family");
-            let _ = state.refresh_tokens.revoke_family(&family).await;
+            if let Err(e) = state.refresh_tokens.revoke_family(&family).await {
+                tracing::error!("Failed to revoke token family on token reuse: {e}");
+            }
             return Err(super::oauth_error(
                 "invalid_grant",
                 "Token reuse detected, all tokens revoked",

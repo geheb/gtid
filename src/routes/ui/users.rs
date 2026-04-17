@@ -338,7 +338,9 @@ async fn enqueue_confirmation_email(
     };
 
     // Delete old tokens and create a new one
-    let _ = state.confirmation_tokens.delete_by_user_id(user_id).await;
+    if let Err(e) = state.confirmation_tokens.delete_by_user_id(user_id).await {
+        tracing::error!("Failed to delete old confirmation tokens: {e}");
+    }
     let token = match state.confirmation_tokens.create(user_id, &expires_at).await {
         Ok(t) => t,
         Err(e) => {
@@ -398,7 +400,7 @@ pub async fn user_reset_2fa(
         tracing::info!(event = "totp_reset_by_admin", user_id = %id, "Admin reset 2FA for user");
     }
 
-    // Self-reset: admin lost their own TOTP → clear trust cookie, redirect to 2FA setup
+    // Self-reset: admin lost their own TOTP -> clear trust cookie, redirect to 2FA setup
     if admin.0.id == id {
         cookies.remove(tower_cookies::Cookie::from(
             crate::middleware::session::TRUST_DEVICE_COOKIE_NAME,

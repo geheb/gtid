@@ -1,7 +1,7 @@
 use sqlx::SqlitePool;
 
 use crate::crypto::hash::sha256_hex;
-use crate::models::trusted_device::TrustedDevice;
+use crate::entities::trusted_device::TrustedDevice;
 
 #[derive(Clone)]
 pub struct TrustedDeviceRepository {
@@ -14,8 +14,6 @@ impl TrustedDeviceRepository {
     }
 
     pub async fn create(&self, user_id: &str, expires_at: &str) -> Result<String, sqlx::Error> {
-        self.delete_expired().await?;
-
         let token = crate::crypto::id::new_secure_token();
         let token_hash = sha256_hex(&token);
         sqlx::query("INSERT INTO trusted_devices (token_hash, user_id, expires_at) VALUES (?, ?, ?)")

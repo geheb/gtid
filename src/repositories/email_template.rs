@@ -1,8 +1,9 @@
 use sqlx::SqlitePool;
 
+use crate::entities::email_template::EmailTemplate;
+use crate::entities::email_template_type::EmailTemplateType;
 use crate::i18n::Locales;
 use crate::middleware::language::SUPPORTED_LANGS;
-use crate::models::email_template::{EmailTemplate, EmailTemplateType};
 
 #[derive(Clone)]
 pub struct EmailTemplateRepository {

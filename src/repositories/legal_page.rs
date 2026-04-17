@@ -1,7 +1,7 @@
 use sqlx::SqlitePool;
 
 use crate::middleware::language::SUPPORTED_LANGS;
-use crate::models::legal_page::{LegalPage, LegalPageType};
+use crate::entities::legal_page::{LegalPage, LegalPageType};
 
 #[derive(Clone)]
 pub struct LegalPageRepository {

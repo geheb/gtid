@@ -46,10 +46,8 @@ async fn oidc_complete_flow() {
 
     // ── Step 3: Authorize URL ──
     let auth_resp: serde_json::Value = client
-        .get(server.api_url(&format!(
-            "/authorize-url?client_id={}&scope=openid+email+profile",
-            CLIENT_ID
-        )))
+        .get(server.api_url("/authorize-url?scope=openid%20email%20profile"))
+        .basic_auth(CLIENT_ID, Some(CLIENT_SECRET))
         .send()
         .await
         .unwrap()
@@ -109,7 +107,7 @@ async fn oidc_complete_flow() {
         location.contains("/2fa/verify"),
         "Admin login should redirect to 2FA verify"
     );
-    complete_2fa_verify(&server, &login_client, &location, &server.admin_totp_secret).await;
+    complete_2fa_verify(&server, &login_client, &location).await;
 
     // ── Step 5: Consent ──
     let consent_resp = login_client.get(authorize_url).send().await.unwrap();

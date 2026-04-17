@@ -72,7 +72,7 @@ now.duration_since(earlier)
 
 **Pattern:** Never deserialize untrusted input directly into complex types.
 
-- Parse forms with `form_urlencoded::parse()` → extract typed fields manually → validate downstream
+- Parse forms with `form_urlencoded::parse()` -> extract typed fields manually -> validate downstream
 - Keep deserialized structs flat - only primitives (`String`, `i64`, `bool`, `Option<String>`, `Vec<String>`)
 - Use `Vec<(String, String)>` for form fields, never `HashMap` (prevents HashDoS)
 - Never use `#[serde(untagged)]` or `#[serde(tag)]` on user-facing types (prevents type confusion)
@@ -97,6 +97,8 @@ now.duration_since(earlier)
 - **Scope downscoping:** Clients may request a subset of scopes on refresh - upscoping is rejected
 - **Refresh token rotation:** On each refresh, the old token is revoked and a new one is issued. `rotated_at` records when the old token was consumed - this creates an audit trail and distinguishes "revoked because rotated" from "revoked because of detected theft". Only tokens with `rotated_at IS NULL` are eligible for rotation (idempotency guard)
 - **Expired token cleanup:** Revoked and expired refresh tokens are opportunistically deleted on each new `create()` call (`WHERE expires_at < datetime('now') AND revoked = 1`)
+- **`/authorize-url` client authentication:** The `/authorize-url` endpoint requires client credentials via HTTP Basic Auth (`client_id:client_secret`). The client secret is never exposed in URL parameters or query strings. Unauthorized requests are rejected with `invalid_client`
+- **Scope validation:** All authorize endpoints (`/authorize` GET/POST, `/authorize-url`) validate scopes against a strict whitelist (`openid`, `profile`, `email`). The `openid` scope is mandatory per OIDC spec. Scopes are separated by spaces (not `+`) per RFC 6749
 
 **Rule:** Never accept an algorithm from the token itself. Never skip issuer or audience validation. New token types must follow the same claim validation pattern. Never allow scope escalation on token refresh.
 
@@ -109,6 +111,7 @@ now.duration_since(earlier)
 - All session cookies: `HttpOnly`, `SameSite=Strict`, `Secure` (in production)
 - Cookie values are opaque lookup keys, never deserialized
 - **Session fixation protection:** On login, all previous sessions for the user are invalidated before creating a new one - prevents an attacker from fixating a session ID before authentication
+- **Rolling idle timeout:** Sessions expire after both an absolute lifetime (`SESSION_LIFETIME_SECS`, default 24h) and an idle timeout (`SESSION_IDLE_TIMEOUT_SECS`, default 1h). On every authenticated request, `last_seen_at` is updated and the session cookie's `Max-Age` is renewed. A session becomes invalid if the user is inactive for longer than the idle timeout, even if the absolute lifetime has not expired
 
 **Rule:** Never store structured data in cookies. Always invalidate existing sessions on login.
 
@@ -159,7 +162,7 @@ The attacker cannot forge the form token because:
 
 **Pattern:** Type-safe queries with parameterized inputs. Harden storage at the SQLite level.
 
-- All models use `#[derive(sqlx::FromRow)]` - no dynamic deserialization
+- All entities use `#[derive(sqlx::FromRow)]` - no dynamic deserialization
 - All queries use `sqlx::query!` with bind parameters - no string interpolation
 - Schema enforces field types and constraints
 - **`secure_delete = 1`:** Overwritten pages are zeroed before reuse - prevents recovery of deleted secrets (tokens, password hashes) from the database file
@@ -343,6 +346,8 @@ Authentication failures must return the same HTTP status and response structure 
 
 Log security-relevant events with structured fields (`event`, `ip`, `email`, `client_id`) but never log:
 - Passwords, client secrets, or full token values - log the identifier (`client_id`, `user_id`) or at most a truncated prefix / token family
+- Full userinfo responses - log only `sub` and `scope`, never the complete response body containing PII
+- Setup tokens - log only that a token was generated, never the token value itself
 - Full stack traces in production (use `tracing::error!` with a summary message)
 - Database error details to the client - log them server-side, return `"Internal server error"`
 
@@ -382,6 +387,7 @@ If a struct has no sensitive fields (like `AppConfig` after removing admin crede
 
 - **Algorithm:** AES-256-GCM with random 12-byte nonce per encryption (`OsRng`)
 - **Key derivation:** `HMAC-SHA256(TOTP_ENCRYPTION_KEY, "totp-secret" || user_id)` - each user gets a unique encryption key
+- **Key requirement:** `TOTP_ENCRYPTION_KEY` is **mandatory** - the server will panic at startup if the environment variable is not set. Generate with `openssl rand -hex 32`
 - **Key separation:** `TOTP_ENCRYPTION_KEY` must come from outside the database layer (environment variable, secret manager). Storing it in the database would defeat encryption at rest
 - **Storage format:** `hex(nonce || ciphertext)` in the `totp_secret` column
 
@@ -396,6 +402,7 @@ If a struct has no sensitive fields (like `AppConfig` after removing admin crede
 - **Rate limiting:** Both `/2fa/setup` and `/2fa/verify` POST handlers use the shared `LoginRateLimiter` (IP + User-Agent based)
 - **Account lockout:** `/2fa/verify` records failures against `AccountLockout` (per user_id)
 - **Code replay prevention:** Each pending 2FA session tracks used codes. A code that was already submitted (valid or invalid) is rejected immediately - prevents timing attacks and replay within the same TOTP window
+- **Global TOTP replay prevention:** The `used_totp_codes` map in `Pending2faStore` tracks `user_id:code` pairs globally with a 90-second TTL. This prevents replaying the same TOTP code across parallel pending 2FA sessions - an attacker who opens two concurrent sessions cannot use the same code twice
 - **Pending entry expiry:** `Pending2faStore` entries expire after 10 minutes (MAX_AGE=600s)
 
 ### TOTP parameters (RFC 6238)
@@ -422,7 +429,7 @@ If a struct has no sensitive fields (like `AppConfig` after removing admin crede
 |-------|----------|
 | Pending2faStore | 1,000 |
 
-**Rule:** Never store TOTP secrets in plaintext in the database. Never store the encryption key in the database. New admin-level features must verify `has_totp()`. The `TOTP_ENCRYPTION_KEY` default (all-zeros) is for development only - production deployments must set a proper key. Any code that resets a user's TOTP secret must also invalidate their trusted devices.
+**Rule:** Never store TOTP secrets in plaintext in the database. Never store the encryption key in the database. `TOTP_ENCRYPTION_KEY` is mandatory in production - server will not start without it. New admin-level features must verify `has_totp()`. Any code that resets a user's TOTP secret must also invalidate their trusted devices.
 
 ---
 
@@ -445,7 +452,11 @@ Before merging, verify:
 - [ ] User-controlled values in HTML escaped via Tera autoescape or `tera::escape_html()`
 - [ ] No `| safe` on user-supplied template variables
 - [ ] No `AllowOrigin::any()` - new origins go through `CORS_ALLOWED_ORIGINS`
-- [ ] No secrets (passwords, tokens, client secrets) in log output
+- [ ] No secrets (passwords, tokens, client secrets, setup tokens) in log output
+- [ ] No complete userinfo responses in logs - only `sub` and `scope`
+- [ ] `TOTP_ENCRYPTION_KEY` is set (server panics without it)
+- [ ] New authorize/authorize-url endpoints validate scopes against the whitelist and require `openid`
+- [ ] New endpoints exposing tokens or PKCE verifiers require client authentication via Basic Auth
 - [ ] Error responses return generic messages, details only in server logs
 - [ ] Structs holding secrets implement `Debug` with `[REDACTED]`
 - [ ] New token types use CSPRNG generation + SHA-256 hashed storage + configurable expiry

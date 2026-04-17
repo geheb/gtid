@@ -1,9 +1,11 @@
 use axum::{extract::FromRequestParts, http::request::Parts, response::Response};
 use std::sync::Arc;
-use tower_cookies::Cookies;
+use tower_cookies::cookie::SameSite;
+use tower_cookies::cookie::time::Duration;
+use tower_cookies::{Cookie, Cookies};
 
 use crate::errors::AppError;
-use crate::models::user::User;
+use crate::entities::user::User;
 use crate::routes::ui::redirect;
 
 // Cookies
@@ -12,6 +14,20 @@ pub const TRUST_DEVICE_COOKIE_NAME: &str = "__td";
 
 fn login_redirect() -> Response {
     redirect("/login")
+}
+
+/// Renews the session cookie's Max-Age (pure in-memory, no DB access).
+fn renew_session_cookie(session_id: &str, cookies: &Cookies, state: &crate::AppState) {
+    let lifetime = state.config.session_lifetime_secs;
+    let mut builder = Cookie::build((SESSION_ID_COOKIE_NAME, session_id.to_string()))
+        .http_only(true)
+        .same_site(SameSite::Strict)
+        .path("/")
+        .max_age(Duration::seconds(lifetime));
+    if state.config.secure_cookies {
+        builder = builder.secure(true);
+    }
+    cookies.add(builder.build());
 }
 
 /// Extracts the current session user from the session cookie.
@@ -31,9 +47,10 @@ impl FromRequestParts<Arc<crate::AppState>> for SessionUser {
             .map(|c| c.value().to_string())
             .ok_or_else(login_redirect)?;
 
+        let idle_timeout = state.config.session_idle_timeout_secs;
         let session = state
             .sessions
-            .find_valid(&session_id)
+            .find_valid(&session_id, idle_timeout)
             .await
             .map_err(|_| login_redirect())?
             .ok_or_else(login_redirect)?;
@@ -44,6 +61,12 @@ impl FromRequestParts<Arc<crate::AppState>> for SessionUser {
             .await
             .map_err(|_| login_redirect())?
             .ok_or_else(login_redirect)?;
+
+        // Rolling idle timeout: renew cookie and update last_seen_at
+        renew_session_cookie(&session_id, &cookies, state);
+        if let Err(e) = state.sessions.update_last_seen(&session_id).await {
+            tracing::error!("Failed to update session last_seen: {e}");
+        }
 
         Ok(SessionUser(user))
     }
@@ -65,12 +88,22 @@ impl FromRequestParts<Arc<crate::AppState>> for OptionalSessionUser {
             None => return Ok(OptionalSessionUser(None)),
         };
 
-        let session = match state.sessions.find_valid(&session_id).await? {
+        let idle_timeout = state.config.session_idle_timeout_secs;
+        let session = match state.sessions.find_valid(&session_id, idle_timeout).await? {
             Some(s) => s,
             None => return Ok(OptionalSessionUser(None)),
         };
 
         let user = state.users.find_by_id(&session.user_id).await?;
+
+        // Rolling idle timeout: renew cookie and update last_seen_at
+        if user.is_some() {
+            renew_session_cookie(&session_id, &cookies, state);
+            if let Err(e) = state.sessions.update_last_seen(&session_id).await {
+                tracing::error!("Failed to update session last_seen: {e}");
+            }
+        }
+
         Ok(OptionalSessionUser(user))
     }
 }

@@ -20,7 +20,7 @@ pub async fn openid_configuration(State(state): State<Arc<AppState>>) -> impl In
         "response_types_supported": ["code"],
         "subject_types_supported": ["public"],
         "id_token_signing_alg_values_supported": ["EdDSA"],
-        "scopes_supported": ["openid", "profile", "email"],
+        "scopes_supported": crate::routes::api::SUPPORTED_SCOPES,
         "revocation_endpoint": format!("{issuer}/revoke"),
         "introspection_endpoint": format!("{issuer}/introspect"),
         "end_session_endpoint": format!("{ui}/logout"),

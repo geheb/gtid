@@ -17,6 +17,7 @@ pub struct TestServer {
     pub ui_port: u16,
     pub client: reqwest::Client,
     pub admin_totp_secret: String,
+    pub last_totp_code: std::sync::Mutex<Option<String>>,
     _db_users: tempfile::NamedTempFile,
     _db_clients: tempfile::NamedTempFile,
     _db_emails: tempfile::NamedTempFile,
@@ -44,6 +45,7 @@ impl TestServer {
             lockout_duration_secs: 3600,
             secure_cookies: false,
             session_lifetime_secs: 86400,
+            session_idle_timeout_secs: 3600,
             allowed_grant_types: vec!["authorization_code".to_string(), "refresh_token".to_string()],
             key_rotation_interval_secs: 86400,
             cors_allowed_origins: vec![],
@@ -150,6 +152,7 @@ impl TestServer {
             ui_port,
             client,
             admin_totp_secret: totp_secret,
+            last_totp_code: std::sync::Mutex::new(Some(code)),
             _db_users: db_users,
             _db_clients: db_clients,
             _db_emails: db_emails,
@@ -236,19 +239,17 @@ pub async fn admin_login(server: &TestServer, client: &reqwest::Client) -> Strin
         .await
         .unwrap();
 
-    // No-redirect client: location header present → manually complete 2FA
+    // No-redirect client: location header present -> manually complete 2FA
     if let Some(location) = resp.headers().get("location") {
         let location = location.to_str().unwrap().to_string();
         if location.contains("/2fa/verify") {
-            complete_2fa_verify(server, client, &location, &server.admin_totp_secret).await;
+            complete_2fa_verify(server, client, &location).await;
         }
     } else {
         // Following-redirect client: landed on 2FA verify form page
         let body = resp.text().await.unwrap();
         if let (Some(verify_csrf), Some(pending_id)) = (extract_csrf(&body), extract_input_value(&body, "p")) {
-            let issuer_uri = server.ui_url("");
-            let totp = totp_crypto::build_totp(&server.admin_totp_secret, ADMIN_EMAIL, &issuer_uri).unwrap();
-            let code = totp.generate_current().unwrap();
+            let code = generate_fresh_totp_code(server).await;
 
             client
                 .post(server.ui_url("/2fa/verify"))
@@ -266,8 +267,24 @@ pub async fn admin_login(server: &TestServer, client: &reqwest::Client) -> Strin
     csrf
 }
 
+/// Generate a fresh TOTP code, waiting for a new window if needed to avoid replay.
+async fn generate_fresh_totp_code(server: &TestServer) -> String {
+    let issuer_uri = server.ui_url("");
+    let totp = totp_crypto::build_totp(&server.admin_totp_secret, ADMIN_EMAIL, &issuer_uri).unwrap();
+    let mut code = totp.generate_current().unwrap();
+    let prev = server.last_totp_code.lock().unwrap().clone();
+    if let Some(prev) = prev {
+        while code == prev {
+            tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            code = totp.generate_current().unwrap();
+        }
+    }
+    *server.last_totp_code.lock().unwrap() = Some(code.clone());
+    code
+}
+
 /// Complete the 2FA verification step during login.
-pub async fn complete_2fa_verify(server: &TestServer, client: &reqwest::Client, location: &str, totp_secret: &str) {
+pub async fn complete_2fa_verify(server: &TestServer, client: &reqwest::Client, location: &str) {
     let verify_page = client
         .get(server.ui_url(location))
         .send()
@@ -279,9 +296,7 @@ pub async fn complete_2fa_verify(server: &TestServer, client: &reqwest::Client, 
     let verify_csrf = extract_csrf(&verify_page).expect("No CSRF on 2FA verify page");
     let pending_id = extract_input_value(&verify_page, "p").expect("No pending ID");
 
-    let issuer_uri = server.ui_url("");
-    let totp = totp_crypto::build_totp(totp_secret, ADMIN_EMAIL, &issuer_uri).unwrap();
-    let code = totp.generate_current().unwrap();
+    let code = generate_fresh_totp_code(server).await;
 
     client
         .post(server.ui_url("/2fa/verify"))
@@ -351,10 +366,8 @@ pub async fn setup_test_client(server: &TestServer, client: &reqwest::Client) {
 /// Returns (auth_code, code_verifier).
 pub async fn get_fresh_code(server: &TestServer, client: &reqwest::Client) -> (String, String) {
     let auth_resp = client
-        .get(server.api_url(&format!(
-            "/authorize-url?client_id={}&scope=openid+email+profile",
-            CLIENT_ID
-        )))
+        .get(server.api_url("/authorize-url?scope=openid%20email%20profile"))
+        .basic_auth(CLIENT_ID, Some(CLIENT_SECRET))
         .send()
         .await
         .unwrap()

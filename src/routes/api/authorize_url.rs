@@ -13,7 +13,6 @@ use crate::crypto::{id::new_id, pkce::generate_pkce};
 
 #[derive(Debug, Deserialize)]
 pub struct AuthorizeUrlParams {
-    pub client_id: String,
     pub scope: Option<String>,
 }
 
@@ -41,31 +40,23 @@ pub async fn authorize_url(
             .into_response());
     }
 
-    let scope = params.scope.as_deref().unwrap_or("openid+email+profile");
-    tracing::info!(
-        "Calling authorize-url client_id={} scope={} ...",
-        params.client_id,
-        scope
-    );
+    // Client authentication via Basic Auth (required)
+    let client =
+        super::verify_client_credentials(None, None, &headers, &state, rl_key)
+            .await?;
 
-    let client = state
-        .clients
-        .find_by_id(&params.client_id)
-        .await
-        .map_err(|_| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "Database error"})),
-            )
-                .into_response()
-        })?
-        .ok_or_else(|| {
-            (
-                StatusCode::NOT_FOUND,
-                Json(serde_json::json!({"error": "Unknown client_id"})),
-            )
-                .into_response()
-        })?;
+    // Scope validation: whitelist + openid mandatory, space-separated per RFC 6749
+    let scope = params.scope.as_deref().unwrap_or("openid email profile");
+    if let Err(msg) = crate::routes::api::validate_scope(scope) {
+        return Err(super::oauth_error("invalid_scope", &msg));
+    }
+
+    tracing::info!(
+        event = "authorize_url",
+        client_id = %client.client_id,
+        scope = %scope,
+        "Generating authorize URL"
+    );
 
     let (code_verifier, code_challenge) = generate_pkce();
     let state_param = new_id();

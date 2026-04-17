@@ -13,7 +13,7 @@ use crate::errors::AppError;
 use crate::middleware::csrf::{self, CsrfToken};
 use crate::middleware::language::{Lang, SUPPORTED_LANGS};
 use crate::middleware::session::AdminUser;
-use crate::models::legal_page::LegalPageType;
+use crate::entities::legal_page::LegalPageType;
 use crate::routes::ctx::{BaseCtx, LegalCtx, LegalEditCtx, LegalListCtx};
 
 use super::{get_field, parse_form_fields, redirect};

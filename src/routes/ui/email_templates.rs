@@ -13,7 +13,7 @@ use crate::errors::AppError;
 use crate::middleware::csrf::{self, CsrfToken};
 use crate::middleware::language::{Lang, SUPPORTED_LANGS};
 use crate::middleware::session::AdminUser;
-use crate::models::email_template::EmailTemplateType;
+use crate::entities::email_template_type::EmailTemplateType;
 use crate::routes::ctx::{BaseCtx, EmailTemplateEditCtx, EmailTemplatesListCtx};
 
 use super::{get_field, parse_form_fields, redirect};

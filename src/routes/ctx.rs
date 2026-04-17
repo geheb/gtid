@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use serde::Serialize;
 
 use crate::i18n::I18n;
-use crate::models::{client::Client, email_template::EmailTemplate, user::User};
+use crate::entities::{client::Client, email_template::EmailTemplate, user::User};
 
 // ── Base contexts ────────────────────────────────────────────────────────────
 
@@ -217,7 +217,7 @@ pub struct LegalListCtx<'a> {
     pub base: BaseCtx<'a>,
     pub active_page: &'a str,
     pub csrf_token: &'a str,
-    pub pages: &'a [crate::models::legal_page::LegalPage],
+    pub pages: &'a [crate::entities::legal_page::LegalPage],
     pub supported_langs: &'a [&'a str],
 }
 

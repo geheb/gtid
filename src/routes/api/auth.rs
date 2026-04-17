@@ -155,7 +155,7 @@ pub async fn login_page(
         return Ok(redirect("/setup"));
     }
 
-    // Already logged in → redirect to appropriate page
+    // Already logged in -> redirect to appropriate page
     if let Some(user) = optional_user.0 {
         let target = if user.is_admin() { "/admin" } else { "/profile" };
         return Ok(redirect(target));
@@ -305,9 +305,9 @@ pub async fn login_submit(
             None => true,
         }
     } else if user.is_admin() {
-        true // admin without TOTP → forced setup
+        true // admin without TOTP -> forced setup
     } else {
-        false // non-admin without TOTP → no 2FA
+        false // non-admin without TOTP -> no 2FA
     };
 
     if needs_2fa {

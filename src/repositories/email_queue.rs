@@ -1,6 +1,6 @@
 use sqlx::SqlitePool;
 
-use crate::models::email_queue::QueuedEmail;
+use crate::entities::queued_email::QueuedEmail;
 
 #[derive(Clone)]
 pub struct EmailQueueRepository {

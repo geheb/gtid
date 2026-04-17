@@ -1,6 +1,6 @@
 use sqlx::SqlitePool;
 
-use crate::models::auth_code::AuthorizationCode;
+use crate::entities::authorization_code::{AuthorizationCode, NewAuthorizationCode};
 
 pub enum ConsumeResult {
     Ok(AuthorizationCode),
@@ -18,33 +18,18 @@ impl AuthCodeRepository {
         Self { pool }
     }
 
-    #[allow(clippy::too_many_arguments)]
-    pub async fn create(
-        &self,
-        code: &str,
-        client_id: &str,
-        user_id: &str,
-        redirect_uri: &str,
-        scope: &str,
-        code_challenge: &str,
-        nonce: Option<&str>,
-        expires_at: &str,
-    ) -> Result<(), sqlx::Error> {
-        sqlx::query("DELETE FROM authorization_codes WHERE expires_at < datetime('now')")
-            .execute(&self.pool)
-            .await?;
-
+    pub async fn create(&self, ac: &NewAuthorizationCode<'_>) -> Result<(), sqlx::Error> {
         sqlx::query(
             "INSERT INTO authorization_codes (code, client_id, user_id, redirect_uri, scope, code_challenge, nonce, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         )
-        .bind(code)
-        .bind(client_id)
-        .bind(user_id)
-        .bind(redirect_uri)
-        .bind(scope)
-        .bind(code_challenge)
-        .bind(nonce)
-        .bind(expires_at)
+        .bind(ac.code)
+        .bind(ac.client_id)
+        .bind(ac.user_id)
+        .bind(ac.redirect_uri)
+        .bind(ac.scope)
+        .bind(ac.code_challenge)
+        .bind(ac.nonce)
+        .bind(ac.expires_at)
         .execute(&self.pool)
         .await?;
         Ok(())
@@ -83,6 +68,13 @@ impl AuthCodeRepository {
         }
     }
 
+    pub async fn delete_expired(&self) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM authorization_codes WHERE expires_at < datetime('now')")
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     pub async fn delete_by_user_id(&self, user_id: &str) -> Result<(), sqlx::Error> {
         sqlx::query("DELETE FROM authorization_codes WHERE user_id = ?")
             .bind(user_id)
@@ -106,21 +98,23 @@ mod tests {
         (auth_codes, clients)
     }
 
+    fn new_ac<'a>(code: &'a str, expires_at: &'a str) -> NewAuthorizationCode<'a> {
+        NewAuthorizationCode {
+            code,
+            client_id: "c1",
+            user_id: "u1",
+            redirect_uri: "http://cb",
+            scope: "openid",
+            code_challenge: "chall",
+            nonce: None,
+            expires_at,
+        }
+    }
+
     #[tokio::test]
     async fn create_and_consume() {
         let (repo, _) = setup().await;
-        repo.create(
-            "code1",
-            "c1",
-            "u1",
-            "http://cb",
-            "openid",
-            "chall",
-            None,
-            &future_time(),
-        )
-        .await
-        .unwrap();
+        repo.create(&new_ac("code1", &future_time())).await.unwrap();
         match repo.consume("code1").await.unwrap() {
             ConsumeResult::Ok(ac) => assert_eq!(ac.code, "code1"),
             other => panic!("Expected Ok, got {:?}", std::mem::discriminant(&other)),
@@ -130,18 +124,7 @@ mod tests {
     #[tokio::test]
     async fn replay_detected() {
         let (repo, _) = setup().await;
-        repo.create(
-            "code1",
-            "c1",
-            "u1",
-            "http://cb",
-            "openid",
-            "chall",
-            None,
-            &future_time(),
-        )
-        .await
-        .unwrap();
+        repo.create(&new_ac("code1", &future_time())).await.unwrap();
         // First consume succeeds
         assert!(matches!(repo.consume("code1").await.unwrap(), ConsumeResult::Ok(_)));
         // Second consume is replay
@@ -161,11 +144,19 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn delete_expired_cleans_old() {
+        let (repo, _) = setup().await;
+        repo.create(&new_ac("code_old", &past_time())).await.unwrap();
+        repo.create(&new_ac("code_new", &future_time())).await.unwrap();
+        repo.delete_expired().await.unwrap();
+        assert!(matches!(repo.consume("code_old").await.unwrap(), ConsumeResult::NotFound));
+        assert!(matches!(repo.consume("code_new").await.unwrap(), ConsumeResult::Ok(_)));
+    }
+
+    #[tokio::test]
     async fn expired_code_not_found() {
         let (repo, _) = setup().await;
-        repo.create("code1", "c1", "u1", "http://cb", "openid", "chall", None, &past_time())
-            .await
-            .unwrap();
+        repo.create(&new_ac("code1", &past_time())).await.unwrap();
         assert!(matches!(repo.consume("code1").await.unwrap(), ConsumeResult::NotFound));
     }
 }

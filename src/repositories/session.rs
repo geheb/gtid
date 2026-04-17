@@ -1,6 +1,6 @@
 use sqlx::SqlitePool;
 
-use crate::models::session::Session;
+use crate::entities::session::Session;
 
 #[derive(Clone)]
 pub struct SessionRepository {
@@ -13,10 +13,6 @@ impl SessionRepository {
     }
 
     pub async fn create(&self, id: &str, user_id: &str, expires_at: &str) -> Result<(), sqlx::Error> {
-        sqlx::query("DELETE FROM sessions WHERE expires_at < datetime('now')")
-            .execute(&self.pool)
-            .await?;
-
         sqlx::query("INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)")
             .bind(id)
             .bind(user_id)
@@ -26,11 +22,23 @@ impl SessionRepository {
         Ok(())
     }
 
-    pub async fn find_valid(&self, id: &str) -> Result<Option<Session>, sqlx::Error> {
-        sqlx::query_as::<_, Session>("SELECT * FROM sessions WHERE id = ? AND expires_at > datetime('now')")
+    pub async fn find_valid(&self, id: &str, idle_timeout_secs: i64) -> Result<Option<Session>, sqlx::Error> {
+        let idle_modifier = format!("-{idle_timeout_secs} seconds");
+        sqlx::query_as::<_, Session>(
+            "SELECT * FROM sessions WHERE id = ? AND expires_at > datetime('now') AND last_seen_at > datetime('now', ?)",
+        )
+        .bind(id)
+        .bind(&idle_modifier)
+        .fetch_optional(&self.pool)
+        .await
+    }
+
+    pub async fn update_last_seen(&self, id: &str) -> Result<(), sqlx::Error> {
+        sqlx::query("UPDATE sessions SET last_seen_at = datetime('now') WHERE id = ?")
             .bind(id)
-            .fetch_optional(&self.pool)
-            .await
+            .execute(&self.pool)
+            .await?;
+        Ok(())
     }
 
     pub async fn count_active_users(&self) -> Result<i64, sqlx::Error> {
@@ -42,6 +50,13 @@ impl SessionRepository {
     pub async fn delete(&self, id: &str) -> Result<(), sqlx::Error> {
         sqlx::query("DELETE FROM sessions WHERE id = ?")
             .bind(id)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn delete_expired(&self) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM sessions WHERE expires_at < datetime('now')")
             .execute(&self.pool)
             .await?;
         Ok(())
@@ -73,7 +88,7 @@ mod tests {
     async fn create_and_find_valid() {
         let (repo, _) = setup().await;
         repo.create("s1", "u1", &future_time()).await.unwrap();
-        let session = repo.find_valid("s1").await.unwrap().unwrap();
+        let session = repo.find_valid("s1", 3600).await.unwrap().unwrap();
         assert_eq!(session.user_id, "u1");
     }
 
@@ -81,7 +96,7 @@ mod tests {
     async fn expired_session_not_found() {
         let (repo, _) = setup().await;
         repo.create("s1", "u1", &past_time()).await.unwrap();
-        assert!(repo.find_valid("s1").await.unwrap().is_none());
+        assert!(repo.find_valid("s1", 3600).await.unwrap().is_none());
     }
 
     #[tokio::test]
@@ -89,7 +104,7 @@ mod tests {
         let (repo, _) = setup().await;
         repo.create("s1", "u1", &future_time()).await.unwrap();
         repo.delete("s1").await.unwrap();
-        assert!(repo.find_valid("s1").await.unwrap().is_none());
+        assert!(repo.find_valid("s1", 3600).await.unwrap().is_none());
     }
 
     #[tokio::test]
@@ -98,8 +113,27 @@ mod tests {
         repo.create("s1", "u1", &future_time()).await.unwrap();
         repo.create("s2", "u1", &future_time()).await.unwrap();
         repo.delete_by_user_id("u1").await.unwrap();
-        assert!(repo.find_valid("s1").await.unwrap().is_none());
-        assert!(repo.find_valid("s2").await.unwrap().is_none());
+        assert!(repo.find_valid("s1", 3600).await.unwrap().is_none());
+        assert!(repo.find_valid("s2", 3600).await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn update_last_seen() {
+        let (repo, _) = setup().await;
+        repo.create("s1", "u1", &future_time()).await.unwrap();
+        repo.update_last_seen("s1").await.unwrap();
+        let session = repo.find_valid("s1", 3600).await.unwrap().unwrap();
+        assert_eq!(session.user_id, "u1");
+    }
+
+    #[tokio::test]
+    async fn delete_expired_cleans_old() {
+        let (repo, _) = setup().await;
+        repo.create("s1", "u1", &past_time()).await.unwrap();
+        repo.create("s2", "u1", &future_time()).await.unwrap();
+        repo.delete_expired().await.unwrap();
+        assert!(repo.find_valid("s1", 3600).await.unwrap().is_none());
+        assert!(repo.find_valid("s2", 3600).await.unwrap().is_some());
     }
 
     #[tokio::test]

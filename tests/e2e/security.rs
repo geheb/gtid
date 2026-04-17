@@ -13,10 +13,8 @@ async fn setup() -> (TestServer, reqwest::Client) {
 
     // Give initial consent so get_fresh_code works (auto-redirect on subsequent calls)
     let auth_resp: serde_json::Value = client
-        .get(server.api_url(&format!(
-            "/authorize-url?client_id={}&scope=openid+email+profile",
-            CLIENT_ID
-        )))
+        .get(server.api_url("/authorize-url?scope=openid%20email%20profile"))
+        .basic_auth(CLIENT_ID, Some(CLIENT_SECRET))
         .send()
         .await
         .unwrap()
@@ -101,7 +99,7 @@ async fn hidden_field_manipulation() {
     };
     let csrf = extract_csrf(&profile_html).expect("No CSRF for security tests");
 
-    // 11a: Manipulated redirect_uri → must be 400
+    // 11a: Manipulated redirect_uri -> must be 400
     let resp = client
         .post(server.ui_url("/authorize"))
         .form(&[
@@ -120,7 +118,7 @@ async fn hidden_field_manipulation() {
         .unwrap();
     assert_eq!(resp.status(), 400, "11a: Manipulated redirect_uri not rejected");
 
-    // 11b: Invalid scope → must be 400
+    // 11b: Invalid scope -> must be 400
     let resp = client
         .post(server.ui_url("/authorize"))
         .form(&[
@@ -139,7 +137,7 @@ async fn hidden_field_manipulation() {
         .unwrap();
     assert_eq!(resp.status(), 400, "11b: Invalid scope not rejected");
 
-    // 11c: Empty code_challenge → must be 400
+    // 11c: Empty code_challenge -> must be 400
     let resp = client
         .post(server.ui_url("/authorize"))
         .form(&[
@@ -158,7 +156,7 @@ async fn hidden_field_manipulation() {
         .unwrap();
     assert_eq!(resp.status(), 400, "11c: Empty code_challenge not rejected");
 
-    // 11d: Oversized state (>1024 chars) → must be 400
+    // 11d: Oversized state (>1024 chars) -> must be 400
     let long_state = "A".repeat(1025);
     let resp = client
         .post(server.ui_url("/authorize"))
@@ -809,7 +807,7 @@ async fn scope_downscoping() {
     let tokens = get_fresh_tokens(&server, &client).await;
     let refresh_token = tokens["refresh_token"].as_str().unwrap();
 
-    // 28a: Downscoping allowed (openid email profile → openid)
+    // 28a: Downscoping allowed (openid email profile -> openid)
     let resp: serde_json::Value = client
         .post(server.api_url("/token"))
         .form(&[
@@ -833,7 +831,7 @@ async fn scope_downscoping() {
 
     let new_refresh = resp["refresh_token"].as_str().expect("No new refresh token");
 
-    // 28b: Upscoping forbidden (openid → openid admin)
+    // 28b: Upscoping forbidden (openid -> openid admin)
     let resp = client
         .post(server.api_url("/token"))
         .form(&[
@@ -858,7 +856,7 @@ async fn refresh_token_reuse_detection() {
     let tokens = get_fresh_tokens(&server, &client).await;
     let rt1 = tokens["refresh_token"].as_str().unwrap().to_string();
 
-    // Refresh: RT1 → RT2
+    // Refresh: RT1 -> RT2
     let ref1: serde_json::Value = client
         .post(server.api_url("/token"))
         .form(&[
@@ -875,7 +873,7 @@ async fn refresh_token_reuse_detection() {
         .unwrap();
     let rt2 = ref1["refresh_token"].as_str().unwrap().to_string();
 
-    // 29a: Reuse RT1 (already consumed) → must fail
+    // 29a: Reuse RT1 (already consumed) -> must fail
     let reuse_resp = client
         .post(server.api_url("/token"))
         .form(&[
@@ -981,7 +979,7 @@ async fn rp_initiated_logout() {
         "31b: Logout with invalid post_logout_redirect_uri not rejected"
     );
 
-    // 31c: Logout without params → redirect to /login
+    // 31c: Logout without params -> redirect to /login
     let resp = client.get(server.ui_url("/logout")).send().await.unwrap();
     let location = resp
         .headers()

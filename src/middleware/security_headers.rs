@@ -37,7 +37,7 @@ pub async fn api_security_headers(request: Request<Body>, next: Next) -> Respons
     response
 }
 
-pub fn build_csp(clients: &[crate::models::client::Client]) -> String {
+pub fn build_csp(clients: &[crate::entities::client::Client]) -> String {
     let origins: Vec<String> = clients
         .iter()
         .filter_map(|c| extract_origin(&c.client_redirect_uri))

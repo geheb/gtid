@@ -1,7 +1,7 @@
 use sqlx::SqlitePool;
 
 use crate::crypto::hash::sha256_hex;
-use crate::models::password_reset_token::PasswordResetToken;
+use crate::entities::password_reset_token::PasswordResetToken;
 
 #[derive(Clone)]
 pub struct PasswordResetTokenRepository {
@@ -14,9 +14,6 @@ impl PasswordResetTokenRepository {
     }
 
     pub async fn create(&self, user_id: &str, expires_at: &str) -> Result<String, sqlx::Error> {
-        // Opportunistically clean up expired tokens
-        self.delete_expired().await?;
-
         let token = crate::crypto::id::new_secure_token();
         let token_hash = sha256_hex(&token);
         sqlx::query("INSERT INTO password_resets (token_hash, user_id, expires_at) VALUES (?, ?, ?)")

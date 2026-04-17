@@ -115,7 +115,9 @@ pub async fn forgot_password_submit(
                 None => return render_sent(),
             };
 
-            let _ = state.password_reset_tokens.delete_by_user_id(&user.id).await;
+            if let Err(e) = state.password_reset_tokens.delete_by_user_id(&user.id).await {
+                tracing::error!("Failed to delete old password reset tokens: {e}");
+            }
             let token = match state.password_reset_tokens.create(&user.id, &expires_at).await {
                 Ok(t) => t,
                 Err(e) => {

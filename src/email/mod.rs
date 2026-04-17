@@ -1,2 +1,2 @@
-pub mod sender;
+pub mod smtp_sender;
 pub mod worker;

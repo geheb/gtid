@@ -54,10 +54,14 @@ pub async fn revoke(
     if let Ok(crate::repositories::refresh_token::RefreshResult::Ok(rt)) =
         state.refresh_tokens.find_valid(&form.token).await
     {
-        let _ = state.refresh_tokens.revoke_family(&rt.token_family).await;
+        if let Err(e) = state.refresh_tokens.revoke_family(&rt.token_family).await {
+            tracing::error!("Failed to revoke token family: {e}");
+        }
     } else {
         // Token may already be revoked or not exist - revoke by token directly per spec
-        let _ = state.refresh_tokens.revoke(&form.token).await;
+        if let Err(e) = state.refresh_tokens.revoke(&form.token).await {
+            tracing::error!("Failed to revoke refresh token: {e}");
+        }
     }
 
     Ok(StatusCode::OK.into_response())

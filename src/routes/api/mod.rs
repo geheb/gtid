@@ -10,4 +10,4 @@ pub mod token;
 pub mod userinfo;
 pub mod well_known;
 
-pub use helpers::{oauth_error, urlencoding, verify_client_credentials};
+pub use helpers::{oauth_error, urlencoding, verify_client_credentials, validate_scope, SUPPORTED_SCOPES};

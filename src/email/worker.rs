@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use crate::email::sender::SmtpSender;
+use crate::email::smtp_sender::SmtpSender;
 use crate::repositories::email_queue::EmailQueueRepository;
 
 pub async fn run_email_worker(repo: EmailQueueRepository, sender: Option<SmtpSender>) {

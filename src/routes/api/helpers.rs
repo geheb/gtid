@@ -8,7 +8,24 @@ use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 
 use crate::AppState;
 use crate::crypto::password;
-use crate::models::client::Client;
+use crate::entities::client::Client;
+
+/// OIDC scopes supported by this server.
+pub const SUPPORTED_SCOPES: &[&str] = &["openid", "profile", "email"];
+
+/// Validates that all scope parts are in [`SUPPORTED_SCOPES`] and `openid` is present.
+/// Returns `Ok(())` or an error message.
+pub fn validate_scope(scope: &str) -> Result<(), String> {
+    for part in scope.split_whitespace() {
+        if !SUPPORTED_SCOPES.contains(&part) {
+            return Err(format!("Unsupported scope: {part}"));
+        }
+    }
+    if !scope.split_whitespace().any(|s| s == "openid") {
+        return Err("scope must include 'openid'".into());
+    }
+    Ok(())
+}
 
 /// Parses Basic Auth header into (client_id, client_secret).
 fn extract_basic_auth(headers: &HeaderMap) -> Option<(String, String)> {

@@ -22,7 +22,7 @@ pub mod email;
 pub mod errors;
 pub mod i18n;
 pub mod middleware;
-pub mod models;
+pub mod entities;
 pub mod repositories;
 pub mod routes;
 
@@ -95,7 +95,7 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
     let actual_api_port = api_listener.local_addr().unwrap().port();
     let actual_ui_port = ui_listener.local_addr().unwrap().port();
 
-    // Fix up URIs if they reference the original port (e.g. port 0 → actual port)
+    // Fix up URIs if they reference the original port (e.g. port 0 -> actual port)
     if config.issuer_uri.is_empty() || config.api_listen_port == 0 {
         config.issuer_uri = format!("http://127.0.0.1:{actual_api_port}");
     }
@@ -137,7 +137,8 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
     let setup_needed = Arc::new(AtomicBool::new(!has_admin));
     let setup_token = if !has_admin {
         let token = crypto::id::new_id();
-        tracing::info!(event = "setup_token", token = %token, "No admin user found. Use this token on the setup page.");
+        tracing::info!(event = "setup_token", "No admin user found. Setup token generated.");
+        eprintln!("\n  Setup token: {token}\n");
         Some(token)
     } else {
         None
@@ -227,7 +228,37 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
         ))
         .layer(TraceLayer::new_for_http())
         .layer(axum::middleware::from_fn_with_state(state.clone(), middleware::bot_trap::bot_trap_guard))
-        .with_state(state);
+        .with_state(state.clone());
+
+    let cleanup_state = state;
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(std::time::Duration::from_hours(1));
+        interval.tick().await;
+        loop {
+            interval.tick().await;
+            if let Err(e) = cleanup_state.sessions.delete_expired().await {
+                tracing::error!("Session cleanup failed: {e}");
+            }
+            if let Err(e) = cleanup_state.auth_codes.delete_expired().await {
+                tracing::error!("Auth code cleanup failed: {e}");
+            }
+            if let Err(e) = cleanup_state.refresh_tokens.delete_expired().await {
+                tracing::error!("Refresh token cleanup failed: {e}");
+            }
+            if let Err(e) = cleanup_state.trusted_devices.delete_expired().await {
+                tracing::error!("Trusted device cleanup failed: {e}");
+            }
+            if let Err(e) = cleanup_state.email_changes.delete_expired().await {
+                tracing::error!("Email change cleanup failed: {e}");
+            }
+            if let Err(e) = cleanup_state.confirmation_tokens.delete_expired().await {
+                tracing::error!("Confirmation token cleanup failed: {e}");
+            }
+            if let Err(e) = cleanup_state.password_reset_tokens.delete_expired().await {
+                tracing::error!("Password reset token cleanup failed: {e}");
+            }
+        }
+    });
 
     let rotation_interval = config.key_rotation_interval_secs;
     let rotation_key_store = key_store.clone();
@@ -242,7 +273,7 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
         }
     });
 
-    let smtp_sender = email::sender::SmtpSender::new(&config);
+    let smtp_sender = email::smtp_sender::SmtpSender::new(&config);
     tokio::spawn(async move {
         email::worker::run_email_worker(email_queue, smtp_sender).await;
     });

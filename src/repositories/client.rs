@@ -1,6 +1,6 @@
 use sqlx::SqlitePool;
 
-use crate::models::client::Client;
+use crate::entities::client::Client;
 
 #[derive(Clone)]
 pub struct ClientRepository {

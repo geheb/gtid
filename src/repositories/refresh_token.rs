@@ -1,6 +1,6 @@
 use sqlx::SqlitePool;
 
-use crate::models::refresh_token::RefreshToken;
+use crate::entities::refresh_token::RefreshToken;
 
 /// Result of attempting to use a refresh token.
 pub enum RefreshResult {
@@ -29,10 +29,6 @@ impl RefreshTokenRepository {
         token_family: &str,
         expires_at: &str,
     ) -> Result<(), sqlx::Error> {
-        sqlx::query("DELETE FROM refresh_tokens WHERE expires_at < datetime('now') AND revoked = 1")
-            .execute(&self.pool)
-            .await?;
-
         sqlx::query(
             "INSERT INTO refresh_tokens (token, client_id, user_id, scope, token_family, expires_at) VALUES (?, ?, ?, ?, ?, ?)",
         )
@@ -81,6 +77,13 @@ impl RefreshTokenRepository {
         Ok(result.rows_affected())
     }
 
+    pub async fn delete_expired(&self) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM refresh_tokens WHERE expires_at < datetime('now') AND revoked = 1")
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     pub async fn delete_by_user_id(&self, user_id: &str) -> Result<(), sqlx::Error> {
         sqlx::query("DELETE FROM refresh_tokens WHERE user_id = ?")
             .bind(user_id)
@@ -100,7 +103,7 @@ impl RefreshTokenRepository {
 mod tests {
     use super::*;
     use crate::repositories::client::ClientRepository;
-    use crate::repositories::test_helpers::{future_time, make_clients_pool};
+    use crate::repositories::test_helpers::{future_time, make_clients_pool, past_time};
 
     async fn setup() -> RefreshTokenRepository {
         let pool = make_clients_pool().await;
@@ -156,6 +159,20 @@ mod tests {
             repo.find_valid("rt2").await.unwrap(),
             RefreshResult::Reused(_)
         ));
+    }
+
+    #[tokio::test]
+    async fn delete_expired_cleans_old() {
+        let repo = setup().await;
+        repo.create("rt_old", "c1", "u1", "openid", "family1", &past_time())
+            .await
+            .unwrap();
+        repo.revoke("rt_old").await.unwrap();
+        repo.create("rt_new", "c1", "u1", "openid", "family2", &future_time())
+            .await
+            .unwrap();
+        repo.delete_expired().await.unwrap();
+        assert!(matches!(repo.find_valid("rt_new").await.unwrap(), RefreshResult::Ok(_)));
     }
 
     #[tokio::test]

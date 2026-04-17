@@ -12,10 +12,14 @@ pub struct Entry {
 
 const MAX_AGE: Duration = Duration::from_secs(600); // 10 minutes
 const MAX_ENTRIES: usize = 1_000;
+const GLOBAL_CODE_TTL: Duration = Duration::from_secs(90);
 
 #[derive(Clone)]
 pub struct Pending2faStore {
     inner: Arc<DashMap<String, Entry>>,
+    /// Global TOTP replay prevention: tracks "user_id:code" -> timestamp.
+    /// Prevents replaying the same TOTP code across parallel pending sessions.
+    used_totp_codes: Arc<DashMap<String, Instant>>,
     max_age: Duration,
     max_entries: usize,
 }
@@ -30,6 +34,7 @@ impl Pending2faStore {
     pub fn new() -> Self {
         Self {
             inner: Arc::new(DashMap::new()),
+            used_totp_codes: Arc::new(DashMap::new()),
             max_age: MAX_AGE,
             max_entries: MAX_ENTRIES,
         }
@@ -39,6 +44,7 @@ impl Pending2faStore {
     fn with_limits(max_age: Duration, max_entries: usize) -> Self {
         Self {
             inner: Arc::new(DashMap::new()),
+            used_totp_codes: Arc::new(DashMap::new()),
             max_age,
             max_entries,
         }
@@ -74,8 +80,6 @@ impl Pending2faStore {
     pub fn get(&self, id: &str) -> Option<dashmap::mapref::one::Ref<'_, String, Entry>> {
         let entry = self.inner.get(id)?;
         if entry.created.elapsed() > self.max_age {
-            drop(entry);
-            self.inner.remove(id);
             return None;
         }
         Some(entry)
@@ -88,18 +92,36 @@ impl Pending2faStore {
         }
     }
 
-    /// Returns true if the code was already used for this pending entry (replay prevention).
+    /// Returns true if the code was already used for this pending entry
+    /// or globally for this user (cross-session replay prevention).
     pub fn is_code_used(&self, id: &str, code: &str) -> bool {
-        self.inner
+        // Per-entry replay check
+        let per_entry = self
+            .inner
             .get(id)
-            .is_some_and(|e| e.used_codes.iter().any(|c| c == code))
+            .is_some_and(|e| e.used_codes.iter().any(|c| c == code));
+        if per_entry {
+            return true;
+        }
+        // Global replay check: look up user_id:code
+        if let Some(entry) = self.inner.get(id) {
+            let global_key = format!("{}:{}", entry.user_id, code);
+            if let Some(ts) = self.used_totp_codes.get(&global_key) {
+                return ts.elapsed() < GLOBAL_CODE_TTL;
+            }
+        }
+        false
     }
 
-    /// Marks a code as used for this pending entry.
+    /// Marks a code as used for this pending entry and globally for this user.
     pub fn mark_code_used(&self, id: &str, code: &str) {
         if let Some(mut entry) = self.inner.get_mut(id) {
             entry.used_codes.push(code.to_string());
+            let global_key = format!("{}:{}", entry.user_id, code);
+            self.used_totp_codes.insert(global_key, Instant::now());
         }
+        // Opportunistic cleanup of expired global entries
+        self.used_totp_codes.retain(|_, ts| ts.elapsed() < GLOBAL_CODE_TTL);
     }
 
     /// Consumes and returns the entry (one-time use on success).
@@ -221,5 +243,22 @@ mod tests {
     fn code_replay_unknown_id() {
         let store = Pending2faStore::new();
         assert!(!store.is_code_used("nonexistent", "123456"));
+    }
+
+    #[test]
+    fn global_code_replay_across_sessions() {
+        let store = Pending2faStore::new();
+        let id1 = store.store("user-1".into(), None, None).unwrap();
+        let id2 = store.store("user-1".into(), None, None).unwrap();
+
+        // Mark code used on session 1
+        store.mark_code_used(&id1, "123456");
+
+        // Same code should be blocked on session 2 (global replay prevention)
+        assert!(store.is_code_used(&id2, "123456"));
+
+        // Different user is not affected
+        let id3 = store.store("user-2".into(), None, None).unwrap();
+        assert!(!store.is_code_used(&id3, "123456"));
     }
 }
