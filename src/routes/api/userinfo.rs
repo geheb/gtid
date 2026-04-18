@@ -7,11 +7,11 @@ use axum::{
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use crate::AppState;
+use crate::AppStateCore;
 use crate::crypto::jwt;
 
 pub async fn userinfo(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AppStateCore>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: axum::http::HeaderMap,
 ) -> Result<Response, Response> {

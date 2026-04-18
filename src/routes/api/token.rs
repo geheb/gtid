@@ -8,7 +8,7 @@ use serde::Deserialize;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use crate::AppState;
+use crate::AppStateCore;
 use crate::crypto::{constant_time, jwt, pkce};
 use crate::datetime::SqliteDateTimeExt;
 use crate::repositories::auth_code::ConsumeResult;
@@ -48,7 +48,7 @@ impl TokenRequest {
 }
 
 pub async fn token(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AppStateCore>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: axum::http::HeaderMap,
     axum::Form(form): axum::Form<TokenRequest>,
@@ -89,7 +89,7 @@ pub async fn token(
 }
 
 async fn handle_authorization_code(
-    state: Arc<AppState>,
+    state: Arc<AppStateCore>,
     form: TokenRequest,
     headers: &axum::http::HeaderMap,
     key: u64,
@@ -231,7 +231,7 @@ async fn handle_authorization_code(
 }
 
 async fn handle_refresh_token(
-    state: Arc<AppState>,
+    state: Arc<AppStateCore>,
     form: TokenRequest,
     headers: &axum::http::HeaderMap,
     key: u64,

@@ -7,7 +7,7 @@ use serde::Deserialize;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use crate::AppState;
+use crate::AppStateCore;
 use crate::crypto::jwt;
 
 #[derive(Deserialize)]
@@ -21,7 +21,7 @@ pub struct IntrospectRequest {
 
 /// RFC 7662 Token Introspection Endpoint.
 pub async fn introspect(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AppStateCore>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: axum::http::HeaderMap,
     axum::Form(form): axum::Form<IntrospectRequest>,

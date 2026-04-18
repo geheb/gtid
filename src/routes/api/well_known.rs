@@ -4,9 +4,9 @@ use axum::http::header;
 use axum::response::IntoResponse;
 use std::sync::Arc;
 
-use crate::AppState;
+use crate::AppStateCore;
 
-pub async fn openid_configuration(State(state): State<Arc<AppState>>) -> impl IntoResponse {
+pub async fn openid_configuration(State(state): State<Arc<AppStateCore>>) -> impl IntoResponse {
     tracing::info!("Calling openid-configuration ...");
 
     let issuer = &state.config.issuer_uri;

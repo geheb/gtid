@@ -45,8 +45,9 @@ use repositories::session::SessionRepository;
 use repositories::trusted_device::TrustedDeviceRepository;
 use repositories::user::UserRepository;
 
+/// Shared state — used by both API and UI. No HTML/template concerns.
 #[derive(Clone)]
-pub struct AppState {
+pub struct AppStateCore {
     pub users: UserRepository,
     pub clients: ClientRepository,
     pub sessions: SessionRepository,
@@ -65,15 +66,29 @@ pub struct AppState {
     pub pending_redirects: PendingRedirectStore,
     pub pending_2fa: Pending2faStore,
     pub bot_trap: BotTrap,
-    pub tera: tera::Tera,
-    pub locales: i18n::Locales,
     pub key_store: Arc<crypto::keys::KeyStore>,
     pub config: AppConfig,
+    pub setup_needed: Arc<AtomicBool>,
+    pub setup_token: Option<String>,
+}
+
+/// UI state — wraps [`AppStateCore`] and adds HTML-rendering concerns.
+#[derive(Clone)]
+pub struct AppState {
+    pub core: Arc<AppStateCore>,
+    pub tera: tera::Tera,
+    pub locales: i18n::Locales,
     pub css_hash: String,
     pub js_hash: String,
     pub csp: Arc<std::sync::RwLock<String>>,
-    pub setup_needed: Arc<AtomicBool>,
-    pub setup_token: Option<String>,
+}
+
+// Forwards `state.users` etc. to the core for ergonomic access in UI handlers.
+impl std::ops::Deref for AppState {
+    type Target = AppStateCore;
+    fn deref(&self) -> &AppStateCore {
+        &self.core
+    }
 }
 
 /// Starts the GT Id server with the given config.
@@ -157,7 +172,7 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
 
     let (css_hash, js_hash) = routes::ui::static_files::asset_hashes();
 
-    let state = Arc::new(AppState {
+    let core = Arc::new(AppStateCore {
         users,
         clients,
         sessions,
@@ -176,15 +191,19 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
         pending_redirects: PendingRedirectStore::new(),
         pending_2fa: Pending2faStore::new(),
         bot_trap: BotTrap::new(),
-        tera,
-        locales,
         key_store: key_store.clone(),
         config: config.clone(),
+        setup_needed,
+        setup_token: setup_token.clone(),
+    });
+
+    let state = Arc::new(AppState {
+        core: core.clone(),
+        tera,
+        locales,
         css_hash,
         js_hash,
         csp,
-        setup_needed,
-        setup_token: setup_token.clone(),
     });
 
     let cors_layer = build_cors_layer(&config.cors_allowed_origins);
@@ -192,7 +211,7 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
     let api_app = Router::new()
         .merge(routes::build_api_router())
         .fallback({
-            let st = state.clone();
+            let st = core.clone();
             move |conn: ConnectInfo<SocketAddr>, req: axum::http::Request<axum::body::Body>| {
                 middleware::bot_trap::bot_trap_fallback(st.clone(), conn, req)
             }
@@ -206,13 +225,13 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
             middleware::security_headers::api_security_headers,
         ))
         .layer(TraceLayer::new_for_http())
-        .layer(axum::middleware::from_fn_with_state(state.clone(), middleware::bot_trap::bot_trap_guard))
-        .with_state(state.clone());
+        .layer(axum::middleware::from_fn_with_state(core.clone(), middleware::bot_trap::bot_trap_guard))
+        .with_state(core.clone());
 
     let ui_app = Router::new()
         .merge(routes::build_ui_router())
         .fallback({
-            let st = state.clone();
+            let st = core.clone();
             move |conn: ConnectInfo<SocketAddr>, req: axum::http::Request<axum::body::Body>| {
                 middleware::bot_trap::bot_trap_fallback(st.clone(), conn, req)
             }
@@ -227,10 +246,10 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
             middleware::security_headers::ui_security_headers,
         ))
         .layer(TraceLayer::new_for_http())
-        .layer(axum::middleware::from_fn_with_state(state.clone(), middleware::bot_trap::bot_trap_guard))
+        .layer(axum::middleware::from_fn_with_state(core.clone(), middleware::bot_trap::bot_trap_guard))
         .with_state(state.clone());
 
-    let cleanup_state = state;
+    let cleanup_state = core;
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(std::time::Duration::from_hours(1));
         interval.tick().await;

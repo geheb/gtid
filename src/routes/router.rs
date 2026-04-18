@@ -1,11 +1,11 @@
 use axum::{Router, routing::get};
 use std::sync::Arc;
 
-use crate::AppState;
+use crate::{AppState, AppStateCore};
 
 use super::{api, ui};
 
-pub fn build_api_router() -> Router<Arc<AppState>> {
+pub fn build_api_router() -> Router<Arc<AppStateCore>> {
     Router::new()
         .route(
             "/",

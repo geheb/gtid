@@ -8,7 +8,7 @@ use serde::Deserialize;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use crate::AppState;
+use crate::AppStateCore;
 use crate::crypto::{id::new_id, pkce::generate_pkce};
 
 #[derive(Debug, Deserialize)]
@@ -17,7 +17,7 @@ pub struct AuthorizeUrlParams {
 }
 
 pub async fn authorize_url(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AppStateCore>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: axum::http::HeaderMap,
     Query(params): Query<AuthorizeUrlParams>,

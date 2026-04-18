@@ -6,7 +6,7 @@ use axum::extract::ConnectInfo;
 use axum::http::{StatusCode, header};
 use axum::response::IntoResponse;
 
-use crate::AppState;
+use crate::AppStateCore;
 use crate::middleware::TrackedStore;
 
 /// Number of unknown-path hits before the IP+UA combo gets blocked.
@@ -101,7 +101,7 @@ impl BotTrap {
 /// Middleware: blocks requests without User-Agent or from banned IP+UA combos.
 pub async fn bot_trap_guard(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    axum::extract::State(state): axum::extract::State<Arc<AppState>>,
+    axum::extract::State(state): axum::extract::State<Arc<AppStateCore>>,
     request: axum::http::Request<axum::body::Body>,
     next: axum::middleware::Next,
 ) -> axum::response::Response {
@@ -131,7 +131,7 @@ pub async fn bot_trap_guard(
 
 /// Fallback handler: any request that matches no route counts as a bot strike.
 pub async fn bot_trap_fallback(
-    state: Arc<AppState>,
+    state: Arc<AppStateCore>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     req: axum::http::Request<axum::body::Body>,
 ) -> impl IntoResponse {

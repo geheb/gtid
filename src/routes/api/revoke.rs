@@ -7,7 +7,7 @@ use serde::Deserialize;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use crate::AppState;
+use crate::AppStateCore;
 
 #[derive(Deserialize)]
 pub struct RevokeRequest {
@@ -23,7 +23,7 @@ pub struct RevokeRequest {
 /// Always returns 200 OK per spec, even if the token was invalid or already revoked.
 /// Revokes the entire token family (cascade) to ensure derived tokens are also invalidated.
 pub async fn revoke(
-    State(state): State<Arc<AppState>>,
+    State(state): State<Arc<AppStateCore>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: axum::http::HeaderMap,
     axum::Form(form): axum::Form<RevokeRequest>,

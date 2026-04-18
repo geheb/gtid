@@ -6,7 +6,7 @@ use axum::{
 use base64::{Engine, engine::general_purpose::STANDARD};
 use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 
-use crate::AppState;
+use crate::AppStateCore;
 use crate::crypto::password;
 use crate::entities::client::Client;
 
@@ -60,7 +60,7 @@ pub async fn verify_client_credentials(
     client_id_form: Option<&str>,
     client_secret_form: Option<&str>,
     headers: &HeaderMap,
-    state: &AppState,
+    state: &AppStateCore,
     key: u64,
 ) -> Result<Client, Response> {
     let (client_id, client_secret) = extract_basic_auth(headers).unwrap_or_else(|| {
