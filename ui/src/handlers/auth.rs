@@ -263,9 +263,7 @@ pub async fn login_submit(
     let user = match &user {
         Some(u) if password::verify_password(&form.password, &u.password_hash) => u.clone(),
         _ => {
-            if user.is_none() {
-                password::dummy_verify(&form.password);
-            }
+            password::dummy_verify(&form.password);
             tracing::warn!(event = "login_failed", ip = %ip, email = %email, "Failed login attempt");
             state.login_rate_limiter.record_failure(rl_key);
             state.account_lockout.record_failure(&email);
