@@ -1,0 +1,155 @@
+use std::sync::Arc;
+use std::sync::atomic::Ordering;
+
+use axum::{
+    body::Bytes,
+    extract::State,
+    http::StatusCode,
+    response::{Html, IntoResponse, Response},
+};
+use tera::Context;
+use tower_cookies::Cookies;
+
+use crate::AppState;
+use gtid_shared::crypto::password;
+use gtid_shared::errors::AppError;
+use crate::middleware::csrf::{self, CsrfToken};
+use gtid_shared::middleware::language::Lang;
+use crate::ctx::{BaseCtx, SetupCtx};
+
+use super::{get_field, get_field_opt, parse_form_fields, redirect, validate_password};
+
+pub async fn root_redirect(State(state): State<Arc<AppState>>) -> Response {
+    let target = if state.setup_needed.load(Ordering::Acquire) {
+        "/setup"
+    } else {
+        "/login"
+    };
+    redirect(target)
+}
+
+pub async fn setup_form(State(state): State<Arc<AppState>>, csrf: CsrfToken, lang: Lang) -> Result<Response, AppError> {
+    if !state.setup_needed.load(Ordering::Acquire) {
+        return Ok(redirect("/login"));
+    }
+
+    let ctx = Context::from_serialize(SetupCtx {
+        base: BaseCtx {
+            t: state.locales.get(&lang.tag),
+            lang: &lang.tag,
+            css_hash: &state.css_hash,
+            js_hash: &state.js_hash,
+        },
+        csrf_token: &csrf.form_token,
+        error: false,
+        error_message: "",
+        form_email: "",
+        form_display_name: "Administrator",
+        form_token: "",
+    })?;
+    let rendered = state.tera.render("setup.html", &ctx)?;
+    Ok(Html(rendered).into_response())
+}
+
+pub async fn setup_submit(
+    State(state): State<Arc<AppState>>,
+    cookies: Cookies,
+    lang: Lang,
+    body: Bytes,
+) -> Result<Response, AppError> {
+    if !state.setup_needed.load(Ordering::Acquire) {
+        return Ok(redirect("/login"));
+    }
+
+    let fields = parse_form_fields(&body);
+    let csrf_token = get_field(&fields, "csrf_token");
+    let setup_token = get_field(&fields, "setup_token");
+    let email = super::normalize_email(&get_field(&fields, "email"));
+    let display_name = get_field_opt(&fields, "display_name");
+    let pw = get_field(&fields, "password");
+
+    validate_setup_fields(&csrf_token, &setup_token, &email, display_name.as_deref(), &pw)
+        .map_err(|e| AppError::BadRequest(e.into()))?;
+
+    if !csrf::verify_csrf(&cookies, &csrf_token) {
+        return Err(AppError::BadRequest(
+            state.locales.get(&lang.tag).csrf_token_invalid.clone(),
+        ));
+    }
+
+    let t = state.locales.get(&lang.tag);
+
+    let render_error = |msg: &str, status: StatusCode| -> Result<Response, AppError> {
+        let ctx = Context::from_serialize(SetupCtx {
+            base: BaseCtx {
+                t,
+                lang: &lang.tag,
+                css_hash: &state.css_hash,
+                js_hash: &state.js_hash,
+            },
+            csrf_token: &csrf_token,
+            error: true,
+            error_message: msg,
+            form_email: &email,
+            form_display_name: display_name.as_deref().unwrap_or(""),
+            form_token: &setup_token,
+        })?;
+        let rendered = state.tera.render("setup.html", &ctx)?;
+        Ok((status, Html(rendered)).into_response())
+    };
+
+    // Double-check DB to prevent race condition
+    if state.users.has_admin().await.unwrap_or(false) {
+        state.setup_needed.store(false, Ordering::Release);
+        return render_error(&t.setup_error_already_configured, StatusCode::CONFLICT);
+    }
+
+    // Validate setup token
+    let valid_token = state.setup_token.as_deref().unwrap_or("");
+    if !gtid_shared::crypto::constant_time::constant_time_str_eq(&setup_token, valid_token) {
+        return render_error(&t.setup_error_invalid_token, StatusCode::FORBIDDEN);
+    }
+
+    if let Err(msg) = validate_password(&pw, t) {
+        return render_error(&msg, StatusCode::BAD_REQUEST);
+    }
+
+    if state.users.find_by_email(&email).await?.is_some() {
+        return render_error(&t.setup_error_email_exists, StatusCode::CONFLICT);
+    }
+
+    let id = gtid_shared::crypto::id::new_id();
+    let hash = password::hash_password(&pw)?;
+    state
+        .users
+        .create(&id, &email, &hash, display_name.as_deref(), "admin", true)
+        .await?;
+
+    state.setup_needed.store(false, Ordering::Release);
+    tracing::info!(event = "setup_complete", user_id = %id, email = %email, "Initial admin user created via setup");
+
+    // Redirect to 2FA setup (mandatory for admin)
+    let pending_id = state
+        .pending_2fa
+        .store(id.clone(), None, None)
+        .ok_or_else(|| AppError::Internal("pending 2fa store full".into()))?;
+    Ok(redirect(&format!("/2fa/setup?p={pending_id}")))
+}
+
+fn validate_setup_fields(
+    csrf_token: &str,
+    setup_token: &str,
+    email: &str,
+    display_name: Option<&str>,
+    password: &str,
+) -> Result<(), &'static str> {
+    if csrf_token.len() > super::MAX_CSRF_TOKEN
+        || setup_token.len() > super::MAX_SETUP_TOKEN
+        || email.len() > super::MAX_EMAIL
+        || display_name.is_some_and(|n| n.len() > super::MAX_DISPLAY_NAME)
+        || password.len() > super::MAX_PASSWORD
+    {
+        return Err("invalid request");
+    }
+    Ok(())
+}

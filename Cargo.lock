@@ -1280,7 +1280,50 @@ dependencies = [
 ]
 
 [[package]]
-name = "gtid"
+name = "gtid-api"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "base64",
+ "chrono",
+ "gtid-shared",
+ "jsonwebtoken",
+ "percent-encoding",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tower-http",
+ "tracing",
+]
+
+[[package]]
+name = "gtid-server"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "base64",
+ "dotenvy",
+ "gtid-api",
+ "gtid-shared",
+ "gtid-ui",
+ "hyper",
+ "hyper-util",
+ "reqwest",
+ "scraper",
+ "serde_json",
+ "sha2 0.11.0",
+ "tempfile",
+ "tokio",
+ "tower",
+ "tower-cookies",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+]
+
+[[package]]
+name = "gtid-shared"
 version = "0.1.0"
 dependencies = [
  "aes-gcm",
@@ -1304,15 +1347,12 @@ dependencies = [
  "percent-encoding",
  "rand 0.10.1",
  "rapidhash",
- "reqwest",
  "rust-i18n",
- "scraper",
  "serde",
  "serde_json",
  "sha2 0.11.0",
  "sqlx",
  "subtle",
- "tempfile",
  "tera",
  "tokio",
  "totp-rs",
@@ -1321,7 +1361,37 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
- "url",
+ "uuid",
+]
+
+[[package]]
+name = "gtid-ui"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "base64",
+ "chrono",
+ "dashmap",
+ "form_urlencoded",
+ "gtid-shared",
+ "hex",
+ "idna",
+ "jsonwebtoken",
+ "password-strength",
+ "percent-encoding",
+ "rand 0.10.1",
+ "rapidhash",
+ "serde",
+ "serde_json",
+ "sha2 0.11.0",
+ "subtle",
+ "tera",
+ "tokio",
+ "totp-rs",
+ "tower",
+ "tower-cookies",
+ "tower-http",
+ "tracing",
  "uuid",
 ]
 
