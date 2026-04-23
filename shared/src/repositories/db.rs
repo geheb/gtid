@@ -11,12 +11,11 @@ pub async fn init_pool(database_uri: &str) -> SqlitePool {
         std::fs::create_dir_all(parent).expect("Failed to create database directory");
     }
     #[cfg(unix)]
-    if let Some(path) = path {
-        if std::path::Path::new(path).exists() {
+    if let Some(path) = path
+        && std::path::Path::new(path).exists() {
             use std::os::unix::fs::PermissionsExt;
             let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600));
         }
-    }
 
     let options = SqliteConnectOptions::from_str(database_uri)
         .expect("Invalid DATABASE_URI")
