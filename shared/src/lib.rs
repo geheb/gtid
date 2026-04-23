@@ -32,11 +32,6 @@ use repositories::session::SessionRepository;
 use repositories::trusted_device::TrustedDeviceRepository;
 use repositories::user::UserRepository;
 
-/// Shared state — used by both API and UI. No HTML/template concerns.
-///
-/// UI-only stores (pending redirects, pending 2fa, account lockout, trusted
-/// devices) live on `gtid_ui::AppState` instead of here, because the API is
-/// stateless and does not need them.
 #[derive(Clone)]
 pub struct AppStateCore {
     pub users: UserRepository,

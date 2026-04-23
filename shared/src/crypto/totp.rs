@@ -8,14 +8,11 @@ use sha2::Sha256;
 type HmacSha256 = Hmac<Sha256>;
 use totp_rs::{Algorithm, Secret, TOTP};
 
-/// Generates a new random TOTP secret (Base32-encoded, 20 bytes of entropy).
 pub fn generate_secret() -> String {
     let secret = Secret::generate_secret();
     secret.to_encoded().to_string()
 }
 
-/// Constructs a TOTP instance from a Base32-encoded secret.
-/// The issuer is percent-encoded (otpauth spec forbids literal colons in issuer).
 pub fn build_totp(secret_base32: &str, email: &str, issuer_uri: &str) -> Result<TOTP, String> {
     let stripped_issuer_uri = if issuer_uri.to_lowercase().starts_with("https://") {
         &issuer_uri[8..]
@@ -44,20 +41,16 @@ pub fn build_totp(secret_base32: &str, email: &str, issuer_uri: &str) -> Result<
     .map_err(|e| format!("TOTP build error: {e}"))
 }
 
-/// Generates a QR code as a data:image URI for embedding in HTML.
 pub fn generate_qr_data_uri(totp: &TOTP) -> Result<String, String> {
     totp.get_qr_base64()
         .map(|b64| format!("data:image/png;base64,{b64}"))
         .map_err(|e| format!("QR generation error: {e}"))
 }
 
-/// Verifies a 6-digit TOTP code with 1-step skew tolerance.
 pub fn verify_code(totp: &TOTP, code: &str) -> bool {
     totp.check_current(code).unwrap_or(false)
 }
 
-/// Derives a per-user encryption key via HMAC-SHA256(master_key, "totp-secret" || user_id).
-/// Each user gets a unique key without storing per-user keys.
 pub fn derive_user_key(master_key: &[u8; 32], user_id: &str) -> Result<[u8; 32], String> {
     let mut mac =
         <HmacSha256 as hmac::digest::KeyInit>::new_from_slice(master_key).map_err(|e| format!("HMAC key init: {e}"))?;
@@ -69,8 +62,6 @@ pub fn derive_user_key(master_key: &[u8; 32], user_id: &str) -> Result<[u8; 32],
     Ok(key)
 }
 
-/// Encrypts a TOTP secret using AES-256-GCM.
-/// Returns hex-encoded nonce (24 hex chars) + ciphertext.
 pub fn encrypt_secret(plaintext: &str, user_key: &[u8; 32]) -> Result<String, String> {
     let cipher = Aes256Gcm::new_from_slice(user_key).map_err(|e| format!("cipher init: {e}"))?;
     let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
@@ -83,7 +74,6 @@ pub fn encrypt_secret(plaintext: &str, user_key: &[u8; 32]) -> Result<String, St
     Ok(hex::encode(combined))
 }
 
-/// Decrypts a TOTP secret encrypted with `encrypt_secret`.
 pub fn decrypt_secret(hex_data: &str, user_key: &[u8; 32]) -> Result<String, String> {
     let data = hex::decode(hex_data).map_err(|e| format!("hex decode: {e}"))?;
     if data.len() < 12 {
@@ -99,7 +89,6 @@ pub fn decrypt_secret(hex_data: &str, user_key: &[u8; 32]) -> Result<String, Str
     String::from_utf8(plaintext).map_err(|e| format!("utf8: {e}"))
 }
 
-/// Formats a Base32 secret into groups of 4 for easy manual entry.
 pub fn format_secret_for_display(secret_base32: &str) -> String {
     secret_base32
         .chars()

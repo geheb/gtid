@@ -6,7 +6,6 @@ pub fn new_id() -> String {
     Uuid::new_v6(ts, &node_id).to_string()
 }
 
-/// Generate a cryptographically secure random token (32 bytes, hex-encoded = 64 chars).
 pub fn new_secure_token() -> String {
     let bytes: [u8; 32] = rand::random();
     bytes.iter().map(|b| format!("{b:02x}")).collect()

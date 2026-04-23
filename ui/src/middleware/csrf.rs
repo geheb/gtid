@@ -12,8 +12,6 @@ use gtid_shared::crypto;
 const CSRF_COOKIE_NAME: &str = "__csrf";
 const CSRF_TOKEN_LIFETIME: i64 = 3600;
 
-/// Double-submit cookie CSRF protection.
-/// The cookie holds a random secret; the form token is SHA256("gtid-csrf:" + secret).
 pub struct CsrfToken {
     pub form_token: String,
 }
@@ -40,8 +38,6 @@ impl FromRequestParts<Arc<AppState>> for CsrfToken {
     }
 }
 
-/// Generate a fresh CSRF cookie and return the form token.
-/// For use in POST handlers that re-render forms.
 pub fn set_new_csrf_cookie(cookies: &Cookies, secure: bool) -> String {
     let secret = generate_secret();
     let form_token = compute_form_token(&secret);
@@ -49,7 +45,6 @@ pub fn set_new_csrf_cookie(cookies: &Cookies, secure: bool) -> String {
     form_token
 }
 
-/// Verifies a submitted CSRF token against the cookie value.
 pub fn verify_csrf(cookies: &Cookies, submitted_token: &str) -> bool {
     let cookie_value = match cookies.get(CSRF_COOKIE_NAME) {
         Some(c) if !c.value().is_empty() => c.value().to_string(),

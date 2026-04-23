@@ -2,11 +2,9 @@ use sqlx::SqlitePool;
 
 use crate::entities::refresh_token::RefreshToken;
 
-/// Result of attempting to use a refresh token.
 pub enum RefreshResult {
     Ok(RefreshToken),
     NotFound,
-    /// Token was already revoked - possible theft. Contains the token_family for cascade revocation.
     Reused(String),
 }
 

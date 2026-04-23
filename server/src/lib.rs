@@ -29,10 +29,6 @@ use gtid_shared::repositories::trusted_device::TrustedDeviceRepository;
 use gtid_shared::{AppStateCore, crypto, email, i18n};
 use gtid_ui::AppState;
 
-/// Starts the GT Id server with the given config.
-/// Returns the actual (api_port, ui_port) the listeners bound to.
-/// The server runs in background tokio tasks and will keep running
-/// as long as the tokio runtime is alive.
 pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
     // Bind listeners first so we know actual ports (important when port=0)
     let api_addr = format!("127.0.0.1:{}", config.api_listen_port);

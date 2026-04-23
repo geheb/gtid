@@ -13,7 +13,6 @@ use gtid_shared::middleware;
 
 use crate::handlers;
 
-/// Builds the fully-layered API router ready to serve.
 pub fn build_api_router(core: Arc<AppStateCore>) -> Router {
     let cors_layer = build_cors_layer(&core.config.cors_allowed_origins);
     let body_limit = core.config.max_request_body_bytes;

@@ -21,7 +21,6 @@ pub struct IntrospectRequest {
     pub client_secret: Option<String>,
 }
 
-/// RFC 7662 Token Introspection Endpoint.
 pub async fn introspect(
     State(state): State<Arc<AppStateCore>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,

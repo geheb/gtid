@@ -3,7 +3,6 @@ use axum::{
 };
 use std::net::SocketAddr;
 
-/// Extracts the User-Agent header, returning an error if missing or empty.
 pub fn require_user_agent(headers: &HeaderMap) -> Result<&str, String> {
     headers
         .get(header::USER_AGENT)
@@ -12,7 +11,6 @@ pub fn require_user_agent(headers: &HeaderMap) -> Result<&str, String> {
         .ok_or_else(|| "Missing User-Agent header".to_string())
 }
 
-/// Extracts the client IP, using X-Forwarded-For when trusted_proxies is enabled.
 pub fn client_ip(headers: &HeaderMap, addr: &SocketAddr, trusted_proxies: bool) -> String {
     if trusted_proxies
         && let Some(xff) = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok())

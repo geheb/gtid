@@ -114,12 +114,10 @@ fn short_hash(content: &str) -> String {
     hex::encode(&hash[..8])
 }
 
-/// Returns (css_hash, js_hash) for cache-busting query strings.
 pub fn asset_hashes() -> (String, String) {
     (short_hash(CSS_CONTENT), short_hash(JS_CONTENT))
 }
 
-/// Returns (quill_js_hash, quill_css_hash, editor_js_hash) for email editor assets.
 pub fn email_editor_hashes() -> (String, String, String) {
     (short_hash(QUILL_JS), short_hash(QUILL_CSS), short_hash(EMAIL_EDITOR_JS))
 }

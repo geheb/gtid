@@ -6,11 +6,8 @@
 
 use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 
-/// OIDC scopes supported by this server.
 pub const SUPPORTED_SCOPES: &[&str] = &["openid", "profile", "email"];
 
-/// Validates that all scope parts are in [`SUPPORTED_SCOPES`] and `openid` is present.
-/// Returns `Ok(())` or an error message.
 pub fn validate_scope(scope: &str) -> Result<(), String> {
     for part in scope.split_whitespace() {
         if !SUPPORTED_SCOPES.contains(&part) {
@@ -23,7 +20,6 @@ pub fn validate_scope(scope: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// Percent-encodes a string per RFC 3986.
 pub fn urlencoding(s: &str) -> String {
     utf8_percent_encode(s, NON_ALPHANUMERIC).to_string()
 }

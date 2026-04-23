@@ -9,8 +9,6 @@ pub fn generate_pkce() -> (String, String) {
     (verifier, challenge)
 }
 
-/// Verify PKCE S256: BASE64URL(SHA256(verifier)) == challenge
-/// Uses constant-time comparison to prevent timing attacks.
 pub fn verify_pkce_s256(verifier: &str, challenge: &str) -> bool {
     let hash = Sha256::digest(verifier.as_bytes());
     let computed = URL_SAFE_NO_PAD.encode(hash);

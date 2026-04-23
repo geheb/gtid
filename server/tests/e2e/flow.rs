@@ -2,7 +2,6 @@ use super::*;
 use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 
-/// Complete OIDC Authorization Code Flow with PKCE (Steps 0-10)
 #[tokio::test]
 async fn oidc_complete_flow() {
     let server = TestServer::start().await;

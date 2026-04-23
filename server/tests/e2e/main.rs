@@ -189,7 +189,6 @@ impl TestServer {
     }
 }
 
-/// Extract the value of an HTML input field by name.
 pub fn extract_input_value(html: &str, name: &str) -> Option<String> {
     let doc = Html::parse_document(html);
     let selector = Selector::parse(&format!(r#"input[name="{}"]"#, name)).ok()?;
@@ -199,12 +198,10 @@ pub fn extract_input_value(html: &str, name: &str) -> Option<String> {
         .map(|v| v.to_string())
 }
 
-/// Extract CSRF token from HTML.
 pub fn extract_csrf(html: &str) -> Option<String> {
     extract_input_value(html, "csrf_token")
 }
 
-/// Extract the TOTP secret from the 2FA setup page (from the <code class="totp-secret"> element).
 pub fn extract_totp_secret(html: &str) -> Option<String> {
     let doc = Html::parse_document(html);
     let selector = Selector::parse("code.totp-secret").ok()?;
@@ -213,8 +210,6 @@ pub fn extract_totp_secret(html: &str) -> Option<String> {
         .map(|el| el.text().collect::<String>().replace(' ', ""))
 }
 
-/// Admin login: fetches CSRF, submits login form, completes 2FA, returns CSRF token.
-/// Works with both redirect-following and no-redirect clients.
 pub async fn admin_login(server: &TestServer, client: &reqwest::Client) -> String {
     let login_page = client
         .get(server.ui_url("/login"))
@@ -267,7 +262,6 @@ pub async fn admin_login(server: &TestServer, client: &reqwest::Client) -> Strin
     csrf
 }
 
-/// Generate a fresh TOTP code, waiting for a new window if needed to avoid replay.
 async fn generate_fresh_totp_code(server: &TestServer) -> String {
     let issuer_uri = server.ui_url("");
     let totp = totp_crypto::build_totp(&server.admin_totp_secret, ADMIN_EMAIL, &issuer_uri).unwrap();
@@ -283,7 +277,6 @@ async fn generate_fresh_totp_code(server: &TestServer) -> String {
     code
 }
 
-/// Complete the 2FA verification step during login.
 pub async fn complete_2fa_verify(server: &TestServer, client: &reqwest::Client, location: &str) {
     let verify_page = client
         .get(server.ui_url(location))
@@ -310,7 +303,6 @@ pub async fn complete_2fa_verify(server: &TestServer, client: &reqwest::Client, 
         .unwrap();
 }
 
-/// Setup the test client via admin panel.
 pub async fn setup_test_client(server: &TestServer, client: &reqwest::Client) {
     admin_login(server, client).await;
 
@@ -362,8 +354,6 @@ pub async fn setup_test_client(server: &TestServer, client: &reqwest::Client) {
     );
 }
 
-/// Get a fresh authorization code + code_verifier.
-/// Returns (auth_code, code_verifier).
 pub async fn get_fresh_code(server: &TestServer, client: &reqwest::Client) -> (String, String) {
     let auth_resp = client
         .get(server.api_url("/authorize-url?scope=openid%20email%20profile"))
@@ -400,7 +390,6 @@ pub async fn get_fresh_code(server: &TestServer, client: &reqwest::Client) -> (S
     (code, code_verifier)
 }
 
-/// Exchange an auth code for tokens. Returns the full JSON response.
 pub async fn exchange_code(
     server: &TestServer,
     client: &reqwest::Client,

@@ -1,6 +1,5 @@
 use chrono::{DateTime, NaiveDateTime, Utc};
 
-/// SQLite-compatible datetime format used throughout the application.
 const SQLITE_DATETIME_FMT: &str = "%Y-%m-%d %H:%M:%S";
 
 pub trait SqliteDateTimeExt {
@@ -13,7 +12,6 @@ impl SqliteDateTimeExt for DateTime<Utc> {
     }
 }
 
-/// Parse a SQLite datetime string (`"YYYY-MM-DD HH:MM:SS"`) into a [`NaiveDateTime`].
 pub fn parse_sqlite(s: &str) -> Option<NaiveDateTime> {
     NaiveDateTime::parse_from_str(s, SQLITE_DATETIME_FMT).ok()
 }

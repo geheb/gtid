@@ -9,7 +9,6 @@ use gtid_shared::AppStateCore;
 use gtid_shared::crypto::password;
 use gtid_shared::entities::client::Client;
 
-/// Parses Basic Auth header into (client_id, client_secret).
 fn extract_basic_auth(headers: &HeaderMap) -> Option<(String, String)> {
     let auth = headers.get(header::AUTHORIZATION)?.to_str().ok()?;
     let encoded = auth.strip_prefix("Basic ")?;
@@ -19,7 +18,6 @@ fn extract_basic_auth(headers: &HeaderMap) -> Option<(String, String)> {
     Some((id.to_string(), secret.to_string()))
 }
 
-/// Standard OAuth2 JSON error response.
 pub fn oauth_error(error: &str, description: &str) -> Response {
     (
         StatusCode::BAD_REQUEST,
@@ -31,8 +29,6 @@ pub fn oauth_error(error: &str, description: &str) -> Response {
         .into_response()
 }
 
-/// Authenticates a client via Basic Auth header or form-encoded credentials.
-/// Basic Auth takes precedence per RFC 6749 §2.3.1.
 pub async fn verify_client_credentials(
     client_id_form: Option<&str>,
     client_secret_form: Option<&str>,

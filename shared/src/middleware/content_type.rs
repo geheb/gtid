@@ -7,9 +7,6 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
-/// Middleware that validates Content-Type on POST requests.
-/// API endpoints expect `application/x-www-form-urlencoded` or `application/json`.
-/// Rejects requests with missing or unsupported Content-Type.
 pub async fn validate_content_type(request: Request<Body>, next: Next) -> Response {
     if request.method() != Method::POST {
         return next.run(request).await;

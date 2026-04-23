@@ -19,10 +19,6 @@ use gtid_shared::middleware::pending_2fa::Pending2faStore;
 use gtid_shared::middleware::pending_redirect::PendingRedirectStore;
 use gtid_shared::repositories::trusted_device::TrustedDeviceRepository;
 
-/// UI state — wraps [`AppStateCore`] and adds UI-only concerns:
-/// template engine, localization, CSP cache, and stores that the stateless
-/// API never touches (pending redirects, pending 2fa, account lockout,
-/// trusted devices).
 #[derive(Clone)]
 pub struct AppState {
     pub core: Arc<AppStateCore>,
@@ -45,10 +41,6 @@ impl std::ops::Deref for AppState {
     }
 }
 
-/// Loads all embedded HTML templates into a [`tera::Tera`] instance.
-///
-/// `include_str!` paths are resolved relative to this file, which is why the
-/// function lives in this crate alongside `../static/`.
 pub fn load_templates() -> tera::Tera {
     let mut tera = tera::Tera::default();
     tera.add_raw_templates(vec![

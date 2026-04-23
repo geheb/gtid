@@ -1,11 +1,9 @@
 use subtle::ConstantTimeEq;
 
-/// Constant-time byte comparison to prevent timing attacks.
 pub fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
     a.ct_eq(b).into()
 }
 
-/// Constant-time string comparison.
 pub fn constant_time_str_eq(a: &str, b: &str) -> bool {
     constant_time_eq(a.as_bytes(), b.as_bytes())
 }

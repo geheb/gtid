@@ -10,13 +10,10 @@ use axum::response::IntoResponse;
 use crate::AppStateCore;
 use crate::middleware::TrackedStore;
 
-/// Number of unknown-path hits before the IP+UA combo gets blocked.
 const STRIKE_THRESHOLD: u32 = 3;
 
-/// How long an IP+UA stays blocked after reaching the threshold.
 const BAN_DURATION: Duration = Duration::from_secs(3600);
 
-/// Maximum tracked keys to prevent memory exhaustion.
 const MAX_TRACKED_KEYS: usize = 100_000;
 
 struct BanEntry {
@@ -99,7 +96,6 @@ impl BotTrap {
     }
 }
 
-/// Middleware: blocks requests without User-Agent or from banned IP+UA combos.
 pub async fn bot_trap_guard(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     axum::extract::State(state): axum::extract::State<Arc<AppStateCore>>,
@@ -130,7 +126,6 @@ pub async fn bot_trap_guard(
     next.run(request).await
 }
 
-/// Fallback handler: any request that matches no route counts as a bot strike.
 pub async fn bot_trap_fallback(
     state: Arc<AppStateCore>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,

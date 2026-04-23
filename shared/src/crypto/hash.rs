@@ -1,6 +1,5 @@
 use sha2::{Digest, Sha256};
 
-/// SHA-256 hash of a plaintext string, returned as lowercase hex.
 pub fn sha256_hex(input: &str) -> String {
     let hash = Sha256::digest(input.as_bytes());
     hash.iter().map(|b| format!("{b:02x}")).collect()

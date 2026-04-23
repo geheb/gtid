@@ -64,8 +64,6 @@ pub fn issue_access_token(
     encode_token(encoding_key, kid, claims)
 }
 
-/// Compute at_hash per OIDC Core 3.1.3.6:
-/// base64url(left-half(SHA-256(ASCII(access_token))))
 pub fn compute_at_hash(access_token: &str) -> String {
     let hash = Sha256::digest(access_token.as_bytes());
     URL_SAFE_NO_PAD.encode(&hash[..16])
@@ -119,7 +117,6 @@ pub fn decode_access_token(
     Ok(data.claims)
 }
 
-/// Decode an access token trying multiple keys (for key rotation).
 pub fn decode_access_token_multi(
     token: &str,
     decoding_keys: &[&DecodingKey],

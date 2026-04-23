@@ -20,7 +20,6 @@ struct KeyStoreInner {
     previous: Option<KeyPair>,
 }
 
-/// Manages current + previous key pairs for graceful rotation.
 pub struct KeyStore {
     inner: ArcSwap<KeyStoreInner>,
 }
@@ -35,7 +34,6 @@ impl KeyStore {
         }
     }
 
-    /// Rotate keys: current becomes previous, a new key pair becomes current.
     pub fn rotate(&self) -> Result<String, KeyError> {
         let new_keys = generate_key_pair()?;
         let new_kid = new_keys.kid.clone();
@@ -53,13 +51,11 @@ impl KeyStore {
         Ok(new_kid)
     }
 
-    /// Get the current encoding key and kid for signing.
     pub fn signing_key(&self) -> (EncodingKey, String) {
         let snap = self.inner.load();
         (snap.current.encoding_key.clone(), snap.current.kid.clone())
     }
 
-    /// Get all decoding keys (current + previous) for verification.
     pub fn decoding_keys(&self) -> Vec<DecodingKey> {
         let snap = self.inner.load();
         let mut keys = vec![snap.current.decoding_key.clone()];
@@ -69,7 +65,6 @@ impl KeyStore {
         keys
     }
 
-    /// Build JWKS JSON containing all available public keys.
     pub fn jwks_json(&self) -> serde_json::Value {
         let snap = self.inner.load();
         let mut keys = vec![snap.current.jwk.clone()];
@@ -80,7 +75,6 @@ impl KeyStore {
     }
 }
 
-/// Generates a fresh Ed25519 keypair in memory.
 pub fn generate_key_pair() -> Result<KeyPair, KeyError> {
     let seed: [u8; 32] = rand::random();
     let signing_key = SigningKey::from_bytes(&seed);
@@ -102,7 +96,6 @@ pub fn generate_key_pair() -> Result<KeyPair, KeyError> {
     })
 }
 
-/// Convenience: generate keys and wrap in a KeyStore.
 pub fn generate_keys() -> Result<KeyStore, KeyError> {
     tracing::info!("Generating ephemeral Ed25519 keypair");
     Ok(KeyStore::new(generate_key_pair()?))

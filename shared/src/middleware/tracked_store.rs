@@ -5,8 +5,6 @@ use rapidhash::fast::RapidHasher;
 use std::hash::Hasher;
 use std::sync::Arc;
 
-/// Capacity-bounded, hashed-key store backed by DashMap.
-/// Shared by `rate_limit` and `bot_trap` to avoid duplicating Arc/seed/eviction boilerplate.
 pub struct TrackedStore<V> {
     pub map: Arc<DashMap<u64, V>>,
     max_keys: usize,

@@ -18,73 +18,117 @@ Both run on separate ports with different middleware stacks (API: CORS, no cooki
 ## Project Structure
 
 ```
-src/
-  main.rs                  # Entrypoint: load .env, tracing, start_server()
-  lib.rs                   # AppState, start_server(), background tasks, router setup
-  config.rs                # AppConfig - all configuration from environment variables
-  errors.rs                # AppError enum - centralized error handling
-  datetime.rs              # Chrono helpers (SQLite format)
-  i18n.rs                  # Internationalization (rust-i18n)
-
-  crypto/                  # Cryptography - no unsafe, no custom algorithms
-    constant_time.rs       # Constant-time comparisons (subtle)
-    hash.rs                # SHA-256 hashing
-    id.rs                  # UUID v6 generation
-    jwt.rs                 # JWT creation/validation (EdDSA only)
-    keys.rs                # KeyStore with rotation (Ed25519)
-    password.rs            # Argon2id hashing + dummy verify
-    pkce.rs                # PKCE S256 verification
-    totp.rs                # TOTP encryption/decryption (AES-256-GCM)
-
-  entities/                # Data structures (sqlx::FromRow)
-    user.rs, client.rs, session.rs, auth_code.rs, refresh_token.rs, ...
-
-  repositories/            # Database access (one repository per entity)
-    db.rs                  # Pool init, migrations, SQLite pragmas
-    user.rs, client.rs, session.rs, auth_code.rs, ...
-    mod.rs                 # test_helpers (in-memory pools)
-
-  middleware/              # Axum middleware
-    bot_trap.rs            # Honeypot fallback for unknown paths
-    content_type.rs        # Content-Type whitelist
-    csrf.rs                # Double-submit CSRF
-    language.rs            # Accept-Language detection
-    lockout.rs             # Account lockout after failed attempts
-    pending_2fa.rs         # In-memory 2FA state
-    pending_redirect.rs    # In-memory redirect state
-    rate_limit.rs          # IP+UA rate limiting
-    security_headers.rs    # CSP, HSTS, Cache-Control, etc.
-    session.rs             # Session extractor (AdminUser, AuthenticatedUser)
-    tracked_store.rs       # TrackedStore<V> - capacity-bounded DashMap
-
-  routes/
-    router.rs              # build_api_router(), build_ui_router()
-    ctx.rs                 # Template contexts (Serialize structs)
-    helpers.rs             # client_ip
-    mod.rs                 # Re-exports
-
-    api/                   # OAuth2/OIDC endpoints
-      auth.rs              # Login/Logout
-      authorize.rs         # /authorize GET+POST (consent)
-      authorize_url.rs     # /authorize-url (client-authenticated)
-      token.rs             # /token (code->token exchange, refresh)
-      userinfo.rs          # /userinfo
-      well_known.rs        # /.well-known/openid-configuration
-      jwks.rs              # /jwks
-      revoke.rs            # /revoke
-      introspect.rs        # /introspect
-      profile.rs           # /profile (self-service)
-
-    ui/                    # Admin + UI pages
-      clients.rs           # Client management
-      users.rs             # User management
-      dashboard.rs         # Admin dashboard
-      setup.rs             # Initial setup
-      totp.rs              # 2FA setup/verify pages
-      confirm_email.rs     # Email confirmation
-      password_reset.rs    # Password reset
-      static_files.rs      # CSS/JS (embedded, cache-busting)
-      ...
+gtid/                           # Cargo workspace
+├── Cargo.toml                   # workspace members = [shared, api, ui, server]
+├── .rust-version               # Pinned toolchain
+├── clippy.toml                # Clippy configuration
+├── .editorconfig              # Editor settings
+│
+├── shared/                    # Shared library (used by api, ui, server)
+│   ├── Cargo.toml
+│   └── src/
+│       ├── lib.rs             # AppStateCore, re-exports
+│       ├── config.rs          # AppConfig
+│       ├── errors.rs          # AppError
+│       ├── datetime.rs        # Chrono helpers
+│       ├── i18n.rs          # Internationalization
+│       ├── limits.rs          # Size limits
+│       ├── oauth.rs          # OIDC helpers
+│       │
+│       ├── crypto/            # Cryptography - no unsafe, no custom algorithms
+│       │   ├── constant_time.rs
+│       │   ├── hash.rs
+│       │   ├── id.rs
+│       │   ├── jwt.rs
+│       │   ├── keys.rs
+│       │   ├── password.rs
+│       │   ├── pkce.rs
+│       │   └── totp.rs
+│       │
+│       ├── entities/          # sqlx::FromRow
+│       │   └── ...
+│       │
+│       ├── repositories/      # One repo per entity
+│       │   ├── db.rs
+│       │   └── ...
+│       │
+│       ├── models/           # Business models
+│       │   └── ...
+│       │
+│       ├── middleware/       # Axum middleware
+│       │   ├── bot_trap.rs
+│       │   ├── content_type.rs
+│       │   ├── csrf.rs
+│       │   ├── language.rs
+│       │   ├── lockout.rs
+│       │   ├── pending_2fa.rs
+│       │   ├── pending_redirect.rs
+│       │   ├── rate_limit.rs
+│       │   ├── security_headers.rs
+│       │   ├── session.rs
+│       │   └── tracked_store.rs
+│       │
+│       ├── routes/          # Shared route helpers
+│       │   └── helpers.rs
+│       │
+│       └── email/          # Email handling
+│           ├── mod.rs
+│           ├── worker.rs
+│           ├── sender.rs
+│           └── smtp_sender.rs
+│
+├── api/                     # API crate (stateless, JSON)
+│   ├── Cargo.toml
+│   └── src/
+│       ├── lib.rs
+│       ├── router.rs        # build_api_router()
+│       ├── helpers.rs
+│       └── handlers/
+│           ├── jwks.rs
+│           ├── well_known.rs
+│           ├── userinfo.rs
+│           ├── revoke.rs
+│           ├── token.rs
+│           ├── introspect.rs
+│           └── authorize_url.rs
+│
+├── ui/                     # UI crate (stateful, HTML)
+│   ├── Cargo.toml
+│   └── src/
+│       ├── lib.rs           # AppState
+│       ├── router.rs        # build_ui_router()
+│       ├── ctx.rs          # Template contexts
+│       ├── middleware/
+│       │   ├── session.rs
+│       │   ├── csrf.rs
+│       │   └── security_headers.rs
+│       ├── handlers/
+│       │   ├── auth.rs
+│       │   ├── authorize.rs
+│       │   ├── clients.rs
+│       │   ├── dashboard.rs
+│       │   ├── users.rs
+│       │   ├── profile.rs
+│       │   ├── setup.rs
+│       │   ├── totp.rs
+│       │   ├── confirm_email.rs
+│       │   ├── confirm_email_change.rs
+│       │   ├── password_reset.rs
+│       │   ├── email_templates.rs
+│       │   ├── legal.rs
+│       │   ├── static_files.rs
+│       │   └── helpers.rs
+│       └── static/           # Embedded templates + assets
+│
+└── server/                  # Binary crate
+    ├── Cargo.toml
+    └── src/
+        ├── main.rs
+        └── lib.rs          # start_server()
+    └── tests/e2e/
+        ├── main.rs
+        ├── flow.rs
+        └── security.rs
 ```
 
 ---
@@ -97,20 +141,21 @@ API and UI run on separate ports with separate middleware stacks. This is intent
 
 - **API**: Stateless, no cookie layer, CORS layer, returns JSON
 - **UI**: Cookie layer, CSRF protection, CSP, returns HTML
-- New API endpoints go in `routes/api/`, new UI pages in `routes/ui/`
-- Router registration happens in `routes/router.rs`
+- New API endpoints go in `api/src/handlers/`, new UI pages in `ui/src/handlers/`
+- Router registration happens in respective `router.rs`
 
-### 2. Shared State via AppState
+### 2. Shared State via AppStateCore
 
-`AppState` is the central, immutable state container. It is built once in `start_server()` and passed as `Arc<AppState>` to both routers.
+`AppStateCore` is the central, immutable state container in `shared`. It is built once in `start_server()` and passed as `Arc<AppStateCore>` to both routers.
 
-- New repositories or stores are added as fields in `AppState`
-- No global/static mutable state - everything goes through `AppState`
+- `gtid_ui::AppState` wraps `AppStateCore` and adds UI-only concerns (templates, CSRF, session store)
+- New repositories or stores are added as fields in `AppStateCore`
+- No global/static mutable state - everything goes through `AppState*`
 - In-memory stores use `TrackedStore<V>` with a defined capacity
 
 ### 3. Repository Pattern
 
-Each database entity has its own repository (`repositories/*.rs`) holding a `SqlitePool`.
+Each database entity has its own repository (`shared/src/repositories/*.rs`) holding a `SqlitePool`.
 
 - Repositories are the only layer that executes SQL
 - All queries use `sqlx::query!` with bind parameters
@@ -141,14 +186,14 @@ New tables go into the thematically matching database.
 
 ### 5. Template Rendering
 
-- Tera with `include_str!` - templates are embedded at compile time
-- One context struct per page in `routes/ctx.rs` with `#[derive(Serialize)]`
+- Tera with `include_str!` - templates are embedded at compile time in `ui/src/static/`
+- One context struct per page in `ui/src/ctx.rs` with `#[derive(Serialize)]`
 - All contexts include `BaseCtx` (i18n, asset hashes) via `#[serde(flatten)]`
 - No dynamic template loading at runtime
 
 ### 6. Cryptography
 
-- All crypto operations live in `crypto/` - not scattered across the codebase
+- All crypto operations live in `shared/src/crypto/` - not scattered across the codebase
 - No `unsafe`, no custom algorithms
 - JWT: EdDSA only, algorithm is not configurable
 - Password hashing: Argon2id (64 MB, 3 iterations, 4 parallelism)
@@ -157,7 +202,7 @@ New tables go into the thematically matching database.
 
 ### 7. Error Handling
 
-- `AppError` enum in `errors.rs` is the central error type
+- `AppError` enum in `shared/src/errors.rs` is the central error type
 - Route handlers return `Result<..., AppError>`
 - `AppError::Internal` and `AppError::Database` log details, return only generic messages to the client
 - `expect()` only in startup code, never in request handlers
@@ -165,7 +210,7 @@ New tables go into the thematically matching database.
 
 ### 8. Middleware Order
 
-The middleware order in `lib.rs` is security-relevant (Axum: bottom-to-top execution):
+The middleware order in `lib.rs` / `router.rs` is security-relevant (Axum: bottom-to-top execution):
 
 ```
 Bot-Trap Guard          <- outermost layer (runs first)
@@ -200,21 +245,21 @@ New periodic tasks follow the same pattern: `tokio::spawn` + `tokio::time::inter
 
 ### 11. Tests
 
-- E2E tests in `tests/e2e/` start a real server (`start_server()`) with port 0
+- E2E tests in `server/tests/e2e/` start a real server (`start_server()`) with port 0
 - Unit tests live in their respective modules
-- Test helpers in `repositories/mod.rs::test_helpers` provide in-memory SQLite pools
+- Test helpers in `shared/src/repositories/mod.rs::test_helpers` provide in-memory SQLite pools
 - No database mocking - tests run against real SQLite (in-memory)
 
 ### 12. Internationalization
 
-- `rust-i18n` with locale files in `locales/`
+- `rust-i18n` with locale files in `shared/locales/`
 - `I18n` struct is passed to templates via `BaseCtx`
-- Language is determined from the `Accept-Language` header (`middleware/language.rs`)
+- Language is determined from the `Accept-Language` header (`shared/src/middleware/language.rs`)
 - Supported languages: `de`, `en`
 
 ### 13. Static Assets
 
-- CSS and JS are embedded via `include_str!` / `include_bytes!`
+- CSS and JS are embedded via `include_str!` / `include_bytes!` in `ui/src/static/`
 - Cache-busting via SHA-256 content hash as query parameter (`?v=...`)
 - Static files: `Cache-Control: public, max-age=604800, immutable`
 - Dynamic responses: `Cache-Control: no-store`
@@ -240,4 +285,4 @@ Both servers support HTTP/2 Cleartext (h2c) via `hyper-util` `AutoBuilder`. This
 - **IDs**: UUID v6 via `crypto::id::new_id()` for all new entities
 - **Time format**: SQLite-compatible ISO 8601 (`datetime('now')`, Chrono `to_sqlite()`)
 - **Token pattern**: CSPRNG generation, SHA-256 hashed in DB, plaintext only sent to the user
-
+- **Workspace**: All crates use the same edition, dependencies via path references in Cargo.toml

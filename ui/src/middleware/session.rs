@@ -18,7 +18,6 @@ fn login_redirect() -> Response {
     redirect("/login")
 }
 
-/// Renews the session cookie's Max-Age (pure in-memory, no DB access).
 fn renew_session_cookie(session_id: &str, cookies: &Cookies, state: &crate::AppState) {
     let lifetime = state.config.session_lifetime_secs;
     let mut builder = Cookie::build((SESSION_ID_COOKIE_NAME, session_id.to_string()))
@@ -32,8 +31,6 @@ fn renew_session_cookie(session_id: &str, cookies: &Cookies, state: &crate::AppS
     cookies.add(builder.build());
 }
 
-/// Extracts the current session user from the session cookie.
-/// Redirects to /login if no valid session exists.
 pub struct SessionUser(pub User);
 
 impl FromRequestParts<Arc<crate::AppState>> for SessionUser {
@@ -74,7 +71,6 @@ impl FromRequestParts<Arc<crate::AppState>> for SessionUser {
     }
 }
 
-/// Optionally extracts a session user (returns None if not logged in).
 pub struct OptionalSessionUser(pub Option<User>);
 
 impl FromRequestParts<Arc<crate::AppState>> for OptionalSessionUser {
@@ -110,7 +106,6 @@ impl FromRequestParts<Arc<crate::AppState>> for OptionalSessionUser {
     }
 }
 
-/// Admin-only session extractor. Redirects to /login if not logged in or not admin.
 pub struct AdminUser(#[allow(dead_code)] pub User);
 
 impl FromRequestParts<Arc<crate::AppState>> for AdminUser {

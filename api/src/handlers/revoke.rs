@@ -21,9 +21,6 @@ pub struct RevokeRequest {
     pub client_secret: Option<String>,
 }
 
-/// RFC 7009 Token Revocation Endpoint.
-/// Always returns 200 OK per spec, even if the token was invalid or already revoked.
-/// Revokes the entire token family (cascade) to ensure derived tokens are also invalidated.
 pub async fn revoke(
     State(state): State<Arc<AppStateCore>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,

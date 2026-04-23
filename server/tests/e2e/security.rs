@@ -3,8 +3,6 @@ use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use reqwest::redirect::Policy;
 
-/// Shared test setup: starts server, creates client, logs in.
-/// Returns server + a single logged-in client with initial consent given.
 async fn setup() -> (TestServer, reqwest::Client) {
     let server = TestServer::start().await;
 
@@ -70,7 +68,6 @@ async fn setup() -> (TestServer, reqwest::Client) {
     (server, client)
 }
 
-/// Get a fresh code and exchange it for tokens.
 async fn get_fresh_tokens(server: &TestServer, client: &reqwest::Client) -> serde_json::Value {
     let (code, verifier) = get_fresh_code(server, client).await;
     exchange_code(server, client, &code, &verifier).await

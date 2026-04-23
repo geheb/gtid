@@ -25,8 +25,6 @@ use gtid_shared::crypto::{jwt, password};
 
 use crate::middleware::{SESSION_ID_COOKIE_NAME, TRUST_DEVICE_COOKIE_NAME};
 
-/// RP-Initiated Logout per OpenID Connect RP-Initiated Logout 1.0.
-/// GET /logout?id_token_hint=...&post_logout_redirect_uri=...&state=...
 #[derive(Deserialize)]
 pub struct RpLogoutQuery {
     #[serde(default)]

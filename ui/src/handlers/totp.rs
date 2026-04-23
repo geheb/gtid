@@ -21,7 +21,6 @@ use crate::middleware::{SESSION_ID_COOKIE_NAME, TRUST_DEVICE_COOKIE_NAME};
 
 use super::{get_field, parse_form_fields, redirect};
 
-/// Validates that a TOTP code is exactly 6 ASCII digits.
 fn is_valid_totp_code(code: &str) -> bool {
     code.len() == 6 && code.bytes().all(|b| b.is_ascii_digit())
 }
