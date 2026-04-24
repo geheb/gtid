@@ -1,17 +1,20 @@
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use sha2::{Digest, Sha256};
+use zeroize::Zeroize;
 
 pub fn generate_pkce() -> (String, String) {
-    let random_bytes: [u8; 32] = rand::random();
+    let mut random_bytes: [u8; 32] = rand::random();
     let verifier = URL_SAFE_NO_PAD.encode(random_bytes);
+    random_bytes.zeroize();
     let hash = Sha256::digest(verifier.as_bytes());
     let challenge = URL_SAFE_NO_PAD.encode(hash);
     (verifier, challenge)
 }
 
 pub fn verify_pkce_s256(verifier: &str, challenge: &str) -> bool {
-    let hash = Sha256::digest(verifier.as_bytes());
-    let computed = URL_SAFE_NO_PAD.encode(hash);
+    let mut hash = Sha256::digest(verifier.as_bytes());
+    let computed = URL_SAFE_NO_PAD.encode(&hash);
+    hash.zeroize();
     super::constant_time::constant_time_eq(computed.as_bytes(), challenge.as_bytes())
 }
 

@@ -28,6 +28,7 @@ form_urlencoded = "1"
 ed25519-dalek = { version = "2.2.0", features = ["pkcs8", "pem", "rand_core"] }
 hex = "0.4.3"
 subtle = "2"
+zeroize = "1"
 tower-cookies = "0.11.0"
 password-strength = "1.0.0"
 hyper = { version = "1", features = ["http1", "http2", "server"] }

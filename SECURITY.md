@@ -433,6 +433,41 @@ If a struct has no sensitive fields (like `AppConfig` after removing admin crede
 
 ---
 
+## 18. Memory Clearing
+
+**Pattern:** Clear sensitive data from memory after use using `zeroize`. While Rust's ownership model and allocator behavior generally handle memory, explicit clearing provides defense-in-depth against memory inspection attacks.
+
+### Where to use
+
+| Location | Data | Method |
+|----------|------|--------|
+| `crypto/pkce.rs:generate_pkce()` | Random bytes | `random_bytes.zeroize()` |
+| `crypto/pkce.rs:verify_pkce_s256()` | Hash buffer | `hash.zeroize()` |
+| `crypto/id.rs:new_id()` | Node ID | `node_id.zeroize()` |
+| `crypto/id.rs:new_secure_token()` | Random bytes | `bytes.zeroize()` |
+
+### Implementation
+
+```rust
+use zeroize::Zeroize;
+
+pub fn sensitive_operation() {
+    let mut sensitive_data: [u8; 32] = rand::random();
+    // ... use sensitive_data ...
+    sensitive_data.zeroize(); // Clear after use
+}
+```
+
+### Why not everywhere
+
+- **Argon2id:** Already designed to be slow intentionally - additional clearing has minimal benefit
+- **JWT keys:** Reused across requests, rotation handles lifecycle
+- **TOTP secrets:** Short-lived in memory, encrypted at rest anyway
+
+**Rule:** Add `zeroize` for short-lived, high-entropy secrets (PKCE verifiers, tokens, random bytes). Complex types that already have controlled lifetimes don't need explicit clearing.
+
+---
+
 ## Checklist for New Features
 
 Before merging, verify:
@@ -461,3 +496,4 @@ Before merging, verify:
 - [ ] Structs holding secrets implement `Debug` with `[REDACTED]`
 - [ ] New token types use CSPRNG generation + SHA-256 hashed storage + configurable expiry
 - [ ] No plaintext tokens stored in the database
+- [ ] new secrets use `zeroize::Zeroize` to clear after use

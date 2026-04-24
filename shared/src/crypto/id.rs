@@ -1,14 +1,19 @@
 use uuid::{Uuid, timestamp::Timestamp};
+use zeroize::Zeroize;
 
 pub fn new_id() -> String {
     let ts = Timestamp::now(uuid::NoContext);
-    let node_id: [u8; 6] = rand::random();
-    Uuid::new_v6(ts, &node_id).to_string()
+    let mut node_id: [u8; 6] = rand::random();
+    let id = Uuid::new_v6(ts, &node_id).to_string();
+    node_id.zeroize();
+    id
 }
 
 pub fn new_secure_token() -> String {
-    let bytes: [u8; 32] = rand::random();
-    bytes.iter().map(|b| format!("{b:02x}")).collect()
+    let mut bytes: [u8; 32] = rand::random();
+    let token = bytes.iter().map(|b| format!("{b:02x}")).collect();
+    bytes.zeroize();
+    token
 }
 
 #[cfg(test)]

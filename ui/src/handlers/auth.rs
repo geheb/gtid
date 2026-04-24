@@ -82,12 +82,16 @@ pub async fn rp_initiated_logout(
             .await
             .map_err(|_| AppError::Internal("Database error".into()))?
             .ok_or_else(|| AppError::BadRequest("Invalid post_logout_redirect_uri".into()))?;
+
+        let allowed_uris: Vec<&str> = client
+            .client_post_logout_redirect_uri
+            .as_ref()
+            .filter(|uri| !uri.is_empty())
+            .map(|uri| vec![uri.as_str()])
+            .unwrap_or_default();
+
         let uri_valid = gtid_shared::crypto::constant_time::constant_time_str_eq(uri, &client.client_redirect_uri)
-            || client
-                .client_post_logout_redirect_uri
-                .as_ref()
-                .map(|allowed| gtid_shared::crypto::constant_time::constant_time_str_eq(uri, allowed))
-                .unwrap_or(false);
+            || allowed_uris.iter().any(|&allowed| gtid_shared::crypto::constant_time::constant_time_str_eq(uri, allowed));
         if !uri_valid {
             return Err(AppError::BadRequest("Invalid post_logout_redirect_uri".into()));
         }
