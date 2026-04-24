@@ -18,6 +18,7 @@ pub async fn openid_configuration(State(state): State<Arc<AppStateCore>>) -> imp
         "userinfo_endpoint": format!("{issuer}/userinfo"),
         "jwks_uri": format!("{issuer}/jwks"),
         "response_types_supported": ["code"],
+        "response_modes_supported": ["query"],
         "subject_types_supported": ["public"],
         "id_token_signing_alg_values_supported": ["EdDSA"],
         "scopes_supported": gtid_shared::oauth::SUPPORTED_SCOPES,
@@ -27,7 +28,13 @@ pub async fn openid_configuration(State(state): State<Arc<AppStateCore>>) -> imp
         "token_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post"],
         "revocation_endpoint_auth_methods_supported": ["client_secret_basic", "client_secret_post"],
         "grant_types_supported": ["authorization_code", "refresh_token"],
-        "code_challenge_methods_supported": ["S256"]
+        "code_challenge_methods_supported": ["S256"],
+        "claims_supported": [
+            "sub",
+            "email",
+            "email_verified",
+            "name"
+        ]
     });
 
     ([(header::CACHE_CONTROL, "no-cache, no-store")], Json(config))
