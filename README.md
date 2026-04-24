@@ -83,6 +83,7 @@ cargo run
 | `/userinfo` | GET | User claims via Bearer token |
 | `/revoke` | POST | Token Revocation (RFC 7009) with cascade |
 | `/introspect` | POST | Token Introspection (RFC 7662) |
+| `/admin/users` | POST | Create user (client auth, email confirmation optional) |
 | `/logout` | GET | RP-Initiated Logout (OIDC) |
 
 ## Configuration (.env)

@@ -49,6 +49,7 @@ pub fn build_api_router(core: Arc<AppStateCore>) -> Router {
         .route("/jwks", get(handlers::jwks::jwks))
         .route("/token", post(handlers::token::token))
         .route("/userinfo", get(handlers::userinfo::userinfo))
+        .route("/admin/users", post(handlers::users::create_user))
         .route("/authorize-url", get(handlers::authorize_url::authorize_url))
         .route("/revoke", post(handlers::revoke::revoke))
         .route("/introspect", post(handlers::introspect::introspect))

@@ -87,6 +87,7 @@ gtid/                           # Cargo workspace
 │           ├── jwks.rs
 │           ├── well_known.rs
 │           ├── userinfo.rs
+│           ├── users.rs
 │           ├── revoke.rs
 │           ├── token.rs
 │           ├── introspect.rs
@@ -285,4 +286,5 @@ Both servers support HTTP/2 Cleartext (h2c) via `hyper-util` `AutoBuilder`. This
 - **IDs**: UUID v6 via `crypto::id::new_id()` for all new entities
 - **Time format**: SQLite-compatible ISO 8601 (`datetime('now')`, Chrono `to_sqlite()`)
 - **Token pattern**: CSPRNG generation, SHA-256 hashed in DB, plaintext only sent to the user
+- **Comments**: Code should be self-explanatory; comments are only added when necessary to explain *why* something is done, not *what* it does
 - **Workspace**: All crates use the same edition, dependencies via path references in Cargo.toml

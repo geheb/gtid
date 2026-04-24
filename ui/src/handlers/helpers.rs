@@ -66,15 +66,7 @@ pub fn validate_client_secret(secret: &str, i18n: &gtid_shared::i18n::I18n) -> R
     gtid_shared::crypto::password::validate_secret_strength(secret).map_err(|e| i18n.secret_msg(e).to_string())
 }
 
-pub fn normalize_email(email: &str) -> String {
-    let trimmed = email.trim();
-    let Some((local, domain)) = trimmed.rsplit_once('@') else {
-        return trimmed.to_lowercase();
-    };
-    let local = local.to_lowercase();
-    let ascii_domain = idna::domain_to_ascii(domain).unwrap_or_else(|_| domain.to_lowercase());
-    format!("{local}@{ascii_domain}")
-}
+pub use gtid_shared::email::{normalize_email, render_email_template};
 
 pub fn anonymize_email(email: &str) -> String {
     let Some((local, domain)) = email.split_once('@') else {
@@ -86,27 +78,6 @@ pub fn anonymize_email(email: &str) -> String {
         _ => format!("{}...{}", &local[..1], &local[local.len() - 1..]),
     };
     format!("{masked}@{domain}")
-}
-
-pub fn render_email_template(
-    template: Option<&gtid_shared::entities::email_template::EmailTemplate>,
-    name: &str,
-    link: &str,
-    default_subject: &str,
-    default_body: &str,
-) -> (String, String) {
-    match template {
-        Some(tmpl) => {
-            let body = tmpl.body_html.replace("{{name}}", name).replace("{{link}}", link);
-            let subject = tmpl.subject.replace("{{name}}", name);
-            (subject, body)
-        }
-        None => {
-            let subject = default_subject.replace("{{name}}", name);
-            let body = default_body.replace("{{name}}", name).replace("{{link}}", link);
-            (subject, body)
-        }
-    }
 }
 
 #[derive(Deserialize)]

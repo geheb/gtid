@@ -147,8 +147,7 @@ pub async fn user_create_submit(
         .await?;
     tracing::info!(event = "user_created", user_id = %id, email = %email, roles = %roles_str, "Admin created user");
 
-    // Enqueue confirmation email
-    enqueue_confirmation_email(&state, &id, &email, display_name.as_deref(), &lang.tag).await;
+    gtid_shared::email::enqueue_confirmation_email(&state, &id, &email, display_name.as_deref(), &lang.tag).await;
 
     Ok(redirect("/admin/users"))
 }
@@ -247,7 +246,6 @@ pub async fn user_edit_submit(
         Ok((StatusCode::BAD_REQUEST, Html(rendered)).into_response())
     };
 
-    // Update email if changed
     if email != user.email.to_lowercase() {
         if email.is_empty() || !email.contains('@') {
             return render_error(&state.locales.get(&lang.tag).profile_change_email_error_same);
@@ -271,16 +269,14 @@ pub async fn user_edit_submit(
         state.account_lockout.clear(&user.email);
     }
 
-    // Manual confirm
     if get_field_opt(&fields, "manual_confirm").is_some() && !user.is_confirmed {
         state.users.confirm(&id).await?;
         state.confirmation_tokens.delete_by_user_id(&id).await?;
         tracing::info!(event = "user_confirmed_manually", user_id = %id, "Admin manually confirmed user");
     }
 
-    // Resend confirmation email
     if get_field_opt(&fields, "resend_confirmation").is_some() && !user.is_confirmed {
-        enqueue_confirmation_email(&state, &id, &user.email, user.display_name.as_deref(), &lang.tag).await;
+        gtid_shared::email::enqueue_confirmation_email(&state, &id, &user.email, user.display_name.as_deref(), &lang.tag).await;
         tracing::info!(event = "confirmation_resent", user_id = %id, "Admin resent confirmation email");
     }
 
@@ -305,7 +301,6 @@ pub async fn user_delete(
         ));
     }
 
-    // Clean up cross-DB references before deleting the user
     state.auth_codes.delete_by_user_id(&id).await?;
     state.refresh_tokens.delete_by_user_id(&id).await?;
     state.consents.delete_by_user_id(&id).await?;
@@ -319,59 +314,6 @@ pub async fn user_delete(
     tracing::info!(event = "user_deleted", user_id = %id, "Admin deleted user");
 
     Ok(redirect("/admin/users"))
-}
-
-async fn enqueue_confirmation_email(
-    state: &AppState,
-    user_id: &str,
-    email: &str,
-    display_name: Option<&str>,
-    lang: &str,
-) {
-    let expiry_hours = state.config.email_confirm_token_expiry_hours;
-    let expires_at = match chrono::Utc::now().checked_add_signed(chrono::Duration::hours(expiry_hours as i64)) {
-        Some(t) => {
-            use gtid_shared::datetime::SqliteDateTimeExt;
-            t.to_sqlite()
-        }
-        None => return,
-    };
-
-    // Delete old tokens and create a new one
-    if let Err(e) = state.confirmation_tokens.delete_by_user_id(user_id).await {
-        tracing::error!("Failed to delete old confirmation tokens: {e}");
-    }
-    let token = match state.confirmation_tokens.create(user_id, &expires_at).await {
-        Ok(t) => t,
-        Err(e) => {
-            tracing::error!(event = "confirmation_token_failed", error = %e, "Failed to create confirmation token");
-            return;
-        }
-    };
-
-    let link = format!("{}/confirm-email?token={}", state.config.public_ui_uri, token);
-    let name = display_name.unwrap_or(email);
-
-    // Load template and enqueue email
-    let template = state
-        .email_templates
-        .find_by_type_and_lang("confirm_registration", lang)
-        .await
-        .ok()
-        .flatten();
-
-    let t = state.locales.get(lang);
-    let (subject, body_html) = super::render_email_template(
-        template.as_ref(),
-        name,
-        &link,
-        &t.email_default_confirm_registration_subject,
-        &t.email_default_confirm_registration_body,
-    );
-
-    if let Err(e) = state.email_queue.enqueue(email, &subject, &body_html).await {
-        tracing::error!(event = "confirmation_email_failed", error = %e, "Failed to enqueue confirmation email");
-    }
 }
 
 pub async fn user_reset_2fa(
@@ -400,7 +342,6 @@ pub async fn user_reset_2fa(
         tracing::info!(event = "totp_reset_by_admin", user_id = %id, "Admin reset 2FA for user");
     }
 
-    // Self-reset: admin lost their own TOTP -> clear trust cookie, redirect to 2FA setup
     if admin.0.id == id {
         cookies.remove(tower_cookies::Cookie::from(
             crate::middleware::session::TRUST_DEVICE_COOKIE_NAME,

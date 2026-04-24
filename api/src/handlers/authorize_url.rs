@@ -26,21 +26,17 @@ pub async fn authorize_url(
     Query(params): Query<AuthorizeUrlParams>,
 ) -> Result<Response, Response> {
     let ua = gtid_shared::routes::require_user_agent(&headers).map_err(|_| {
-        (
-            StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({"error": "Missing User-Agent"})),
-        )
-            .into_response()
+        crate::helpers::api_error(StatusCode::BAD_REQUEST, "invalid_request", "Missing User-Agent")
     })?;
     let ip = gtid_shared::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let rl_key = state.login_rate_limiter.key("authorize-url", &ip, ua);
     if state.login_rate_limiter.is_limited(rl_key) {
         state.login_rate_limiter.record_failure(rl_key);
-        return Err((
+        return Err(crate::helpers::api_error(
             StatusCode::TOO_MANY_REQUESTS,
-            Json(serde_json::json!({"error": "Too many requests"})),
-        )
-            .into_response());
+            "too_many_requests",
+            "Rate limit exceeded",
+        ));
     }
 
     // Client authentication via Basic Auth (required)

@@ -19,8 +19,12 @@ fn extract_basic_auth(headers: &HeaderMap) -> Option<(String, String)> {
 }
 
 pub fn oauth_error(error: &str, description: &str) -> Response {
+    api_error(StatusCode::BAD_REQUEST, error, description)
+}
+
+pub fn api_error(status: StatusCode, error: &str, description: &str) -> Response {
     (
-        StatusCode::BAD_REQUEST,
+        status,
         Json(serde_json::json!({
             "error": error,
             "error_description": description

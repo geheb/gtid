@@ -52,6 +52,7 @@ pub struct AppStateCore {
     pub config: AppConfig,
     pub setup_needed: Arc<AtomicBool>,
     pub setup_token: Option<String>,
+    pub locales: i18n::Locales,
 }
 
 pub fn init_user_repos(

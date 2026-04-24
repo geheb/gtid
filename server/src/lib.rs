@@ -124,6 +124,7 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
         config: config.clone(),
         setup_needed,
         setup_token: setup_token.clone(),
+        locales: locales.clone(),
     });
 
     let state = Arc::new(AppState {

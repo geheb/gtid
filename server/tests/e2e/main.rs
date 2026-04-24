@@ -5,6 +5,7 @@ use scraper::{Html, Selector};
 
 pub mod flow;
 pub mod security;
+pub mod users;
 
 pub const ADMIN_EMAIL: &str = "admin@example.com";
 pub const ADMIN_PASSWORD: &str = "093hG.Insdf!!";
