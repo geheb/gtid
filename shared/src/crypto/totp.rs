@@ -67,7 +67,7 @@ pub fn encrypt_secret(plaintext: &str, user_key: &[u8; 32]) -> Result<String, St
     let nonce = Aes256Gcm::generate_nonce(&mut OsRng);
     let ciphertext = cipher
         .encrypt(&nonce, plaintext.as_bytes())
-        .map_err(|e| format!("encrypt: {e}"))?;
+        .map_err(|e| format!("Encryption failed: {e}"))?;
 
     let mut combined = nonce.to_vec();
     combined.extend_from_slice(&ciphertext);
@@ -77,7 +77,7 @@ pub fn encrypt_secret(plaintext: &str, user_key: &[u8; 32]) -> Result<String, St
 pub fn decrypt_secret(hex_data: &str, user_key: &[u8; 32]) -> Result<String, String> {
     let data = hex::decode(hex_data).map_err(|e| format!("hex decode: {e}"))?;
     if data.len() < 12 {
-        return Err("ciphertext too short".into());
+        return Err("Decryption failed".into());
     }
     let (nonce_bytes, ciphertext) = data.split_at(12);
     let nonce_arr: [u8; 12] = nonce_bytes.try_into().map_err(|_| "invalid nonce length")?;
@@ -85,7 +85,7 @@ pub fn decrypt_secret(hex_data: &str, user_key: &[u8; 32]) -> Result<String, Str
     let cipher = Aes256Gcm::new_from_slice(user_key).map_err(|e| format!("cipher init: {e}"))?;
     let plaintext = cipher
         .decrypt(&nonce, ciphertext)
-        .map_err(|_| "decryption failed (wrong key or corrupted data)".to_string())?;
+        .map_err(|_| "Decryption failed (wrong key or corrupted data)".to_string())?;
     String::from_utf8(plaintext).map_err(|e| format!("utf8: {e}"))
 }
 

@@ -18,11 +18,23 @@ fn extract_basic_auth(headers: &HeaderMap) -> Option<(String, String)> {
     Some((id.to_string(), secret.to_string()))
 }
 
-pub fn oauth_error(error: &str, description: &str) -> Response {
-    api_error(StatusCode::BAD_REQUEST, error, description)
+pub fn api_error_bad_request(description: &str) -> Response {
+    api_error(StatusCode::BAD_REQUEST, "bad_request", description)
 }
 
-pub fn api_error(status: StatusCode, error: &str, description: &str) -> Response {
+pub fn api_error_too_many_requests() -> Response {
+    api_error(StatusCode::TOO_MANY_REQUESTS, "too_many_requests", "Rate limit exceeded")
+}
+
+pub fn api_error_internal_server_error(description: &str) -> Response {
+    api_error(StatusCode::INTERNAL_SERVER_ERROR, "internal_server_error", description)
+}
+
+pub fn api_error_unauthorized(description: &str) -> Response {
+    api_error(StatusCode::UNAUTHORIZED, "unauthorized", description)
+}
+
+fn api_error(status: StatusCode, error: &str, description: &str) -> Response {
     (
         status,
         Json(serde_json::json!({
@@ -48,27 +60,27 @@ pub async fn verify_client_credentials(
     });
 
     if client_id.is_empty() {
-        return Err(oauth_error("invalid_request", "Missing client_id"));
+        return Err(api_error_bad_request("Missing client_id"));
     }
     if client_secret.is_empty() {
-        return Err(oauth_error("invalid_request", "Missing client_secret"));
+        return Err(api_error_bad_request("Missing client_secret"));
     }
 
     let client = state
         .clients
         .find_by_id(&client_id)
         .await
-        .map_err(|_| oauth_error("server_error", "Database error"))?
+        .map_err(|_| api_error_internal_server_error("Query failed"))?
         .ok_or_else(|| {
             tracing::warn!(event = "client_auth_failed", client_id = %client_id, reason = "not_found", "Client authentication failed: unknown client_id");
             state.login_rate_limiter.record_failure(key);
-            oauth_error("invalid_client", "Invalid client credentials")
+            api_error_bad_request("Invalid client credentials")
         })?;
 
     if !password::verify_password(&client_secret, &client.client_secret_hash) {
         tracing::warn!(event = "client_auth_failed", client_id = %client_id, reason = "invalid_secret", "Client authentication failed: wrong secret");
         state.login_rate_limiter.record_failure(key);
-        return Err(oauth_error("invalid_client", "Invalid client credentials"));
+        return Err(api_error_bad_request("Invalid client credentials"));
     }
 
     Ok(client)

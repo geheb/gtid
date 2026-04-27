@@ -33,55 +33,46 @@ pub async fn create_user(
     Json(body): Json<CreateUserRequest>,
 ) -> Result<Response, Response> {
     let ua = gtid_shared::routes::require_user_agent(&headers).map_err(|_| {
-        crate::helpers::api_error(StatusCode::BAD_REQUEST, "invalid_request", "Missing User-Agent")
+        crate::helpers::api_error_bad_request("Missing User-Agent")
     })?;
     let ip = gtid_shared::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let rl_key = state.login_rate_limiter.key("create_user", &ip, ua);
 
     if state.login_rate_limiter.is_limited(rl_key) {
-        return Err(crate::helpers::api_error(
-            StatusCode::TOO_MANY_REQUESTS,
-            "too_many_requests",
-            "Rate limit exceeded",
-        ));
+        return Err(crate::helpers::api_error_too_many_requests());
     }
 
     let _client = crate::helpers::verify_client_credentials(None, None, &headers, &state, rl_key)
-        .await
-        .map_err(|e| e)?;
+        .await?;
 
     if body.email.len() > MAX_EMAIL
         || body.password.len() > MAX_PASSWORD
         || body.display_name.as_ref().is_some_and(|n| n.len() > MAX_DISPLAY_NAME)
         || body.roles.iter().any(|r| r.len() > MAX_ROLE)
     {
-        return Err(crate::helpers::api_error(StatusCode::BAD_REQUEST, "invalid_request", "Field too long"));
+        return Err(crate::helpers::api_error_bad_request("Field length exceeded"));
     }
 
     let email = gtid_shared::email::normalize_email(&body.email);
     if email.is_empty() || !email.contains('@') {
-        return Err(crate::helpers::api_error(StatusCode::BAD_REQUEST, "invalid_request", "Invalid email"));
+        return Err(crate::helpers::api_error_bad_request("Invalid email"));
     }
 
     if let Err(e) = password::validate_password_strength(&body.password) {
         let t = state.locales.get(&lang.tag);
         let msg = t.password_msg(e);
-        return Err(crate::helpers::api_error(StatusCode::BAD_REQUEST, "invalid_request", msg));
+        return Err(crate::helpers::api_error_bad_request(msg));
     }
 
     if body.roles.is_empty() {
-        return Err(crate::helpers::api_error(StatusCode::BAD_REQUEST, "invalid_request", "At least one role is required"));
+        return Err(crate::helpers::api_error_bad_request("At least one role is required"));
     }
 
     let allowed_roles: HashSet<&str> =
         state.config.roles.iter().map(|r| r.as_str()).collect();
     for role in &body.roles {
         if !allowed_roles.contains(role.as_str()) {
-            return Err(crate::helpers::api_error(
-                StatusCode::BAD_REQUEST,
-                "invalid_request",
-                &format!("Invalid role: {}", role),
-            ));
+            return Err(crate::helpers::api_error_bad_request(&format!("Invalid role: {}", role)));
         }
     }
 
@@ -89,15 +80,15 @@ pub async fn create_user(
         .users
         .find_by_email(&email)
         .await
-        .map_err(|_| crate::helpers::api_error(StatusCode::INTERNAL_SERVER_ERROR, "server_error", "Database error"))?
+        .map_err(|_| crate::helpers::api_error_internal_server_error("Query failed"))?
         .is_some()
     {
-        return Err(crate::helpers::api_error(StatusCode::CONFLICT, "invalid_request", "Email already exists"));
+        return Err(crate::helpers::api_error_bad_request("Email already exists"));
     }
 
     let id = gtid_shared::crypto::id::new_id();
     let hash = password::hash_password(&body.password).map_err(|_| {
-        crate::helpers::api_error(StatusCode::INTERNAL_SERVER_ERROR, "server_error", "Password hashing failed")
+        crate::helpers::api_error_internal_server_error("Password hashing failed")
     })?;
     let roles_str = body.roles.join(",");
 
@@ -105,7 +96,7 @@ pub async fn create_user(
         .users
         .create(&id, &email, &hash, body.display_name.as_deref(), &roles_str, body.is_confirmed)
         .await
-        .map_err(|_| crate::helpers::api_error(StatusCode::INTERNAL_SERVER_ERROR, "server_error", "Database error"))?;
+        .map_err(|_| crate::helpers::api_error_internal_server_error("Query failed"))?;
 
     tracing::info!(
         event = "user_created_api",

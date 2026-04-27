@@ -1,7 +1,6 @@
 use axum::{
     Json,
     extract::{ConnectInfo, Query, State},
-    http::StatusCode,
     response::{IntoResponse, Response},
 };
 use serde::Deserialize;
@@ -12,7 +11,7 @@ use gtid_shared::AppStateCore;
 use gtid_shared::crypto::{id::new_id, pkce::generate_pkce};
 use gtid_shared::oauth::{urlencoding, validate_scope};
 
-use crate::helpers::{oauth_error, verify_client_credentials};
+use crate::helpers::{api_error_bad_request, verify_client_credentials};
 
 #[derive(Debug, Deserialize)]
 pub struct AuthorizeUrlParams {
@@ -26,17 +25,13 @@ pub async fn authorize_url(
     Query(params): Query<AuthorizeUrlParams>,
 ) -> Result<Response, Response> {
     let ua = gtid_shared::routes::require_user_agent(&headers).map_err(|_| {
-        crate::helpers::api_error(StatusCode::BAD_REQUEST, "invalid_request", "Missing User-Agent")
+        crate::helpers::api_error_bad_request( "Missing User-Agent")
     })?;
     let ip = gtid_shared::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let rl_key = state.login_rate_limiter.key("authorize-url", &ip, ua);
     if state.login_rate_limiter.is_limited(rl_key) {
         state.login_rate_limiter.record_failure(rl_key);
-        return Err(crate::helpers::api_error(
-            StatusCode::TOO_MANY_REQUESTS,
-            "too_many_requests",
-            "Rate limit exceeded",
-        ));
+        return Err(crate::helpers::api_error_too_many_requests());
     }
 
     // Client authentication via Basic Auth (required)
@@ -47,7 +42,7 @@ pub async fn authorize_url(
     // Scope validation: whitelist + openid mandatory, space-separated per RFC 6749
     let scope = params.scope.as_deref().unwrap_or("openid email profile");
     if let Err(msg) = validate_scope(scope) {
-        return Err(oauth_error("invalid_scope", &msg));
+        return Err(api_error_bad_request(&msg));
     }
 
     tracing::info!(

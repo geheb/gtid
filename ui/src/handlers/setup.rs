@@ -149,7 +149,7 @@ fn validate_setup_fields(
         || display_name.is_some_and(|n| n.len() > super::MAX_DISPLAY_NAME)
         || password.len() > super::MAX_PASSWORD
     {
-        return Err("invalid request");
+        return Err("Field length exceeded");
     }
     Ok(())
 }

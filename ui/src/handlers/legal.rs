@@ -189,7 +189,7 @@ pub async fn legal_page_edit_submit(
 
 fn validate_legal_fields(csrf_token: &str, edit_lang: &str) -> Result<(), &'static str> {
     if csrf_token.len() > super::MAX_CSRF_TOKEN || edit_lang.len() > super::MAX_LANG {
-        return Err("invalid request");
+        return Err("Field length exceeded");
     }
     Ok(())
 }

@@ -118,7 +118,7 @@ async fn create_user_duplicate_email() {
         .send()
         .await
         .unwrap();
-    assert_eq!(resp2.status(), 409);
+    assert_eq!(resp2.status(), 400);
 }
 
 #[tokio::test]

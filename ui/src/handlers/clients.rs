@@ -308,7 +308,7 @@ fn validate_client_fields(
         || redirect_uri.len() > super::MAX_URI
         || post_logout_uri.is_some_and(|u| u.len() > super::MAX_URI)
     {
-        return Err("invalid request");
+        return Err("Field length exceeded");
     }
     Ok(())
 }

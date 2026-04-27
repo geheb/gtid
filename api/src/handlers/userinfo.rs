@@ -1,7 +1,7 @@
 use axum::{
     Json,
     extract::{ConnectInfo, State},
-    http::{StatusCode, header},
+    http::{header},
     response::{IntoResponse, Response},
 };
 use std::net::SocketAddr;
@@ -16,28 +16,24 @@ pub async fn userinfo(
     headers: axum::http::HeaderMap,
 ) -> Result<Response, Response> {
     let ua = gtid_shared::routes::require_user_agent(&headers).map_err(|_| {
-        crate::helpers::api_error(StatusCode::BAD_REQUEST, "invalid_request", "Missing User-Agent")
+        crate::helpers::api_error_bad_request("Missing User-Agent")
     })?;
     let ip = gtid_shared::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let rl_key = state.login_rate_limiter.key("userinfo", &ip, ua);
     if state.login_rate_limiter.is_limited(rl_key) {
         tracing::warn!(event = "rate_limited", ip = %ip, endpoint = "userinfo", "Userinfo rate limited");
-        return Err(crate::helpers::api_error(
-            StatusCode::TOO_MANY_REQUESTS,
-            "too_many_requests",
-            "Rate limit exceeded",
-        ));
+        return Err(crate::helpers::api_error_too_many_requests());
     }
 
     let auth_header = headers
         .get(header::AUTHORIZATION)
         .and_then(|v| v.to_str().ok())
         .ok_or_else(|| {
-            crate::helpers::api_error(StatusCode::UNAUTHORIZED, "missing_token", "Missing Authorization header")
+            crate::helpers::api_error_unauthorized("Missing Authorization header")
         })?;
 
     let token = auth_header.strip_prefix("Bearer ").ok_or_else(|| {
-        crate::helpers::api_error(StatusCode::UNAUTHORIZED, "invalid_token", "Invalid Authorization header format")
+        crate::helpers::api_error_unauthorized("Invalid Authorization header format")
     })?;
 
     let decoding_keys = state.key_store.decoding_keys();
@@ -53,7 +49,7 @@ pub async fn userinfo(
             }
         }
         result.ok_or_else(|| {
-            crate::helpers::api_error(StatusCode::UNAUTHORIZED, "invalid_token", "Token verification failed")
+            crate::helpers::api_error_unauthorized("Token verification failed")
         })?
     };
     state
@@ -61,10 +57,10 @@ pub async fn userinfo(
         .find_by_id(&claims.aud)
         .await
         .map_err(|_| {
-            crate::helpers::api_error(StatusCode::INTERNAL_SERVER_ERROR, "server_error", "Database error")
+            crate::helpers::api_error_internal_server_error( "Query failed")
         })?
         .ok_or_else(|| {
-            crate::helpers::api_error(StatusCode::UNAUTHORIZED, "invalid_token", "Client not found")
+            crate::helpers::api_error_unauthorized("Token verification failed")
         })?;
 
     let user = state
@@ -72,10 +68,10 @@ pub async fn userinfo(
         .find_by_id(&claims.sub)
         .await
         .map_err(|_| {
-            crate::helpers::api_error(StatusCode::UNAUTHORIZED, "invalid_token", "Database error")
+            crate::helpers::api_error_internal_server_error("Query failed")
         })?
         .ok_or_else(|| {
-            crate::helpers::api_error(StatusCode::UNAUTHORIZED, "invalid_token", "User not found")
+            crate::helpers::api_error_unauthorized("Token verification failed")
         })?;
 
     let mut response = serde_json::json!({

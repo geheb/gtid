@@ -15,7 +15,7 @@ pub fn validate_scope(scope: &str) -> Result<(), String> {
         }
     }
     if !scope.split_whitespace().any(|s| s == "openid") {
-        return Err("scope must include 'openid'".into());
+        return Err("Field scope must include 'openid'".into());
     }
     Ok(())
 }

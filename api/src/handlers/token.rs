@@ -14,7 +14,7 @@ use gtid_shared::datetime::SqliteDateTimeExt;
 use gtid_shared::repositories::auth_code::ConsumeResult;
 use gtid_shared::repositories::refresh_token::RefreshResult;
 
-use crate::helpers::{oauth_error, verify_client_credentials};
+use crate::helpers::{api_error_bad_request, api_error_internal_server_error, api_error_too_many_requests, verify_client_credentials};
 
 #[derive(Deserialize)]
 pub struct TokenRequest {
@@ -43,7 +43,7 @@ impl TokenRequest {
             || self.refresh_token.as_ref().is_some_and(|t| t.len() > MAX_REFRESH_TOKEN)
             || self.scope.as_ref().is_some_and(|s| s.len() > MAX_SCOPE)
         {
-            return Err("invalid request");
+            return Err("Field length exceeded");
         }
         Ok(())
     }
@@ -56,7 +56,7 @@ pub async fn token(
     axum::Form(form): axum::Form<TokenRequest>,
 ) -> Result<Response, Response> {
     form.validate()
-        .map_err(|e| oauth_error("invalid_request", e))?;
+        .map_err(api_error_bad_request)?;
 
     tracing::info!(
         "Calling token client_id={}, grant_type={} ...",
@@ -65,28 +65,22 @@ pub async fn token(
     );
 
     let ua =
-        gtid_shared::routes::require_user_agent(&headers).map_err(|e| oauth_error("invalid_request", &e))?;
+        gtid_shared::routes::require_user_agent(&headers).map_err(|e| api_error_bad_request(&e))?;
     let ip = gtid_shared::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let rl_key = state.login_rate_limiter.key("token", &ip, ua);
     if state.login_rate_limiter.is_limited(rl_key) {
-        return Err(oauth_error("slow_down", "Too many requests"));
+        return Err(api_error_too_many_requests());
     }
 
     // #13: Grant type restriction
     if !state.config.grant_type_allowed(&form.grant_type) {
-        return Err(oauth_error(
-            "unsupported_grant_type",
-            "This grant_type is not allowed",
-        ));
+        return Err(api_error_bad_request("This grant_type is not allowed"));
     }
 
     match form.grant_type.as_str() {
         "authorization_code" => handle_authorization_code(state, form, &headers, rl_key).await,
         "refresh_token" => handle_refresh_token(state, form, &headers, rl_key).await,
-        _ => Err(oauth_error(
-            "unsupported_grant_type",
-            "Unsupported grant_type",
-        )),
+        _ => Err(api_error_bad_request("Unsupported grant_type")),
     }
 }
 
@@ -108,22 +102,22 @@ async fn handle_authorization_code(
     let code = form
         .code
         .as_deref()
-        .ok_or_else(|| oauth_error("invalid_request", "Missing code"))?;
+        .ok_or_else(|| api_error_bad_request("Missing code"))?;
     let code_verifier = form
         .code_verifier
         .as_deref()
-        .ok_or_else(|| oauth_error("invalid_request", "Missing code_verifier"))?;
+        .ok_or_else(|| api_error_bad_request("Missing code_verifier"))?;
     let redirect_uri = form
         .redirect_uri
         .as_deref()
-        .ok_or_else(|| oauth_error("invalid_request", "Missing redirect_uri"))?;
+        .ok_or_else(|| api_error_bad_request("Missing redirect_uri"))?;
 
     // #4: Replay detection with cascade revocation
     let auth_code = match state
         .auth_codes
         .consume(code)
         .await
-        .map_err(|_| oauth_error("server_error", "Database error"))?
+        .map_err(|_| api_error_internal_server_error("Query failed"))?
     {
         ConsumeResult::Ok(ac) => ac,
         ConsumeResult::Replayed(ac) => {
@@ -131,41 +125,32 @@ async fn handle_authorization_code(
             if let Err(e) = state.refresh_tokens.revoke_family(&ac.code).await {
                 tracing::error!("Failed to revoke token family on code replay: {e}");
             }
-            return Err(oauth_error(
-                "invalid_grant",
-                "Authorization code already used",
-            ));
+            return Err(api_error_bad_request("Authorization code already used"));
         }
         ConsumeResult::NotFound => {
-            return Err(oauth_error(
-                "invalid_grant",
-                "Invalid or expired authorization code",
-            ));
+            return Err(api_error_bad_request("Invalid or expired authorization code"));
         }
     };
 
     // #2: Verify auth code was issued to this client
     if !constant_time::constant_time_str_eq(&auth_code.client_id, &client.client_id) {
-        return Err(oauth_error(
-            "invalid_grant",
-            "Code was not issued to this client",
-        ));
+        return Err(api_error_bad_request("Verify client_id failed"));
     }
 
     if !constant_time::constant_time_str_eq(&auth_code.redirect_uri, redirect_uri) {
-        return Err(oauth_error("invalid_grant", "redirect_uri mismatch"));
+        return Err(api_error_bad_request("Verify redirect_uri failed"));
     }
 
     if !pkce::verify_pkce_s256(code_verifier, &auth_code.code_challenge) {
-        return Err(oauth_error("invalid_grant", "PKCE verification failed"));
+        return Err(api_error_bad_request("Verify PKCE failed"));
     }
 
     let user = state
         .users
         .find_by_id(&auth_code.user_id)
         .await
-        .map_err(|_| oauth_error("server_error", "Database error"))?
-        .ok_or_else(|| oauth_error("server_error", "User not found"))?;
+        .map_err(|_| api_error_internal_server_error("Query failed"))?
+        .ok_or_else(|| api_error_bad_request( "User not found"))?;
 
     let (encoding_key, kid) = state.key_store.signing_key();
 
@@ -178,7 +163,7 @@ async fn handle_authorization_code(
         &auth_code.scope,
         state.config.access_token_expiry_secs,
     )
-    .map_err(|_| oauth_error("server_error", "Failed to issue access token"))?;
+    .map_err(|_| api_error_internal_server_error("Issue access token failed"))?;
 
     // #1: at_hash - pass access_token to id_token issuer
     let id_token = jwt::issue_id_token(jwt::IdTokenParams {
@@ -195,13 +180,13 @@ async fn handle_authorization_code(
         roles: user.roles().into_iter().map(String::from).collect(),
         expiry_secs: state.config.id_token_expiry_secs,
     })
-    .map_err(|_| oauth_error("server_error", "Failed to issue ID token"))?;
+    .map_err(|_| api_error_internal_server_error("Issue ID token failed"))?;
 
     // #3 + #12: Refresh token bound to client_id and token family (auth code)
     let refresh_token_value = gtid_shared::crypto::id::new_id();
     let refresh_expires = chrono::Utc::now()
         .checked_add_signed(chrono::Duration::days(state.config.refresh_token_expiry_days))
-        .ok_or_else(|| oauth_error("server_error", "Token expiry overflow"))?
+        .ok_or_else(|| api_error_internal_server_error("Token expiry overflow"))?
         .to_sqlite();
 
     state
@@ -215,7 +200,7 @@ async fn handle_authorization_code(
             &refresh_expires,
         )
         .await
-        .map_err(|_| oauth_error("server_error", "Failed to create refresh token"))?;
+        .map_err(|_| api_error_internal_server_error("Query failed"))?;
 
     Ok((
         StatusCode::OK,
@@ -250,14 +235,14 @@ async fn handle_refresh_token(
     let refresh_token_str = form
         .refresh_token
         .as_deref()
-        .ok_or_else(|| oauth_error("invalid_request", "Missing refresh_token"))?;
+        .ok_or_else(|| api_error_bad_request("Missing refresh_token"))?;
 
     // #12: Detect refresh token reuse -> revoke entire family
     let refresh_token = match state
         .refresh_tokens
         .find_valid(refresh_token_str)
         .await
-        .map_err(|_| oauth_error("server_error", "Database error"))?
+        .map_err(|_| api_error_internal_server_error("Query failed"))?
     {
         RefreshResult::Ok(rt) => rt,
         RefreshResult::Reused(family) => {
@@ -265,25 +250,16 @@ async fn handle_refresh_token(
             if let Err(e) = state.refresh_tokens.revoke_family(&family).await {
                 tracing::error!("Failed to revoke token family on token reuse: {e}");
             }
-            return Err(oauth_error(
-                "invalid_grant",
-                "Token reuse detected, all tokens revoked",
-            ));
+            return Err(api_error_bad_request("Token reuse detected, all tokens revoked"));
         }
         RefreshResult::NotFound => {
-            return Err(oauth_error(
-                "invalid_grant",
-                "Invalid or expired refresh token",
-            ));
+            return Err(api_error_bad_request("Invalid or expired refresh token"));
         }
     };
 
     // #3: Verify refresh token was issued to this client
     if !constant_time::constant_time_str_eq(&refresh_token.client_id, &client.client_id) {
-        return Err(oauth_error(
-            "invalid_grant",
-            "Token was not issued to this client",
-        ));
+        return Err(api_error_bad_request("Token was not issued to this client"));
     }
 
     // Revoke old token before issuing new one
@@ -291,24 +267,21 @@ async fn handle_refresh_token(
         .refresh_tokens
         .revoke(refresh_token_str)
         .await
-        .map_err(|_| oauth_error("server_error", "Database error"))?;
+        .map_err(|_| api_error_internal_server_error( "Query failed"))?;
 
     let user = state
         .users
         .find_by_id(&refresh_token.user_id)
         .await
-        .map_err(|_| oauth_error("server_error", "Database error"))?
-        .ok_or_else(|| oauth_error("server_error", "User not found"))?;
+        .map_err(|_| api_error_internal_server_error("Query failed"))?
+        .ok_or_else(|| api_error_bad_request( "User not found"))?;
 
     // #7: Scope downscoping - client may request a subset of the original scope
     let effective_scope = if let Some(ref requested_scope) = form.scope {
         let original_scopes: std::collections::HashSet<&str> = refresh_token.scope.split_whitespace().collect();
         for s in requested_scope.split_whitespace() {
             if !original_scopes.contains(s) {
-                return Err(oauth_error(
-                    "invalid_scope",
-                    &format!("Scope '{s}' exceeds original grant"),
-                ));
+                return Err(api_error_bad_request(&format!("Scope '{s}' exceeds original grant")));
             }
         }
         requested_scope.clone()
@@ -327,13 +300,13 @@ async fn handle_refresh_token(
         &effective_scope,
         state.config.access_token_expiry_secs,
     )
-    .map_err(|_| oauth_error("server_error", "Failed to issue access token"))?;
+    .map_err(|_| api_error_internal_server_error("Issue access token failed"))?;
 
     // #12: New refresh token inherits token_family for chain tracking
     let new_refresh_token = gtid_shared::crypto::id::new_id();
     let refresh_expires = chrono::Utc::now()
         .checked_add_signed(chrono::Duration::days(state.config.refresh_token_expiry_days))
-        .ok_or_else(|| oauth_error("server_error", "Token expiry overflow"))?
+        .ok_or_else(|| api_error_internal_server_error("Token expiry overflow"))?
         .to_sqlite();
 
     state
@@ -347,7 +320,7 @@ async fn handle_refresh_token(
             &refresh_expires,
         )
         .await
-        .map_err(|_| oauth_error("server_error", "Failed to create refresh token"))?;
+        .map_err(|_| api_error_internal_server_error("Query failed"))?;
 
     Ok((
         StatusCode::OK,

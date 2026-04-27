@@ -13,7 +13,7 @@ pub fn generate_pkce() -> (String, String) {
 
 pub fn verify_pkce_s256(verifier: &str, challenge: &str) -> bool {
     let mut hash = Sha256::digest(verifier.as_bytes());
-    let computed = URL_SAFE_NO_PAD.encode(&hash);
+    let computed = URL_SAFE_NO_PAD.encode(hash);
     hash.zeroize();
     super::constant_time::constant_time_eq(computed.as_bytes(), challenge.as_bytes())
 }

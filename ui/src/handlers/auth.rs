@@ -64,7 +64,7 @@ pub async fn rp_initiated_logout(
             .clients
             .find_by_id(&aud)
             .await
-            .map_err(|_| AppError::Internal("Database error".into()))?
+            .map_err(|_| AppError::Internal("Query failed".into()))?
             .ok_or_else(|| AppError::BadRequest("Invalid id_token_hint".into()))?;
         Some(aud)
     } else {
@@ -98,7 +98,7 @@ pub async fn rp_initiated_logout(
         let mut url = uri.clone();
         if let Some(ref s) = query.state {
             if s.len() > 1024 {
-                return Err(AppError::BadRequest("state parameter too long".into()));
+                return Err(AppError::BadRequest("State parameter too long".into()));
             }
             url.push_str(&format!("?state={}", urlencoding(s)));
         }
@@ -134,7 +134,7 @@ impl LoginForm {
             || self.rid.as_ref().is_some_and(|r| r.len() > MAX_UUID)
             || self.csrf_token.len() > MAX_CSRF_TOKEN
         {
-            return Err("invalid request");
+            return Err("Field length exceeded");
         }
         Ok(())
     }

@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use gtid_shared::AppStateCore;
 
-use crate::helpers::{oauth_error, verify_client_credentials};
+use crate::helpers::{api_error_bad_request, api_error_too_many_requests, verify_client_credentials};
 
 #[derive(Deserialize)]
 pub struct RevokeRequest {
@@ -33,11 +33,11 @@ pub async fn revoke(
     );
 
     let ua =
-        gtid_shared::routes::require_user_agent(&headers).map_err(|e| oauth_error("invalid_request", &e))?;
+        gtid_shared::routes::require_user_agent(&headers).map_err(|e| api_error_bad_request(&e))?;
     let ip = gtid_shared::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let rl_key = state.login_rate_limiter.key("revoke", &ip, ua);
     if state.login_rate_limiter.is_limited(rl_key) {
-        return Err(oauth_error("slow_down", "Too many requests"));
+        return Err(api_error_too_many_requests());
     }
 
     verify_client_credentials(

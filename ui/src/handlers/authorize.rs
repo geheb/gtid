@@ -77,7 +77,7 @@ pub async fn authorize_get(
         let redirect_uri = params.redirect_uri.as_deref().unwrap_or("");
         let expires_at = chrono::Utc::now()
             .checked_add_signed(chrono::Duration::seconds(60))
-            .ok_or_else(|| AppError::Internal("auth code expiry overflow".into()))?
+            .ok_or_else(|| AppError::Internal("Auth code expiry overflow".into()))?
             .to_sqlite();
         state
             .auth_codes
@@ -147,7 +147,7 @@ impl ConsentForm {
             || self.scope.as_ref().is_some_and(|s| s.len() > MAX_SCOPE)
             || self.consent.len() > 10
         {
-            return Err("invalid request");
+            return Err("Field length exceeded");
         }
         Ok(())
     }
@@ -208,7 +208,7 @@ pub async fn authorize_post(
     if let Some(ref s) = form.state
         && s.len() > 1024
     {
-        return Err(AppError::BadRequest("state parameter too long".into()));
+        return Err(AppError::BadRequest("State parameter too long".into()));
     }
 
     let scope = form.scope.as_deref().unwrap_or("openid");
@@ -229,7 +229,7 @@ pub async fn authorize_post(
     let code = gtid_shared::crypto::id::new_id();
     let expires_at = chrono::Utc::now()
         .checked_add_signed(chrono::Duration::seconds(60))
-        .ok_or_else(|| AppError::Internal("auth code expiry overflow".into()))?
+        .ok_or_else(|| AppError::Internal("Auth code expiry overflow".into()))?
         .to_sqlite();
 
     state
@@ -281,19 +281,19 @@ async fn validate_authorize_params(params: &AuthorizeParams, state: &AppState) -
 
     let state_val = params.state.as_deref().ok_or("Missing state")?;
     if state_val.len() > 1024 {
-        return Err("state parameter too long".into());
+        return Err("Field state too long".into());
     }
 
     // #11: Nonce is required to prevent replay attacks on ID tokens
     let nonce = params.nonce.as_deref().ok_or("Missing nonce")?;
     if nonce.is_empty() || nonce.len() > 512 {
-        return Err("nonce must be 1–512 characters".into());
+        return Err("Field nonce must be 1–512 characters".into());
     }
 
     // #5: PKCE code_challenge must be 43–128 base64url characters (RFC 7636 §4.2)
     let code_challenge = params.code_challenge.as_deref().ok_or("Missing code_challenge")?;
     if code_challenge.len() < 43 || code_challenge.len() > 128 {
-        return Err("code_challenge must be 43–128 characters".into());
+        return Err("Field code_challenge must be 43–128 characters".into());
     }
 
     let method = params

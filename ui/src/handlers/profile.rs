@@ -118,7 +118,7 @@ impl ProfileForm {
     pub fn validate(&self) -> Result<(), &'static str> {
         use crate::handlers::{MAX_CSRF_TOKEN, MAX_DISPLAY_NAME};
         if self.csrf_token.len() > MAX_CSRF_TOKEN || self.display_name.len() > MAX_DISPLAY_NAME {
-            return Err("invalid request");
+            return Err("Field length exceeded");
         }
         Ok(())
     }
@@ -171,7 +171,7 @@ impl PasswordForm {
             || self.new_password.len() > MAX_PASSWORD
             || self.new_password_confirm.len() > MAX_PASSWORD
         {
-            return Err("invalid request");
+            return Err("Field length exceeded");
         }
         Ok(())
     }
@@ -268,7 +268,7 @@ impl EmailChangeForm {
             || self.current_password.len() > MAX_PASSWORD
             || self.new_email.len() > MAX_EMAIL
         {
-            return Err("invalid request");
+            return Err("Field length exceeded");
         }
         Ok(())
     }
@@ -415,7 +415,7 @@ impl TotpDisableForm {
     pub fn validate(&self) -> Result<(), &'static str> {
         use crate::handlers::{MAX_CSRF_TOKEN, MAX_PASSWORD};
         if self.csrf_token.len() > MAX_CSRF_TOKEN || self.current_password.len() > MAX_PASSWORD {
-            return Err("invalid request");
+            return Err("Field length exceeded");
         }
         Ok(())
     }
@@ -489,7 +489,7 @@ impl CsrfOnlyForm {
     pub fn validate(&self) -> Result<(), &'static str> {
         use crate::handlers::MAX_CSRF_TOKEN;
         if self.csrf_token.len() > MAX_CSRF_TOKEN {
-            return Err("invalid request");
+            return Err("Field length exceeded");
         }
         Ok(())
     }

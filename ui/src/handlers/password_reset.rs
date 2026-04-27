@@ -362,7 +362,7 @@ pub async fn reset_password_submit(
 
 fn validate_forgot_fields(csrf_token: &str, email: &str) -> Result<(), &'static str> {
     if csrf_token.len() > super::MAX_CSRF_TOKEN || email.len() > super::MAX_EMAIL {
-        return Err("invalid request");
+        return Err("Field length exceeded");
     }
     Ok(())
 }
@@ -378,7 +378,7 @@ fn validate_reset_fields(
         || password.len() > super::MAX_PASSWORD
         || password_confirm.len() > super::MAX_PASSWORD
     {
-        return Err("invalid request");
+        return Err("Field length exceeded");
     }
     Ok(())
 }

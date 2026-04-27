@@ -144,7 +144,7 @@ fn validate_template_fields(csrf_token: &str, edit_lang: &str, subject: &str) ->
         || edit_lang.len() > super::MAX_LANG
         || subject.len() > super::MAX_SUBJECT
     {
-        return Err("invalid request");
+        return Err("Field length exceeded");
     }
     Ok(())
 }

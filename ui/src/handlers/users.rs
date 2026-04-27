@@ -371,7 +371,7 @@ fn validate_user_fields(
         || password.len() > super::MAX_PASSWORD
         || roles.iter().any(|r| r.len() > super::MAX_ROLE)
     {
-        return Err("invalid request");
+        return Err("Field length exceeded");
     }
     Ok(())
 }

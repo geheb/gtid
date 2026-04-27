@@ -522,7 +522,7 @@ pub async fn totp_verify_submit(
 
 fn validate_totp_fields(csrf_token: &str, pending_id: &str) -> Result<(), &'static str> {
     if csrf_token.len() > MAX_CSRF_TOKEN || pending_id.len() > MAX_UUID {
-        return Err("invalid request");
+        return Err("Field length exceeded");
     }
     Ok(())
 }
