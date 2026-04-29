@@ -83,11 +83,12 @@ pub async fn profile_page(
     axum::extract::Query(query): axum::extract::Query<ProfileQuery>,
     lang: Lang,
 ) -> Result<Response, AppError> {
+    let t = state.locales.get(&lang.tag);
     let user = state
         .users
         .find_by_id(&session_user.0.id)
         .await?
-        .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+        .ok_or_else(|| AppError::NotFound(t.error_user_not_found.clone()))?;
 
     let rendered = render_profile(
         &state,
@@ -115,10 +116,10 @@ pub struct ProfileForm {
 }
 
 impl ProfileForm {
-    pub fn validate(&self) -> Result<(), &'static str> {
+    pub fn validate(&self, t: &gtid_shared::i18n::I18n) -> Result<(), String> {
         use crate::handlers::{MAX_CSRF_TOKEN, MAX_DISPLAY_NAME};
         if self.csrf_token.len() > MAX_CSRF_TOKEN || self.display_name.len() > MAX_DISPLAY_NAME {
-            return Err("Field length exceeded");
+            return Err(t.error_field_length_exceeded.clone());
         }
         Ok(())
     }
@@ -131,7 +132,8 @@ pub async fn profile_submit(
     lang: Lang,
     axum::Form(form): axum::Form<ProfileForm>,
 ) -> Result<Response, AppError> {
-    form.validate().map_err(|e| AppError::BadRequest(e.into()))?;
+    let t = state.locales.get(&lang.tag);
+    form.validate(t).map_err(AppError::BadRequest)?;
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
         return Err(AppError::BadRequest(
             state.locales.get(&lang.tag).csrf_token_invalid.clone(),
@@ -164,14 +166,14 @@ pub struct PasswordForm {
 }
 
 impl PasswordForm {
-    pub fn validate(&self) -> Result<(), &'static str> {
+    pub fn validate(&self, t: &gtid_shared::i18n::I18n) -> Result<(), String> {
         use crate::handlers::{MAX_CSRF_TOKEN, MAX_PASSWORD};
         if self.csrf_token.len() > MAX_CSRF_TOKEN
             || self.current_password.len() > MAX_PASSWORD
             || self.new_password.len() > MAX_PASSWORD
             || self.new_password_confirm.len() > MAX_PASSWORD
         {
-            return Err("Field length exceeded");
+            return Err(t.error_field_length_exceeded.clone());
         }
         Ok(())
     }
@@ -184,19 +186,19 @@ pub async fn password_submit(
     lang: Lang,
     axum::Form(form): axum::Form<PasswordForm>,
 ) -> Result<Response, AppError> {
-    form.validate().map_err(|e| AppError::BadRequest(e.into()))?;
+    let t = state.locales.get(&lang.tag);
+    form.validate(t).map_err(AppError::BadRequest)?;
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
         return Err(AppError::BadRequest(
             state.locales.get(&lang.tag).csrf_token_invalid.clone(),
         ));
     }
 
-    let t = state.locales.get(&lang.tag);
     let user = state
         .users
         .find_by_id(&session_user.0.id)
         .await?
-        .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+        .ok_or_else(|| AppError::NotFound(t.error_user_not_found.clone()))?;
 
     // Verify current password
     if !password::verify_password(&form.current_password, &user.password_hash) {
@@ -262,13 +264,13 @@ pub struct EmailChangeForm {
 }
 
 impl EmailChangeForm {
-    pub fn validate(&self) -> Result<(), &'static str> {
+    pub fn validate(&self, t: &gtid_shared::i18n::I18n) -> Result<(), String> {
         use crate::handlers::{MAX_CSRF_TOKEN, MAX_EMAIL, MAX_PASSWORD};
         if self.csrf_token.len() > MAX_CSRF_TOKEN
             || self.current_password.len() > MAX_PASSWORD
             || self.new_email.len() > MAX_EMAIL
         {
-            return Err("Field length exceeded");
+            return Err(t.error_field_length_exceeded.clone());
         }
         Ok(())
     }
@@ -281,19 +283,19 @@ pub async fn email_change_submit(
     lang: Lang,
     axum::Form(form): axum::Form<EmailChangeForm>,
 ) -> Result<Response, AppError> {
-    form.validate().map_err(|e| AppError::BadRequest(e.into()))?;
+    let t = state.locales.get(&lang.tag);
+    form.validate(t).map_err(AppError::BadRequest)?;
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
         return Err(AppError::BadRequest(
             state.locales.get(&lang.tag).csrf_token_invalid.clone(),
         ));
     }
 
-    let t = state.locales.get(&lang.tag);
     let user = state
         .users
         .find_by_id(&session_user.0.id)
         .await?
-        .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+        .ok_or_else(|| AppError::NotFound(t.error_user_not_found.clone()))?;
 
     let render_email_error = |msg: &str| -> Result<Response, AppError> {
         let rendered = render_profile(
@@ -330,7 +332,7 @@ pub async fn email_change_submit(
     let expiry_hours = state.config.email_confirm_token_expiry_hours;
     let expires_at = chrono::Utc::now()
         .checked_add_signed(chrono::Duration::hours(expiry_hours as i64))
-        .ok_or_else(|| AppError::Internal("Token expiry overflow".into()))?;
+        .ok_or_else(|| AppError::Internal("email change token expiry overflow".into()))?;
     let expires_at = {
         use gtid_shared::datetime::SqliteDateTimeExt;
         expires_at.to_sqlite()
@@ -379,7 +381,8 @@ pub async fn totp_setup_initiate(
     lang: Lang,
     axum::Form(form): axum::Form<CsrfOnlyForm>,
 ) -> Result<Response, AppError> {
-    form.validate().map_err(|e| AppError::BadRequest(e.into()))?;
+    let t = state.locales.get(&lang.tag);
+    form.validate(t).map_err(AppError::BadRequest)?;
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
         return Err(AppError::BadRequest(
             state.locales.get(&lang.tag).csrf_token_invalid.clone(),
@@ -396,7 +399,7 @@ pub async fn totp_setup_initiate(
     let pending_id = state
         .pending_2fa
         .store(user.id.clone(), rid, None)
-        .ok_or_else(|| AppError::Internal("pending 2fa store full".into()))?;
+        .ok_or_else(|| AppError::Internal("pending_2fa store full for totp_setup_initiate".into()))?;
 
     Ok(redirect(&format!("/2fa/setup?p={pending_id}")))
 }
@@ -412,10 +415,10 @@ pub struct TotpDisableForm {
 }
 
 impl TotpDisableForm {
-    pub fn validate(&self) -> Result<(), &'static str> {
+    pub fn validate(&self, t: &gtid_shared::i18n::I18n) -> Result<(), String> {
         use crate::handlers::{MAX_CSRF_TOKEN, MAX_PASSWORD};
         if self.csrf_token.len() > MAX_CSRF_TOKEN || self.current_password.len() > MAX_PASSWORD {
-            return Err("Field length exceeded");
+            return Err(t.error_field_length_exceeded.clone());
         }
         Ok(())
     }
@@ -428,19 +431,19 @@ pub async fn totp_disable_submit(
     lang: Lang,
     axum::Form(form): axum::Form<TotpDisableForm>,
 ) -> Result<Response, AppError> {
-    form.validate().map_err(|e| AppError::BadRequest(e.into()))?;
+    let t = state.locales.get(&lang.tag);
+    form.validate(t).map_err(AppError::BadRequest)?;
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
         return Err(AppError::BadRequest(
             state.locales.get(&lang.tag).csrf_token_invalid.clone(),
         ));
     }
 
-    let t = state.locales.get(&lang.tag);
     let user = state
         .users
         .find_by_id(&session_user.0.id)
         .await?
-        .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+        .ok_or_else(|| AppError::NotFound(t.error_user_not_found.clone()))?;
 
     // Admins cannot disable 2FA
     if user.is_admin() {
@@ -486,10 +489,10 @@ pub struct CsrfOnlyForm {
 }
 
 impl CsrfOnlyForm {
-    pub fn validate(&self) -> Result<(), &'static str> {
+    pub fn validate(&self, t: &gtid_shared::i18n::I18n) -> Result<(), String> {
         use crate::handlers::MAX_CSRF_TOKEN;
         if self.csrf_token.len() > MAX_CSRF_TOKEN {
-            return Err("Field length exceeded");
+            return Err(t.error_field_length_exceeded.clone());
         }
         Ok(())
     }

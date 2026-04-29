@@ -247,7 +247,7 @@ body { font-family: var(--font-primary); color: var(--color-text); min-height: 1
     box-shadow: var(--shadow-lg);
     padding: 2.5rem;
     width: 100%;
-    max-width: 520px;
+    max-width: 600px;
 }
 .centered-card h1 { font-size: 1.5rem; font-weight: 700; color: var(--color-text-dark); margin-bottom: 0.25rem; }
 .centered-card .subtitle { font-size: 0.875rem; color: var(--color-text-muted); margin-bottom: 1.5rem; }
@@ -304,7 +304,7 @@ body { font-family: var(--font-primary); color: var(--color-text); min-height: 1
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.16);
     padding: 2rem;
     width: 100%;
-    max-width: 520px;
+    max-width: 600px;
 }
 .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; }
 .modal-header h2 { font-size: 1.25rem; font-weight: 700; color: var(--color-text-dark); }

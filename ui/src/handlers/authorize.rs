@@ -42,14 +42,16 @@ pub async fn authorize_get(
     csrf: CsrfToken,
     lang: Lang,
 ) -> Result<Response, AppError> {
-    let ua = gtid_shared::routes::require_user_agent(&headers).map_err(AppError::BadRequest)?;
+    let t = state.locales.get(&lang.tag);
+    let ua = gtid_shared::routes::require_user_agent(&headers)
+        .map_err(AppError::BadRequest)?;
     let ip = gtid_shared::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let rl_key = state.login_rate_limiter.key("authorize", &ip, ua);
     if state.login_rate_limiter.is_limited(rl_key) {
-        return Err(AppError::BadRequest("Too many requests".into()));
+        return Err(AppError::BadRequest(t.error_too_many_requests.clone()));
     }
 
-    if let Err(e) = validate_authorize_params(&params, &state).await {
+    if let Err(e) = validate_authorize_params(&params, &state, t, &lang.tag).await {
         state.login_rate_limiter.record_failure(rl_key);
         return error_response(&state, &e, &lang.tag);
     }
@@ -62,7 +64,7 @@ pub async fn authorize_get(
             let rid = state
                 .pending_redirects
                 .store(redirect_url)
-                .ok_or_else(|| AppError::Internal("Server overloaded, please try again".into()))?;
+                .ok_or_else(|| AppError::Internal("pending_redirect store full for authorize".into()))?;
             let login_url = format!("/login?rid={rid}");
             return Ok(redirect(&login_url));
         }
@@ -77,11 +79,11 @@ pub async fn authorize_get(
         let redirect_uri = params.redirect_uri.as_deref().unwrap_or("");
         let expires_at = chrono::Utc::now()
             .checked_add_signed(chrono::Duration::seconds(60))
-            .ok_or_else(|| AppError::Internal("Auth code expiry overflow".into()))?
-            .to_sqlite();
-        state
-            .auth_codes
-            .create(&gtid_shared::entities::authorization_code::NewAuthorizationCode {
+            .ok_or_else(|| AppError::Internal("auth code expiry overflow for authorize_get".into()))?
+        .to_sqlite();
+    state
+        .auth_codes
+        .create(&gtid_shared::entities::authorization_code::NewAuthorizationCode {
                 code: &code,
                 client_id,
                 user_id: &user.id,
@@ -139,7 +141,7 @@ pub struct ConsentForm {
 }
 
 impl ConsentForm {
-    pub fn validate(&self) -> Result<(), &'static str> {
+    pub fn validate(&self, t: &gtid_shared::i18n::I18n) -> Result<(), String> {
         use crate::handlers::{MAX_CLIENT_ID, MAX_CSRF_TOKEN, MAX_SCOPE, MAX_URI};
         if self.csrf_token.len() > MAX_CSRF_TOKEN
             || self.client_id.len() > MAX_CLIENT_ID
@@ -147,7 +149,7 @@ impl ConsentForm {
             || self.scope.as_ref().is_some_and(|s| s.len() > MAX_SCOPE)
             || self.consent.len() > 10
         {
-            return Err("Field length exceeded");
+            return Err(t.error_field_length_exceeded.clone());
         }
         Ok(())
     }
@@ -162,13 +164,15 @@ pub async fn authorize_post(
     lang: Lang,
     axum::Form(form): axum::Form<ConsentForm>,
 ) -> Result<Response, AppError> {
-    form.validate().map_err(|e| AppError::BadRequest(e.into()))?;
+    let t = state.locales.get(&lang.tag);
+    form.validate(t).map_err(AppError::BadRequest)?;
 
-    let ua = gtid_shared::routes::require_user_agent(&headers).map_err(AppError::BadRequest)?;
+    let ua = gtid_shared::routes::require_user_agent(&headers)
+        .map_err(AppError::BadRequest)?;
     let ip = gtid_shared::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let rl_key = state.login_rate_limiter.key("authorize", &ip, ua);
     if state.login_rate_limiter.is_limited(rl_key) {
-        return Err(AppError::BadRequest("Too many requests".into()));
+        return Err(AppError::BadRequest(t.error_too_many_requests.clone()));
     }
 
     if !csrf::verify_csrf(&cookies, &form.csrf_token) {
@@ -184,35 +188,35 @@ pub async fn authorize_post(
         .clients
         .find_by_id(&form.client_id)
         .await
-        .map_err(|_| AppError::Internal("Database error".into()))?
+        .map_err(|e| AppError::Internal(format!("find client {} failed for authorize_post: {e}", form.client_id)))?
         .ok_or_else(|| {
             state.login_rate_limiter.record_failure(rl_key);
-            AppError::BadRequest("Invalid client_id or redirect_uri".into())
+            AppError::BadRequest(t.error_invalid_client_id_or_redirect_uri.clone())
         })?;
     if !constant_time::constant_time_str_eq(&form.redirect_uri, &client.client_redirect_uri) {
         state.login_rate_limiter.record_failure(rl_key);
-        return Err(AppError::BadRequest("Invalid client_id or redirect_uri".into()));
+        return Err(AppError::BadRequest(t.error_invalid_client_id_or_redirect_uri.clone()));
     }
     if form.code_challenge_method != "S256" {
-        return Err(AppError::BadRequest("Only S256 code_challenge_method supported".into()));
+        return Err(AppError::BadRequest(t.error_only_s256_supported.clone()));
     }
     if form.code_challenge.len() < 43 || form.code_challenge.len() > 128 {
-        return Err(AppError::BadRequest("code_challenge must be 43–128 characters".into()));
+        return Err(AppError::BadRequest(t.error_code_challenge_length.clone()));
     }
 
     // #11: Nonce required
     if form.nonce.as_ref().is_none_or(|n| n.is_empty()) {
-        return Err(AppError::BadRequest("Missing nonce".into()));
+        return Err(AppError::BadRequest(t.error_missing_nonce.clone()));
     }
 
     if let Some(ref s) = form.state
         && s.len() > 1024
     {
-        return Err(AppError::BadRequest("State parameter too long".into()));
+        return Err(AppError::BadRequest(t.error_state_too_long.clone()));
     }
 
     let scope = form.scope.as_deref().unwrap_or("openid");
-    if let Err(msg) = gtid_shared::oauth::validate_scope(scope) {
+    if let Err(msg) = gtid_shared::oauth::validate_scope(scope, &lang.tag) {
         return Err(AppError::BadRequest(msg));
     }
 
@@ -229,7 +233,7 @@ pub async fn authorize_post(
     let code = gtid_shared::crypto::id::new_id();
     let expires_at = chrono::Utc::now()
         .checked_add_signed(chrono::Duration::seconds(60))
-        .ok_or_else(|| AppError::Internal("Auth code expiry overflow".into()))?
+        .ok_or_else(|| AppError::Internal("auth code expiry overflow for authorize_post".into()))?
         .to_sqlite();
 
     state
@@ -257,51 +261,56 @@ pub async fn authorize_post(
     Ok(redirect(&redirect_url))
 }
 
-async fn validate_authorize_params(params: &AuthorizeParams, state: &AppState) -> Result<Client, String> {
-    let response_type = params.response_type.as_deref().ok_or("Missing response_type")?;
+async fn validate_authorize_params(
+    params: &AuthorizeParams,
+    state: &AppState,
+    t: &gtid_shared::i18n::I18n,
+    lang: &str,
+) -> Result<Client, String> {
+    let response_type = params.response_type.as_deref().ok_or_else(|| t.error_missing_response_type.clone())?;
     if response_type != "code" {
-        return Err("Unsupported response_type, must be 'code'".into());
+        return Err(t.error_unsupported_response_type.clone());
     }
 
-    let client_id = params.client_id.as_deref().ok_or("Missing client_id")?;
+    let client_id = params.client_id.as_deref().ok_or_else(|| t.error_missing_client_id.clone())?;
     let client = state
         .clients
         .find_by_id(client_id)
         .await
-        .map_err(|_| "Database error".to_string())?
-        .ok_or_else(|| "Unknown client_id".to_string())?;
+        .map_err(|_| "Query failed".to_string())?
+        .ok_or_else(|| t.error_unknown_client_id.clone())?;
 
-    let redirect_uri = params.redirect_uri.as_deref().ok_or("Missing redirect_uri")?;
+    let redirect_uri = params.redirect_uri.as_deref().ok_or_else(|| t.error_missing_redirect_uri.clone())?;
     if !constant_time::constant_time_str_eq(redirect_uri, &client.client_redirect_uri) {
-        return Err("Invalid redirect_uri".into());
+        return Err(t.error_invalid_redirect_uri.clone());
     }
 
-    let scope = params.scope.as_deref().ok_or("Missing scope")?;
-    gtid_shared::oauth::validate_scope(scope)?;
+    let scope = params.scope.as_deref().ok_or_else(|| t.error_missing_scope.clone())?;
+    gtid_shared::oauth::validate_scope(scope, lang)?;
 
-    let state_val = params.state.as_deref().ok_or("Missing state")?;
+    let state_val = params.state.as_deref().ok_or_else(|| t.error_missing_state.clone())?;
     if state_val.len() > 1024 {
-        return Err("Field state too long".into());
+        return Err(t.error_state_too_long.clone());
     }
 
     // #11: Nonce is required to prevent replay attacks on ID tokens
-    let nonce = params.nonce.as_deref().ok_or("Missing nonce")?;
+    let nonce = params.nonce.as_deref().ok_or_else(|| t.error_missing_nonce.clone())?;
     if nonce.is_empty() || nonce.len() > 512 {
-        return Err("Field nonce must be 1–512 characters".into());
+        return Err(t.error_nonce_length.clone());
     }
 
     // #5: PKCE code_challenge must be 43–128 base64url characters (RFC 7636 §4.2)
-    let code_challenge = params.code_challenge.as_deref().ok_or("Missing code_challenge")?;
+    let code_challenge = params.code_challenge.as_deref().ok_or_else(|| t.error_missing_code_challenge.clone())?;
     if code_challenge.len() < 43 || code_challenge.len() > 128 {
-        return Err("Field code_challenge must be 43–128 characters".into());
+        return Err(t.error_code_challenge_length.clone());
     }
 
     let method = params
         .code_challenge_method
         .as_deref()
-        .ok_or("Missing code_challenge_method")?;
+        .ok_or_else(|| t.error_missing_code_challenge_method.clone())?;
     if method != "S256" {
-        return Err("Only S256 code_challenge_method supported".into());
+        return Err(t.error_only_s256_supported.clone());
     }
 
     Ok(client)

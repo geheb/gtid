@@ -17,7 +17,7 @@ use gtid_shared::repositories::refresh_token::RefreshResult;
 use crate::helpers::{api_error_bad_request, api_error_internal_server_error, api_error_too_many_requests, verify_client_credentials};
 
 #[derive(Deserialize)]
-pub struct TokenRequest {
+pub(crate) struct TokenRequest {
     pub grant_type: String,
     pub code: Option<String>,
     pub redirect_uri: Option<String>,
@@ -49,7 +49,7 @@ impl TokenRequest {
     }
 }
 
-pub async fn token(
+pub(crate) async fn token(
     State(state): State<Arc<AppStateCore>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: axum::http::HeaderMap,
@@ -117,7 +117,7 @@ async fn handle_authorization_code(
         .auth_codes
         .consume(code)
         .await
-        .map_err(|_| api_error_internal_server_error("Query failed"))?
+        .map_err(|e| api_error_internal_server_error(&format!("auth_codes.consume failed for authorization_code grant: {e}")))?
     {
         ConsumeResult::Ok(ac) => ac,
         ConsumeResult::Replayed(ac) => {
@@ -149,8 +149,8 @@ async fn handle_authorization_code(
         .users
         .find_by_id(&auth_code.user_id)
         .await
-        .map_err(|_| api_error_internal_server_error("Query failed"))?
-        .ok_or_else(|| api_error_bad_request( "User not found"))?;
+        .map_err(|e| api_error_internal_server_error(&format!("find user {} failed for token authorization_code: {e}", auth_code.user_id)))?
+        .ok_or_else(|| api_error_bad_request("User not found"))?;
 
     let (encoding_key, kid) = state.key_store.signing_key();
 
@@ -163,7 +163,7 @@ async fn handle_authorization_code(
         &auth_code.scope,
         state.config.access_token_expiry_secs,
     )
-    .map_err(|_| api_error_internal_server_error("Issue access token failed"))?;
+    .map_err(|e| api_error_internal_server_error(&format!("issue_access_token failed for token authorization_code: {e}")))?;
 
     // #1: at_hash - pass access_token to id_token issuer
     let id_token = jwt::issue_id_token(jwt::IdTokenParams {
@@ -180,13 +180,13 @@ async fn handle_authorization_code(
         roles: user.roles().into_iter().map(String::from).collect(),
         expiry_secs: state.config.id_token_expiry_secs,
     })
-    .map_err(|_| api_error_internal_server_error("Issue ID token failed"))?;
+    .map_err(|e| api_error_internal_server_error(&format!("issue_id_token failed for token authorization_code: {e}")))?;
 
     // #3 + #12: Refresh token bound to client_id and token family (auth code)
     let refresh_token_value = gtid_shared::crypto::id::new_id();
     let refresh_expires = chrono::Utc::now()
         .checked_add_signed(chrono::Duration::days(state.config.refresh_token_expiry_days))
-        .ok_or_else(|| api_error_internal_server_error("Token expiry overflow"))?
+        .ok_or_else(|| api_error_internal_server_error("refresh token expiry overflow for token authorization_code"))?
         .to_sqlite();
 
     state
@@ -200,7 +200,7 @@ async fn handle_authorization_code(
             &refresh_expires,
         )
         .await
-        .map_err(|_| api_error_internal_server_error("Query failed"))?;
+        .map_err(|e| api_error_internal_server_error(&format!("refresh_tokens.create failed for token authorization_code: {e}")))?;
 
     Ok((
         StatusCode::OK,
@@ -242,7 +242,7 @@ async fn handle_refresh_token(
         .refresh_tokens
         .find_valid(refresh_token_str)
         .await
-        .map_err(|_| api_error_internal_server_error("Query failed"))?
+        .map_err(|e| api_error_internal_server_error(&format!("refresh_tokens.find_valid failed for token refresh_token: {e}")))?
     {
         RefreshResult::Ok(rt) => rt,
         RefreshResult::Reused(family) => {
@@ -267,14 +267,14 @@ async fn handle_refresh_token(
         .refresh_tokens
         .revoke(refresh_token_str)
         .await
-        .map_err(|_| api_error_internal_server_error( "Query failed"))?;
+        .map_err(|e| api_error_internal_server_error(&format!("refresh_tokens.revoke failed for token refresh_token: {e}")))?;
 
     let user = state
         .users
         .find_by_id(&refresh_token.user_id)
         .await
-        .map_err(|_| api_error_internal_server_error("Query failed"))?
-        .ok_or_else(|| api_error_bad_request( "User not found"))?;
+        .map_err(|e| api_error_internal_server_error(&format!("find user {} failed for token refresh_token: {e}", refresh_token.user_id)))?
+        .ok_or_else(|| api_error_bad_request("User not found"))?;
 
     // #7: Scope downscoping - client may request a subset of the original scope
     let effective_scope = if let Some(ref requested_scope) = form.scope {
@@ -300,13 +300,13 @@ async fn handle_refresh_token(
         &effective_scope,
         state.config.access_token_expiry_secs,
     )
-    .map_err(|_| api_error_internal_server_error("Issue access token failed"))?;
+    .map_err(|e| api_error_internal_server_error(&format!("issue_access_token failed for token refresh_token: {e}")))?;
 
     // #12: New refresh token inherits token_family for chain tracking
     let new_refresh_token = gtid_shared::crypto::id::new_id();
     let refresh_expires = chrono::Utc::now()
         .checked_add_signed(chrono::Duration::days(state.config.refresh_token_expiry_days))
-        .ok_or_else(|| api_error_internal_server_error("Token expiry overflow"))?
+        .ok_or_else(|| api_error_internal_server_error("refresh token expiry overflow for token refresh_token"))?
         .to_sqlite();
 
     state
@@ -320,7 +320,7 @@ async fn handle_refresh_token(
             &refresh_expires,
         )
         .await
-        .map_err(|_| api_error_internal_server_error("Query failed"))?;
+        .map_err(|e| api_error_internal_server_error(&format!("refresh_tokens.create failed for token refresh_token: {e}")))?;
 
     Ok((
         StatusCode::OK,

@@ -80,6 +80,7 @@ pub async fn client_create_submit(
     let client_secret = get_field(&fields, "client_secret");
     let redirect_uri = get_field(&fields, "client_redirect_uri");
     let post_logout_uri = get_field_opt(&fields, "client_post_logout_redirect_uri");
+    let t = state.locales.get(&lang.tag);
 
     validate_client_fields(
         &csrf_token,
@@ -87,8 +88,9 @@ pub async fn client_create_submit(
         &client_secret,
         &redirect_uri,
         post_logout_uri.as_deref(),
+        t,
     )
-    .map_err(|e| AppError::BadRequest(e.into()))?;
+    .map_err(AppError::BadRequest)?;
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
         return Err(AppError::BadRequest(
@@ -117,16 +119,16 @@ pub async fn client_create_submit(
     };
 
     if client_id.is_empty() {
-        return render_error("Client-ID is required");
+        return render_error(&t.error_missing_client_id);
     }
     if let Err(msg) = validate_client_secret(&client_secret, state.locales.get(&lang.tag)) {
         return render_error(&msg);
     }
-    if let Err(msg) = validate_redirect_uri(&redirect_uri) {
+    if let Err(msg) = validate_redirect_uri(&redirect_uri, t) {
         return render_error(&msg);
     }
     if let Some(ref plu) = post_logout_uri
-        && let Err(msg) = validate_redirect_uri(plu)
+        && let Err(msg) = validate_redirect_uri(plu, t)
     {
         return render_error(&msg);
     }
@@ -157,11 +159,12 @@ pub async fn client_edit_form(
     csrf: CsrfToken,
     lang: Lang,
 ) -> Result<Response, AppError> {
+    let t = state.locales.get(&lang.tag);
     let client = state
         .clients
         .find_by_id(&id)
         .await?
-        .ok_or_else(|| AppError::NotFound("Client not found".into()))?;
+        .ok_or_else(|| AppError::NotFound(t.error_not_found.clone()))?;
 
     let ctx = Context::from_serialize(ClientEditCtx {
         base: BaseCtx {
@@ -195,6 +198,7 @@ pub async fn client_edit_submit(
     let client_secret = get_field(&fields, "client_secret");
     let redirect_uri = get_field(&fields, "client_redirect_uri");
     let post_logout_uri = get_field_opt(&fields, "client_post_logout_redirect_uri");
+    let t = state.locales.get(&lang.tag);
 
     validate_client_fields(
         &csrf_token,
@@ -202,8 +206,9 @@ pub async fn client_edit_submit(
         &client_secret,
         &redirect_uri,
         post_logout_uri.as_deref(),
+        t,
     )
-    .map_err(|e| AppError::BadRequest(e.into()))?;
+    .map_err(AppError::BadRequest)?;
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
         return Err(AppError::BadRequest(
@@ -211,11 +216,11 @@ pub async fn client_edit_submit(
         ));
     }
 
-    if let Err(msg) = validate_redirect_uri(&redirect_uri) {
+    if let Err(msg) = validate_redirect_uri(&redirect_uri, t) {
         return Err(AppError::BadRequest(msg));
     }
     if let Some(ref plu) = post_logout_uri
-        && let Err(msg) = validate_redirect_uri(plu)
+        && let Err(msg) = validate_redirect_uri(plu, t)
     {
         return Err(AppError::BadRequest(msg));
     }
@@ -224,7 +229,7 @@ pub async fn client_edit_submit(
         .clients
         .find_by_id(&id)
         .await?
-        .ok_or_else(|| AppError::NotFound("Client not found".into()))?;
+        .ok_or_else(|| AppError::NotFound(t.error_not_found.clone()))?;
 
     let render_error = |msg: &str| -> Result<Response, AppError> {
         let ctx = Context::from_serialize(ClientEditCtx {
@@ -301,14 +306,15 @@ fn validate_client_fields(
     client_secret: &str,
     redirect_uri: &str,
     post_logout_uri: Option<&str>,
-) -> Result<(), &'static str> {
+    t: &gtid_shared::i18n::I18n,
+) -> Result<(), String> {
     if csrf_token.len() > super::MAX_CSRF_TOKEN
         || client_id.len() > super::MAX_CLIENT_ID
         || client_secret.len() > super::MAX_CLIENT_SECRET
         || redirect_uri.len() > super::MAX_URI
         || post_logout_uri.is_some_and(|u| u.len() > super::MAX_URI)
     {
-        return Err("Field length exceeded");
+        return Err(t.error_field_length_exceeded.clone());
     }
     Ok(())
 }

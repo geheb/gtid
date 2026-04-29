@@ -28,7 +28,8 @@ pub async fn confirm_email_change(
     Query(query): Query<ConfirmQuery>,
     lang: Lang,
 ) -> Result<Response, AppError> {
-    let ua = gtid_shared::routes::require_user_agent(&headers).map_err(AppError::BadRequest)?;
+    let ua = gtid_shared::routes::require_user_agent(&headers)
+        .map_err(AppError::BadRequest)?;
     let ip = gtid_shared::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let rl_key = state.login_rate_limiter.key("email_change", &ip, ua);
 

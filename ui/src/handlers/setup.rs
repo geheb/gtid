@@ -68,16 +68,15 @@ pub async fn setup_submit(
     let display_name = get_field_opt(&fields, "display_name");
     let pw = get_field(&fields, "password");
 
-    validate_setup_fields(&csrf_token, &setup_token, &email, display_name.as_deref(), &pw)
-        .map_err(|e| AppError::BadRequest(e.into()))?;
+    let t = state.locales.get(&lang.tag);
+    validate_setup_fields(&csrf_token, &setup_token, &email, display_name.as_deref(), &pw, t)
+        .map_err(AppError::BadRequest)?;
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
         return Err(AppError::BadRequest(
             state.locales.get(&lang.tag).csrf_token_invalid.clone(),
         ));
     }
-
-    let t = state.locales.get(&lang.tag);
 
     let render_error = |msg: &str, status: StatusCode| -> Result<Response, AppError> {
         let ctx = Context::from_serialize(SetupCtx {
@@ -132,7 +131,7 @@ pub async fn setup_submit(
     let pending_id = state
         .pending_2fa
         .store(id.clone(), None, None)
-        .ok_or_else(|| AppError::Internal("pending 2fa store full".into()))?;
+        .ok_or_else(|| AppError::Internal("pending_2fa store full for setup".into()))?;
     Ok(redirect(&format!("/2fa/setup?p={pending_id}")))
 }
 
@@ -142,14 +141,15 @@ fn validate_setup_fields(
     email: &str,
     display_name: Option<&str>,
     password: &str,
-) -> Result<(), &'static str> {
+    t: &gtid_shared::i18n::I18n,
+) -> Result<(), String> {
     if csrf_token.len() > super::MAX_CSRF_TOKEN
         || setup_token.len() > super::MAX_SETUP_TOKEN
         || email.len() > super::MAX_EMAIL
         || display_name.is_some_and(|n| n.len() > super::MAX_DISPLAY_NAME)
         || password.len() > super::MAX_PASSWORD
     {
-        return Err("Field length exceeded");
+        return Err(t.error_field_length_exceeded.clone());
     }
     Ok(())
 }

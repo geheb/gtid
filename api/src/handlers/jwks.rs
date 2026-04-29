@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use gtid_shared::AppStateCore;
 
-pub async fn jwks(State(state): State<Arc<AppStateCore>>) -> impl IntoResponse {
+pub(crate) async fn jwks(State(state): State<Arc<AppStateCore>>) -> impl IntoResponse {
     tracing::info!("Calling jwks ...");
 
     (

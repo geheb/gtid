@@ -354,8 +354,7 @@ Log security-relevant events with structured fields (`event`, `ip`, `email`, `cl
 ### Error responses
 
 The `AppError` enum separates internal detail from client-facing output:
-- `AppError::Internal(msg)` - logs `msg`, returns only `"Internal server error"`
-- `AppError::Database(e)` - logs the sqlx error, returns only `"Internal server error"`
+- `AppError::Internal(msg)` - logs `msg`, returns only `"Internal server error"` (also used for database errors via `From<sqlx::Error>`)
 - `AppError::Unauthorized(_)` - always returns `"Unauthorized"`, never the reason
 
 Never include field names, SQL errors, or stack traces in HTTP responses.

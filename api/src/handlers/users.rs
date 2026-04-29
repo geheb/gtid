@@ -15,7 +15,7 @@ use gtid_shared::middleware::language::Lang;
 use std::collections::HashSet;
 
 #[derive(Deserialize)]
-pub struct CreateUserRequest {
+pub(crate) struct CreateUserRequest {
     pub email: String,
     pub password: String,
     #[serde(default)]
@@ -25,7 +25,7 @@ pub struct CreateUserRequest {
     pub is_confirmed: bool,
 }
 
-pub async fn create_user(
+pub(crate) async fn create_user(
     State(state): State<Arc<AppStateCore>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: HeaderMap,
@@ -80,15 +80,15 @@ pub async fn create_user(
         .users
         .find_by_email(&email)
         .await
-        .map_err(|_| crate::helpers::api_error_internal_server_error("Query failed"))?
+        .map_err(|e| crate::helpers::api_error_internal_server_error(&format!("find_by_email failed for create_user: {e}")))?
         .is_some()
     {
         return Err(crate::helpers::api_error_bad_request("Email already exists"));
     }
 
     let id = gtid_shared::crypto::id::new_id();
-    let hash = password::hash_password(&body.password).map_err(|_| {
-        crate::helpers::api_error_internal_server_error("Password hashing failed")
+    let hash = password::hash_password(&body.password).map_err(|e| {
+        crate::helpers::api_error_internal_server_error(&format!("hash_password failed for create_user: {e}"))
     })?;
     let roles_str = body.roles.join(",");
 
@@ -96,7 +96,7 @@ pub async fn create_user(
         .users
         .create(&id, &email, &hash, body.display_name.as_deref(), &roles_str, body.is_confirmed)
         .await
-        .map_err(|_| crate::helpers::api_error_internal_server_error("Query failed"))?;
+        .map_err(|e| crate::helpers::api_error_internal_server_error(&format!("users.create failed for create_user: {e}")))?;
 
     tracing::info!(
         event = "user_created_api",

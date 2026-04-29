@@ -4,7 +4,7 @@
 //! config, rate limiters) and adds UI-only concerns on top (`tera::Tera`, asset
 //! hashes, CSP cache).
 
-pub mod ctx;
+pub(crate) mod ctx;
 pub mod handlers;
 pub mod middleware;
 mod router;

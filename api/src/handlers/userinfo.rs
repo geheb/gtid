@@ -10,7 +10,7 @@ use std::sync::Arc;
 use gtid_shared::AppStateCore;
 use gtid_shared::crypto::jwt;
 
-pub async fn userinfo(
+pub(crate) async fn userinfo(
     State(state): State<Arc<AppStateCore>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: axum::http::HeaderMap,
@@ -56,9 +56,7 @@ pub async fn userinfo(
         .clients
         .find_by_id(&claims.aud)
         .await
-        .map_err(|_| {
-            crate::helpers::api_error_internal_server_error( "Query failed")
-        })?
+        .map_err(|e| crate::helpers::api_error_internal_server_error(&format!("find client {} failed for userinfo: {e}", claims.aud)))?
         .ok_or_else(|| {
             crate::helpers::api_error_unauthorized("Token verification failed")
         })?;
@@ -67,9 +65,7 @@ pub async fn userinfo(
         .users
         .find_by_id(&claims.sub)
         .await
-        .map_err(|_| {
-            crate::helpers::api_error_internal_server_error("Query failed")
-        })?
+        .map_err(|e| crate::helpers::api_error_internal_server_error(&format!("find user {} failed for userinfo: {e}", claims.sub)))?
         .ok_or_else(|| {
             crate::helpers::api_error_unauthorized("Token verification failed")
         })?;

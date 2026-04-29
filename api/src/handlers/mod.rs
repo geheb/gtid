@@ -1,8 +1,8 @@
-pub mod authorize_url;
-pub mod introspect;
-pub mod jwks;
-pub mod revoke;
-pub mod token;
-pub mod userinfo;
-pub mod users;
-pub mod well_known;
+pub(crate) mod authorize_url;
+pub(crate) mod introspect;
+pub(crate) mod jwks;
+pub(crate) mod revoke;
+pub(crate) mod token;
+pub(crate) mod userinfo;
+pub(crate) mod users;
+pub(crate) mod well_known;

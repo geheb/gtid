@@ -13,7 +13,7 @@ use gtid_shared::crypto::jwt;
 use crate::helpers::{api_error_bad_request, api_error_too_many_requests, verify_client_credentials};
 
 #[derive(Deserialize)]
-pub struct IntrospectRequest {
+pub(crate) struct IntrospectRequest {
     pub token: String,
     #[serde(default)]
     pub token_type_hint: Option<String>,
@@ -21,7 +21,7 @@ pub struct IntrospectRequest {
     pub client_secret: Option<String>,
 }
 
-pub async fn introspect(
+pub(crate) async fn introspect(
     State(state): State<Arc<AppStateCore>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: axum::http::HeaderMap,

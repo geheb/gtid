@@ -198,6 +198,41 @@ pub struct I18n {
     pub client_edit_delete: String,
     pub client_edit_cancel: String,
 
+    pub error_internal: String,
+    pub error_unauthorized: String,
+    pub error_not_found: String,
+    pub error_bad_request: String,
+    pub error_too_many_requests: String,
+    pub error_field_length_exceeded: String,
+    pub error_missing_user_agent: String,
+    pub error_invalid_id_token_hint: String,
+    pub error_id_token_hint_too_large: String,
+    pub error_post_logout_redirect_uri_required_hint: String,
+    pub error_invalid_post_logout_redirect_uri: String,
+    pub error_state_too_long: String,
+    pub error_invalid_client_id_or_redirect_uri: String,
+    pub error_only_s256_supported: String,
+    pub error_code_challenge_length: String,
+    pub error_missing_nonce: String,
+    pub error_nonce_length: String,
+    pub error_missing_response_type: String,
+    pub error_unsupported_response_type: String,
+    pub error_missing_client_id: String,
+    pub error_unknown_client_id: String,
+    pub error_missing_redirect_uri: String,
+    pub error_invalid_redirect_uri: String,
+    pub error_missing_scope: String,
+    pub error_unsupported_scope: String,
+    pub error_scope_must_include_openid: String,
+    pub error_missing_state: String,
+    pub error_missing_code_challenge: String,
+    pub error_missing_code_challenge_method: String,
+    pub error_subject_required: String,
+    pub error_redirect_uri_required: String,
+    pub error_redirect_uri_scheme: String,
+    pub error_redirect_uri_invalid_chars: String,
+    pub error_user_not_found: String,
+
     pub password_error_too_short: String,
     pub password_error_no_uppercase: String,
     pub password_error_no_lowercase: String,
@@ -512,6 +547,40 @@ fn resolve_i18n(lang: &str) -> I18n {
         client_edit_submit,
         client_edit_cancel,
         client_edit_delete,
+        error_internal,
+        error_unauthorized,
+        error_not_found,
+        error_bad_request,
+        error_too_many_requests,
+        error_field_length_exceeded,
+        error_missing_user_agent,
+        error_invalid_id_token_hint,
+        error_id_token_hint_too_large,
+        error_post_logout_redirect_uri_required_hint,
+        error_invalid_post_logout_redirect_uri,
+        error_state_too_long,
+        error_invalid_client_id_or_redirect_uri,
+        error_only_s256_supported,
+        error_code_challenge_length,
+        error_missing_nonce,
+        error_nonce_length,
+        error_missing_response_type,
+        error_unsupported_response_type,
+        error_missing_client_id,
+        error_unknown_client_id,
+        error_missing_redirect_uri,
+        error_invalid_redirect_uri,
+        error_missing_scope,
+        error_unsupported_scope,
+        error_scope_must_include_openid,
+        error_missing_state,
+        error_missing_code_challenge,
+        error_missing_code_challenge_method,
+        error_subject_required,
+        error_redirect_uri_required,
+        error_redirect_uri_scheme,
+        error_redirect_uri_invalid_chars,
+        error_user_not_found,
         password_error_too_short,
         password_error_no_uppercase,
         password_error_no_lowercase,
@@ -601,4 +670,18 @@ pub fn build_locales() -> Locales {
 
     let default = resolve_i18n("de");
     Locales { map, default }
+}
+
+/// Standalone helpers for contexts that do not have access to the [`I18n`] struct
+/// (e.g. [`IntoResponse`](axum::response::IntoResponse) for [`AppError`](crate::errors::AppError)).
+pub fn error_internal(lang: &str) -> String {
+    rust_i18n::t!("error_internal", locale = lang).to_string()
+}
+
+pub fn error_unauthorized(lang: &str) -> String {
+    rust_i18n::t!("error_unauthorized", locale = lang).to_string()
+}
+
+pub fn error_not_found(lang: &str) -> String {
+    rust_i18n::t!("error_not_found", locale = lang).to_string()
 }

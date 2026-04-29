@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use gtid_shared::AppStateCore;
 
-pub async fn openid_configuration(State(state): State<Arc<AppStateCore>>) -> impl IntoResponse {
+pub(crate) async fn openid_configuration(State(state): State<Arc<AppStateCore>>) -> impl IntoResponse {
     tracing::info!("Calling openid-configuration ...");
 
     let issuer = &state.config.issuer_uri;

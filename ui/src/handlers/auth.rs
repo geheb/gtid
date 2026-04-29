@@ -40,12 +40,14 @@ pub async fn rp_initiated_logout(
     cookies: Cookies,
     optional_user: OptionalSessionUser,
     Query(query): Query<RpLogoutQuery>,
+    lang: Lang,
 ) -> Result<Response, AppError> {
+    let t = state.locales.get(&lang.tag);
     // Validate id_token_hint if provided - decode without audience to extract client_id
     let hint_client_id = if let Some(ref hint) = query.id_token_hint {
         // Reject oversized tokens to prevent DoS
         if hint.len() > 2048 {
-            return Err(AppError::BadRequest("id_token_hint too large".into()));
+            return Err(AppError::BadRequest(t.error_id_token_hint_too_large.clone()));
         }
         let decoding_keys = state.key_store.decoding_keys();
         let mut validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::EdDSA);
@@ -58,14 +60,14 @@ pub async fn rp_initiated_logout(
                 break;
             }
         }
-        let aud = decoded_aud.ok_or_else(|| AppError::BadRequest("Invalid id_token_hint".into()))?;
+        let aud = decoded_aud.ok_or_else(|| AppError::BadRequest(t.error_invalid_id_token_hint.clone()))?;
         // Verify the client exists in DB
         state
             .clients
             .find_by_id(&aud)
             .await
-            .map_err(|_| AppError::Internal("Query failed".into()))?
-            .ok_or_else(|| AppError::BadRequest("Invalid id_token_hint".into()))?;
+            .map_err(|e| AppError::Internal(format!("find client {aud} failed for rp_initiated_logout: {e}")))?
+            .ok_or_else(|| AppError::BadRequest(t.error_invalid_id_token_hint.clone()))?;
         Some(aud)
     } else {
         None
@@ -74,14 +76,14 @@ pub async fn rp_initiated_logout(
     // Validate post_logout_redirect_uri - requires id_token_hint for client identification
     let redirect_to = if let Some(ref uri) = query.post_logout_redirect_uri {
         let client_id = hint_client_id.as_deref().ok_or_else(|| {
-            AppError::BadRequest("id_token_hint required when post_logout_redirect_uri is provided".into())
+            AppError::BadRequest(t.error_post_logout_redirect_uri_required_hint.clone())
         })?;
         let client = state
             .clients
             .find_by_id(client_id)
             .await
-            .map_err(|_| AppError::Internal("Database error".into()))?
-            .ok_or_else(|| AppError::BadRequest("Invalid post_logout_redirect_uri".into()))?;
+            .map_err(|e| AppError::Internal(format!("find client {client_id} failed for rp_initiated_logout post_logout: {e}")))?
+            .ok_or_else(|| AppError::BadRequest(t.error_invalid_post_logout_redirect_uri.clone()))?;
 
         let allowed_uris: Vec<&str> = client
             .client_post_logout_redirect_uri
@@ -93,12 +95,12 @@ pub async fn rp_initiated_logout(
         let uri_valid = gtid_shared::crypto::constant_time::constant_time_str_eq(uri, &client.client_redirect_uri)
             || allowed_uris.iter().any(|&allowed| gtid_shared::crypto::constant_time::constant_time_str_eq(uri, allowed));
         if !uri_valid {
-            return Err(AppError::BadRequest("Invalid post_logout_redirect_uri".into()));
+            return Err(AppError::BadRequest(t.error_invalid_post_logout_redirect_uri.clone()));
         }
         let mut url = uri.clone();
         if let Some(ref s) = query.state {
             if s.len() > 1024 {
-                return Err(AppError::BadRequest("State parameter too long".into()));
+                return Err(AppError::BadRequest(t.error_state_too_long.clone()));
             }
             url.push_str(&format!("?state={}", urlencoding(s)));
         }
@@ -127,14 +129,14 @@ pub struct LoginForm {
 }
 
 impl LoginForm {
-    pub fn validate(&self) -> Result<(), &'static str> {
+    pub fn validate(&self, t: &gtid_shared::i18n::I18n) -> Result<(), String> {
         use crate::handlers::{MAX_CSRF_TOKEN, MAX_EMAIL, MAX_PASSWORD, MAX_UUID};
         if self.email.len() > MAX_EMAIL
             || self.password.len() > MAX_PASSWORD
             || self.rid.as_ref().is_some_and(|r| r.len() > MAX_UUID)
             || self.csrf_token.len() > MAX_CSRF_TOKEN
         {
-            return Err("Field length exceeded");
+            return Err(t.error_field_length_exceeded.clone());
         }
         Ok(())
     }
@@ -202,17 +204,18 @@ pub async fn login_submit(
         ));
     }
 
-    let ua = gtid_shared::routes::require_user_agent(&headers).map_err(AppError::BadRequest)?;
+    let t = state.locales.get(&lang.tag);
+    let ua = gtid_shared::routes::require_user_agent(&headers)
+        .map_err(AppError::BadRequest)?;
     let ip = gtid_shared::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     // Generate fresh CSRF token for error pages
     let csrf_form_token = csrf::set_new_csrf_cookie(&cookies, state.config.secure_cookies);
 
-    form.validate().map_err(|e| AppError::BadRequest(e.into()))?;
+    form.validate(t).map_err(AppError::BadRequest)?;
 
     let rl_key = state.login_rate_limiter.key("login", &ip, ua);
     let rid = form.rid.as_deref().unwrap_or("");
     let email = crate::handlers::normalize_email(&form.email);
-    let t = state.locales.get(&lang.tag);
 
     let show_imprint = has_legal_content(&state, "imprint").await;
     let show_privacy = has_legal_content(&state, "privacy").await;
@@ -315,7 +318,7 @@ pub async fn login_submit(
         let pending_id = state
             .pending_2fa
             .store(user.id.clone(), rid_for_2fa, None)
-            .ok_or_else(|| AppError::Internal("pending 2fa store full".into()))?;
+            .ok_or_else(|| AppError::Internal("pending_2fa store full for login".into()))?;
 
         if user.has_totp() {
             return Ok(redirect(&format!("/2fa/verify?p={pending_id}")));
@@ -331,7 +334,7 @@ pub async fn login_submit(
     let lifetime = state.config.session_lifetime_secs;
     let expires_at = chrono::Utc::now()
         .checked_add_signed(chrono::Duration::seconds(lifetime))
-        .ok_or_else(|| AppError::Internal("session expiry overflow".into()))?
+        .ok_or_else(|| AppError::Internal("session expiry overflow for login".into()))?
         .to_sqlite();
 
     state.sessions.create(&session_id, &user.id, &expires_at).await?;

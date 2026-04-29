@@ -81,7 +81,7 @@ pub async fn totp_setup_form(
         .users
         .find_by_id(&user_id)
         .await?
-        .ok_or_else(|| AppError::Internal("pending 2fa user not found".into()))?;
+        .ok_or_else(|| AppError::Internal(format!("find user {} failed for totp_setup", user_id)))?;
 
     let issuer = &state.config.public_ui_uri;
     let totp = totp::build_totp(&secret, &user.email, issuer).map_err(AppError::Internal)?;
@@ -120,8 +120,10 @@ pub async fn totp_setup_submit(
     let csrf_token = get_field(&fields, "csrf_token");
     let pending_id = get_field(&fields, "p");
     let code = get_field(&fields, "code");
+    let t = state.locales.get(&lang.tag);
 
-    validate_totp_fields(&csrf_token, &pending_id).map_err(|e| AppError::BadRequest(e.into()))?;
+    validate_totp_fields(&csrf_token, &pending_id, t)
+        .map_err(AppError::BadRequest)?;
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
         return Err(AppError::BadRequest(
@@ -129,9 +131,9 @@ pub async fn totp_setup_submit(
         ));
     }
 
-    let ua = gtid_shared::routes::require_user_agent(&headers).map_err(AppError::BadRequest)?;
+    let ua = gtid_shared::routes::require_user_agent(&headers)
+        .map_err(AppError::BadRequest)?;
     let ip = gtid_shared::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
-    let t = state.locales.get(&lang.tag);
 
     // Look up pending entry early so we can re-render the form on any error
     let entry = match state.pending_2fa.get(&pending_id) {
@@ -152,7 +154,7 @@ pub async fn totp_setup_submit(
         .users
         .find_by_id(&user_id)
         .await?
-        .ok_or_else(|| AppError::Internal("pending 2fa user not found".into()))?;
+        .ok_or_else(|| AppError::Internal(format!("find user {} failed for totp_setup_submit", user_id)))?;
 
     let issuer = &state.config.public_ui_uri;
     let totp = totp::build_totp(&secret, &user.email, issuer).map_err(AppError::Internal)?;
@@ -253,8 +255,8 @@ pub async fn totp_setup_submit(
     state.login_rate_limiter.clear(rl_key);
 
     let user_key =
-        totp::derive_user_key(&state.config.totp_encryption_key, &user_id).map_err(AppError::Internal)?;
-    let encrypted = totp::encrypt_secret(&secret, &user_key).map_err(AppError::Internal)?;
+        totp::derive_user_key(&state.config.totp_encryption_key, &user_id).map_err(|e| AppError::Internal(format!("derive_user_key failed for totp_setup: {e}")))?;
+    let encrypted = totp::encrypt_secret(&secret, &user_key).map_err(|e| AppError::Internal(format!("encrypt_secret failed for totp_setup: {e}")))?;
     state.users.set_totp_secret(&user_id, Some(&encrypted)).await?;
 
     // Consume the pending entry
@@ -333,8 +335,10 @@ pub async fn totp_verify_submit(
     let pending_id = get_field(&fields, "p");
     let code = get_field(&fields, "code");
     let trust_device = get_field(&fields, "trust_device") == "1";
+    let t = state.locales.get(&lang.tag);
 
-    validate_totp_fields(&csrf_token, &pending_id).map_err(|e| AppError::BadRequest(e.into()))?;
+    validate_totp_fields(&csrf_token, &pending_id, t)
+        .map_err(AppError::BadRequest)?;
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
         return Err(AppError::BadRequest(
@@ -342,9 +346,9 @@ pub async fn totp_verify_submit(
         ));
     }
 
-    let ua = gtid_shared::routes::require_user_agent(&headers).map_err(AppError::BadRequest)?;
+    let ua = gtid_shared::routes::require_user_agent(&headers)
+        .map_err(AppError::BadRequest)?;
     let ip = gtid_shared::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
-    let t = state.locales.get(&lang.tag);
 
     // Helper: re-render verify form with error message
     let render_verify_error = |state: &AppState,
@@ -414,17 +418,17 @@ pub async fn totp_verify_submit(
         .users
         .find_by_id(&user_id)
         .await?
-        .ok_or_else(|| AppError::Internal("pending 2fa user not found".into()))?;
+        .ok_or_else(|| AppError::Internal(format!("find user {} failed for totp_verify", user_id)))?;
 
     let encrypted_secret = user
         .totp_secret
         .as_deref()
-        .ok_or_else(|| AppError::Internal("user has no totp secret".into()))?;
+        .ok_or_else(|| AppError::Internal(format!("user {} has no totp secret", user_id)))?;
 
     let user_key =
-        totp::derive_user_key(&state.config.totp_encryption_key, &user_id).map_err(AppError::Internal)?;
+        totp::derive_user_key(&state.config.totp_encryption_key, &user_id).map_err(|e| AppError::Internal(format!("derive_user_key failed for totp_verify: {e}")))?;
     let secret = totp::decrypt_secret(encrypted_secret, &user_key)
-        .map_err(|e| AppError::Internal(format!("totp decrypt: {e}")))?;
+        .map_err(|e| AppError::Internal(format!("decrypt_secret failed for totp_verify: {e}")))?;
 
     let issuer = &state.config.public_ui_uri;
     let totp = totp::build_totp(&secret, &user.email, issuer).map_err(AppError::Internal)?;
@@ -471,7 +475,7 @@ pub async fn totp_verify_submit(
     let lifetime = state.config.session_lifetime_secs;
     let expires_at = chrono::Utc::now()
         .checked_add_signed(chrono::Duration::seconds(lifetime))
-        .ok_or_else(|| AppError::Internal("session expiry overflow".into()))?
+        .ok_or_else(|| AppError::Internal("session expiry overflow for totp_verify".into()))?
         .to_sqlite();
 
     state.sessions.create(&session_id, &user_id, &expires_at).await?;
@@ -490,7 +494,7 @@ pub async fn totp_verify_submit(
         let trust_lifetime = state.config.trust_device_lifetime_secs;
         let trust_expires = chrono::Utc::now()
             .checked_add_signed(chrono::Duration::seconds(trust_lifetime))
-            .ok_or_else(|| AppError::Internal("trust expiry overflow".into()))?
+            .ok_or_else(|| AppError::Internal("trust expiry overflow for totp_verify".into()))?
             .to_sqlite();
         let trust_token = state.trusted_devices.create(&user_id, &trust_expires).await?;
 
@@ -520,9 +524,9 @@ pub async fn totp_verify_submit(
     Ok(redirect(&redirect_to))
 }
 
-fn validate_totp_fields(csrf_token: &str, pending_id: &str) -> Result<(), &'static str> {
+fn validate_totp_fields(csrf_token: &str, pending_id: &str, t: &gtid_shared::i18n::I18n) -> Result<(), String> {
     if csrf_token.len() > MAX_CSRF_TOKEN || pending_id.len() > MAX_UUID {
-        return Err("Field length exceeded");
+        return Err(t.error_field_length_exceeded.clone());
     }
     Ok(())
 }

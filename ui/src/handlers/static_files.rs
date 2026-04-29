@@ -118,6 +118,6 @@ pub fn asset_hashes() -> (String, String) {
     (short_hash(CSS_CONTENT), short_hash(JS_CONTENT))
 }
 
-pub fn email_editor_hashes() -> (String, String, String) {
+pub(crate) fn email_editor_hashes() -> (String, String, String) {
     (short_hash(QUILL_JS), short_hash(QUILL_CSS), short_hash(EMAIL_EDITOR_JS))
 }

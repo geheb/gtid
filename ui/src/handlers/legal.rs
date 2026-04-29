@@ -51,6 +51,7 @@ pub async fn privacy(State(state): State<Arc<AppState>>, lang: Lang) -> Result<R
 }
 
 async fn render_public(state: &AppState, page_type: &str, title: &str, lang: &str) -> Result<Response, AppError> {
+    let t = state.locales.get(lang);
     // Try the visitor's language first, then fall back to "de"
     let page = state
         .legal_pages
@@ -66,9 +67,9 @@ async fn render_public(state: &AppState, page_type: &str, title: &str, lang: &st
             .find_by_type_and_lang(page_type, "de")
             .await?
             .filter(|p| !p.body_html.trim().is_empty())
-            .ok_or_else(|| AppError::NotFound("Page not found".into()))?
+            .ok_or_else(|| AppError::NotFound(t.error_not_found.clone()))?
     } else {
-        return Err(AppError::NotFound("Page not found".into()));
+        return Err(AppError::NotFound(t.error_not_found.clone()));
     };
 
     let ctx = Context::from_serialize(LegalCtx {
@@ -119,18 +120,19 @@ pub async fn legal_page_edit_form(
     lang: Lang,
 ) -> Result<Response, AppError> {
     let edit_lang = &query.lang;
+    let t = state.locales.get(&lang.tag);
 
-    LegalPageType::parse(&page_type).ok_or_else(|| AppError::NotFound("Page type not found".into()))?;
+    LegalPageType::parse(&page_type).ok_or_else(|| AppError::NotFound(t.error_not_found.clone()))?;
 
     if !SUPPORTED_LANGS.contains(&edit_lang.as_str()) {
-        return Err(AppError::NotFound("Unsupported language".into()));
+        return Err(AppError::NotFound(t.error_not_found.clone()));
     }
 
     let page = state
         .legal_pages
         .find_by_type_and_lang(&page_type, edit_lang)
         .await?
-        .ok_or_else(|| AppError::NotFound("Page not found".into()))?;
+        .ok_or_else(|| AppError::NotFound(t.error_not_found.clone()))?;
 
     let (quill_js_hash, quill_css_hash, editor_js_hash) = crate::handlers::static_files::email_editor_hashes();
 
@@ -163,17 +165,19 @@ pub async fn legal_page_edit_submit(
     lang: Lang,
     body: Bytes,
 ) -> Result<Response, AppError> {
-    LegalPageType::parse(&page_type).ok_or_else(|| AppError::NotFound("Page type not found".into()))?;
+    let t = state.locales.get(&lang.tag);
+    LegalPageType::parse(&page_type).ok_or_else(|| AppError::NotFound(t.error_not_found.clone()))?;
 
     let fields = parse_form_fields(&body);
     let csrf_token = get_field(&fields, "csrf_token");
     let edit_lang = get_field(&fields, "edit_lang");
     let body_html = get_field(&fields, "body_html");
 
-    validate_legal_fields(&csrf_token, &edit_lang).map_err(|e| AppError::BadRequest(e.into()))?;
+    validate_legal_fields(&csrf_token, &edit_lang, t)
+        .map_err(AppError::BadRequest)?;
 
     if !SUPPORTED_LANGS.contains(&edit_lang.as_str()) {
-        return Err(AppError::NotFound("Unsupported language".into()));
+        return Err(AppError::NotFound(t.error_not_found.clone()));
     }
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
@@ -187,9 +191,9 @@ pub async fn legal_page_edit_submit(
     Ok(redirect("/admin/legal-pages"))
 }
 
-fn validate_legal_fields(csrf_token: &str, edit_lang: &str) -> Result<(), &'static str> {
+fn validate_legal_fields(csrf_token: &str, edit_lang: &str, t: &gtid_shared::i18n::I18n) -> Result<(), String> {
     if csrf_token.len() > super::MAX_CSRF_TOKEN || edit_lang.len() > super::MAX_LANG {
-        return Err("Field length exceeded");
+        return Err(t.error_field_length_exceeded.clone());
     }
     Ok(())
 }

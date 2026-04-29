@@ -90,8 +90,9 @@ pub async fn user_create_submit(
     let pw = get_field(&fields, "password");
     let roles = get_all(&fields, "roles");
 
-    validate_user_fields(&csrf_token, None, &email, display_name.as_deref(), &pw, &roles)
-        .map_err(|e| AppError::BadRequest(e.into()))?;
+    let t = state.locales.get(&lang.tag);
+    validate_user_fields(&csrf_token, None, &email, display_name.as_deref(), &pw, &roles, t)
+        .map_err(AppError::BadRequest)?;
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
         return Err(AppError::BadRequest(
@@ -159,11 +160,12 @@ pub async fn user_edit_form(
     csrf: CsrfToken,
     lang: Lang,
 ) -> Result<Response, AppError> {
+    let t = state.locales.get(&lang.tag);
     let user = state
         .users
         .find_by_id(&id)
         .await?
-        .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+        .ok_or_else(|| AppError::NotFound(t.error_user_not_found.clone()))?;
 
     let user_roles: Vec<String> = user.roles().into_iter().map(String::from).collect();
     let locked_until = state.account_lockout.locked_until_utc(&user.email);
@@ -207,8 +209,9 @@ pub async fn user_edit_submit(
     let pw = get_field(&fields, "password");
     let roles = get_all(&fields, "roles");
 
-    validate_user_fields(&csrf_token, Some(&id), &email, display_name.as_deref(), &pw, &roles)
-        .map_err(|e| AppError::BadRequest(e.into()))?;
+    let t = state.locales.get(&lang.tag);
+    validate_user_fields(&csrf_token, Some(&id), &email, display_name.as_deref(), &pw, &roles, t)
+        .map_err(AppError::BadRequest)?;
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
         return Err(AppError::BadRequest(
@@ -220,7 +223,7 @@ pub async fn user_edit_submit(
         .users
         .find_by_id(&id)
         .await?
-        .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+        .ok_or_else(|| AppError::NotFound(t.error_user_not_found.clone()))?;
 
     let render_error = |msg: &str| -> Result<Response, AppError> {
         let ctx = Context::from_serialize(UserEditCtx {
@@ -330,11 +333,12 @@ pub async fn user_reset_2fa(
         ));
     }
 
+    let t = state.locales.get(&lang.tag);
     let user = state
         .users
         .find_by_id(&id)
         .await?
-        .ok_or_else(|| AppError::NotFound("User not found".into()))?;
+        .ok_or_else(|| AppError::NotFound(t.error_user_not_found.clone()))?;
 
     if user.has_totp() {
         state.users.set_totp_secret(&id, None).await?;
@@ -349,7 +353,7 @@ pub async fn user_reset_2fa(
         let pending_id = state
             .pending_2fa
             .store(id, None, None)
-            .ok_or_else(|| AppError::Internal("pending 2fa store full".into()))?;
+            .ok_or_else(|| AppError::Internal("pending_2fa store full for user_reset_2fa".into()))?;
         return Ok(redirect(&format!("/2fa/setup?p={pending_id}")));
     }
 
@@ -363,7 +367,8 @@ fn validate_user_fields(
     display_name: Option<&str>,
     password: &str,
     roles: &[String],
-) -> Result<(), &'static str> {
+    t: &gtid_shared::i18n::I18n,
+) -> Result<(), String> {
     if csrf_token.len() > super::MAX_CSRF_TOKEN
         || id.is_some_and(|i| i.len() > super::MAX_UUID)
         || email.len() > super::MAX_EMAIL
@@ -371,7 +376,7 @@ fn validate_user_fields(
         || password.len() > super::MAX_PASSWORD
         || roles.iter().any(|r| r.len() > super::MAX_ROLE)
     {
-        return Err("Field length exceeded");
+        return Err(t.error_field_length_exceeded.clone());
     }
     Ok(())
 }

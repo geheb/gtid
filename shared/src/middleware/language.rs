@@ -11,21 +11,41 @@ pub struct Lang {
     pub tag: String,
 }
 
+tokio::task_local! {
+    pub static REQUEST_LANG: String;
+}
+
+/// Axum middleware that sets the task-local language from the Accept-Language header.
+pub async fn set_request_lang(
+    req: axum::http::Request<axum::body::Body>,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let lang = req
+        .headers()
+        .get(header::ACCEPT_LANGUAGE)
+        .and_then(|v| v.to_str().ok())
+        .map(negotiate)
+        .unwrap_or_else(|| DEFAULT_LANG.to_string());
+    REQUEST_LANG.scope(lang, next.run(req)).await
+}
+
 impl<S: Send + Sync> FromRequestParts<S> for Lang {
     type Rejection = std::convert::Infallible;
 
-    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        let tag = parts
-            .headers
-            .get(header::ACCEPT_LANGUAGE)
-            .and_then(|v| v.to_str().ok())
-            .map(negotiate)
-            .unwrap_or_else(|| DEFAULT_LANG.to_string());
-        Ok(Lang { tag })
+    async fn from_request_parts(_parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
+        Ok(Lang {
+            tag: current_lang(),
+        })
     }
 }
 
-fn negotiate(header: &str) -> String {
+pub fn current_lang() -> String {
+    REQUEST_LANG
+        .try_with(|l| l.clone())
+        .unwrap_or_else(|_| DEFAULT_LANG.to_string())
+}
+
+pub(crate) fn negotiate(header: &str) -> String {
     let mut candidates: Vec<(&str, u16)> = header
         .split(',')
         .filter_map(|entry| {

@@ -61,10 +61,10 @@ impl AppConfig {
             public_ui_uri: get("PUBLIC_UI_URI").unwrap_or_else(|| "http://localhost:3001".into()),
             ui_listen_port: get("UI_LISTEN_PORT").and_then(|v| v.parse().ok()).unwrap_or(3001),
             api_listen_port: get("API_LISTEN_PORT").and_then(|v| v.parse().ok()).unwrap_or(3000),
-            database_uri_users: get("DATABASE_URI_USERS").unwrap_or_else(|| "sqlite:gtid_users.db".into()),
-            database_uri_clients: get("DATABASE_URI_CLIENTS").unwrap_or_else(|| "sqlite:gtid_clients.db".into()),
-            database_uri_emails: get("DATABASE_URI_EMAILS").unwrap_or_else(|| "sqlite:gtid_emails.db".into()),
-            database_uri_config: get("DATABASE_URI_CONFIG").unwrap_or_else(|| "sqlite:gtid_config.db".into()),
+            database_uri_users: get("DATABASE_URI_USERS").unwrap_or_else(|| "sqlite:.db/gtid_users.db".into()),
+            database_uri_clients: get("DATABASE_URI_CLIENTS").unwrap_or_else(|| "sqlite:.db/gtid_clients.db".into()),
+            database_uri_emails: get("DATABASE_URI_EMAILS").unwrap_or_else(|| "sqlite:.db/gtid_emails.db".into()),
+            database_uri_config: get("DATABASE_URI_CONFIG").unwrap_or_else(|| "sqlite:.db/gtid_config.db".into()),
             roles: {
                 let mut roles = vec!["admin".to_string()];
                 if let Some(val) = get("ROLES") {

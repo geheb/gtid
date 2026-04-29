@@ -59,7 +59,9 @@ pub async fn forgot_password_submit(
     let csrf_token = get_field(&fields, "csrf_token");
     let email = super::normalize_email(&get_field(&fields, "email"));
 
-    validate_forgot_fields(&csrf_token, &email).map_err(|e| AppError::BadRequest(e.into()))?;
+    let t = state.locales.get(&lang.tag);
+    validate_forgot_fields(&csrf_token, &email, t)
+        .map_err(AppError::BadRequest)?;
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
         return Err(AppError::BadRequest(
@@ -67,7 +69,8 @@ pub async fn forgot_password_submit(
         ));
     }
 
-    let ua = gtid_shared::routes::require_user_agent(&headers).map_err(AppError::BadRequest)?;
+    let ua = gtid_shared::routes::require_user_agent(&headers)
+        .map_err(AppError::BadRequest)?;
     let ip = gtid_shared::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let rl_key = state.login_rate_limiter.key("forgot", &ip, ua);
 
@@ -178,7 +181,8 @@ pub async fn reset_password_form(
     csrf: CsrfToken,
     lang: Lang,
 ) -> Result<Response, AppError> {
-    let ua = gtid_shared::routes::require_user_agent(&headers).map_err(AppError::BadRequest)?;
+    let ua = gtid_shared::routes::require_user_agent(&headers)
+        .map_err(AppError::BadRequest)?;
     let ip = gtid_shared::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let rl_key = state.login_rate_limiter.key("reset", &ip, ua);
 
@@ -250,7 +254,9 @@ pub async fn reset_password_submit(
     let pw = get_field(&fields, "password");
     let pw_confirm = get_field(&fields, "password_confirm");
 
-    validate_reset_fields(&csrf_token, &token, &pw, &pw_confirm).map_err(|e| AppError::BadRequest(e.into()))?;
+    let t = state.locales.get(&lang.tag);
+    validate_reset_fields(&csrf_token, &token, &pw, &pw_confirm, t)
+        .map_err(AppError::BadRequest)?;
 
     if !csrf::verify_csrf(&cookies, &csrf_token) {
         return Err(AppError::BadRequest(
@@ -258,7 +264,8 @@ pub async fn reset_password_submit(
         ));
     }
 
-    let ua = gtid_shared::routes::require_user_agent(&headers).map_err(AppError::BadRequest)?;
+    let ua = gtid_shared::routes::require_user_agent(&headers)
+        .map_err(AppError::BadRequest)?;
     let ip = gtid_shared::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let rl_key = state.login_rate_limiter.key("reset", &ip, ua);
 
@@ -360,9 +367,9 @@ pub async fn reset_password_submit(
     Ok(Html(rendered).into_response())
 }
 
-fn validate_forgot_fields(csrf_token: &str, email: &str) -> Result<(), &'static str> {
+fn validate_forgot_fields(csrf_token: &str, email: &str, t: &gtid_shared::i18n::I18n) -> Result<(), String> {
     if csrf_token.len() > super::MAX_CSRF_TOKEN || email.len() > super::MAX_EMAIL {
-        return Err("Field length exceeded");
+        return Err(t.error_field_length_exceeded.clone());
     }
     Ok(())
 }
@@ -372,13 +379,14 @@ fn validate_reset_fields(
     token: &str,
     password: &str,
     password_confirm: &str,
-) -> Result<(), &'static str> {
+    t: &gtid_shared::i18n::I18n,
+) -> Result<(), String> {
     if csrf_token.len() > super::MAX_CSRF_TOKEN
         || token.len() > super::MAX_RESET_TOKEN
         || password.len() > super::MAX_PASSWORD
         || password_confirm.len() > super::MAX_PASSWORD
     {
-        return Err("Field length exceeded");
+        return Err(t.error_field_length_exceeded.clone());
     }
     Ok(())
 }

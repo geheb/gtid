@@ -18,19 +18,20 @@ fn extract_basic_auth(headers: &HeaderMap) -> Option<(String, String)> {
     Some((id.to_string(), secret.to_string()))
 }
 
-pub fn api_error_bad_request(description: &str) -> Response {
+pub(crate) fn api_error_bad_request(description: &str) -> Response {
     api_error(StatusCode::BAD_REQUEST, "bad_request", description)
 }
 
-pub fn api_error_too_many_requests() -> Response {
+pub(crate) fn api_error_too_many_requests() -> Response {
     api_error(StatusCode::TOO_MANY_REQUESTS, "too_many_requests", "Rate limit exceeded")
 }
 
-pub fn api_error_internal_server_error(description: &str) -> Response {
-    api_error(StatusCode::INTERNAL_SERVER_ERROR, "internal_server_error", description)
+pub(crate) fn api_error_internal_server_error(log_msg: &str) -> Response {
+    tracing::error!("{log_msg}");
+    api_error(StatusCode::INTERNAL_SERVER_ERROR, "internal_server_error", "Internal server error")
 }
 
-pub fn api_error_unauthorized(description: &str) -> Response {
+pub(crate) fn api_error_unauthorized(description: &str) -> Response {
     api_error(StatusCode::UNAUTHORIZED, "unauthorized", description)
 }
 
@@ -45,7 +46,7 @@ fn api_error(status: StatusCode, error: &str, description: &str) -> Response {
         .into_response()
 }
 
-pub async fn verify_client_credentials(
+pub(crate) async fn verify_client_credentials(
     client_id_form: Option<&str>,
     client_secret_form: Option<&str>,
     headers: &HeaderMap,
@@ -70,7 +71,7 @@ pub async fn verify_client_credentials(
         .clients
         .find_by_id(&client_id)
         .await
-        .map_err(|_| api_error_internal_server_error("Query failed"))?
+        .map_err(|e| api_error_internal_server_error(&format!("find client {client_id} failed for verify_client_credentials: {e}")))?
         .ok_or_else(|| {
             tracing::warn!(event = "client_auth_failed", client_id = %client_id, reason = "not_found", "Client authentication failed: unknown client_id");
             state.login_rate_limiter.record_failure(key);

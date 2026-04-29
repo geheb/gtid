@@ -8,7 +8,10 @@ pub fn require_user_agent(headers: &HeaderMap) -> Result<&str, String> {
         .get(header::USER_AGENT)
         .and_then(|v| v.to_str().ok())
         .filter(|v| !v.is_empty())
-        .ok_or_else(|| "Missing User-Agent header".to_string())
+        .ok_or_else(|| {
+            let lang = crate::middleware::language::current_lang();
+            rust_i18n::t!("error_missing_user_agent", locale = &lang).to_string()
+        })
 }
 
 pub fn client_ip(headers: &HeaderMap, addr: &SocketAddr, trusted_proxies: bool) -> String {

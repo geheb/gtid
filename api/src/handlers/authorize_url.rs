@@ -14,11 +14,11 @@ use gtid_shared::oauth::{urlencoding, validate_scope};
 use crate::helpers::{api_error_bad_request, verify_client_credentials};
 
 #[derive(Debug, Deserialize)]
-pub struct AuthorizeUrlParams {
+pub(crate) struct AuthorizeUrlParams {
     pub scope: Option<String>,
 }
 
-pub async fn authorize_url(
+pub(crate) async fn authorize_url(
     State(state): State<Arc<AppStateCore>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: axum::http::HeaderMap,
@@ -41,7 +41,7 @@ pub async fn authorize_url(
 
     // Scope validation: whitelist + openid mandatory, space-separated per RFC 6749
     let scope = params.scope.as_deref().unwrap_or("openid email profile");
-    if let Err(msg) = validate_scope(scope) {
+    if let Err(msg) = validate_scope(scope, "en") {
         return Err(api_error_bad_request(&msg));
     }
 

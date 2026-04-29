@@ -12,7 +12,7 @@ use gtid_shared::AppStateCore;
 use crate::helpers::{api_error_bad_request, api_error_too_many_requests, verify_client_credentials};
 
 #[derive(Deserialize)]
-pub struct RevokeRequest {
+pub(crate) struct RevokeRequest {
     pub token: String,
     #[allow(dead_code)]
     #[serde(default)]
@@ -21,7 +21,7 @@ pub struct RevokeRequest {
     pub client_secret: Option<String>,
 }
 
-pub async fn revoke(
+pub(crate) async fn revoke(
     State(state): State<Arc<AppStateCore>>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     headers: axum::http::HeaderMap,

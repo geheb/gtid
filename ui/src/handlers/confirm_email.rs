@@ -28,7 +28,8 @@ pub async fn confirm_email(
     Query(query): Query<ConfirmQuery>,
     lang: Lang,
 ) -> Result<Response, AppError> {
-    let ua = gtid_shared::routes::require_user_agent(&headers).map_err(AppError::BadRequest)?;
+    let ua = gtid_shared::routes::require_user_agent(&headers)
+        .map_err(AppError::BadRequest)?;
     let ip = gtid_shared::routes::client_ip(&headers, &addr, state.config.trusted_proxies);
     let rl_key = state.login_rate_limiter.key("confirm", &ip, ua);
 
@@ -74,7 +75,7 @@ pub async fn confirm_email(
         .users
         .find_by_id(&confirmation.user_id)
         .await?
-        .ok_or_else(|| AppError::Internal("User not found".into()))?;
+        .ok_or_else(|| AppError::Internal(format!("find user {} failed for confirm_email", confirmation.user_id)))?;
 
     state.users.confirm(&confirmation.user_id).await?;
     state

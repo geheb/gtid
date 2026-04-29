@@ -9,7 +9,6 @@ pub enum AppError {
     Unauthorized(String),
     #[allow(dead_code)]
     NotFound(String),
-    Database(sqlx::Error),
 }
 
 impl std::fmt::Display for AppError {
@@ -19,25 +18,21 @@ impl std::fmt::Display for AppError {
             AppError::BadRequest(msg) => write!(f, "Bad request: {msg}"),
             AppError::Unauthorized(msg) => write!(f, "Unauthorized: {msg}"),
             AppError::NotFound(msg) => write!(f, "Not found: {msg}"),
-            AppError::Database(e) => write!(f, "Database error: {e}"),
         }
     }
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
+        let lang = crate::middleware::language::current_lang();
         let (status, message) = match &self {
             AppError::Internal(msg) => {
                 tracing::error!("Internal error: {msg}");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal error".to_string())
+                (StatusCode::INTERNAL_SERVER_ERROR, crate::i18n::error_internal(&lang))
             }
             AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
-            AppError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, "Unauthorized".to_string()),
-            AppError::NotFound(_) => (StatusCode::NOT_FOUND, "Not found".to_string()),
-            AppError::Database(e) => {
-                tracing::error!("Database error: {e}");
-                (StatusCode::INTERNAL_SERVER_ERROR, "Query failed".to_string())
-            }
+            AppError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, crate::i18n::error_unauthorized(&lang)),
+            AppError::NotFound(_) => (StatusCode::NOT_FOUND, crate::i18n::error_not_found(&lang)),
         };
 
         let escaped = tera::escape_html(&message);
@@ -47,7 +42,7 @@ impl IntoResponse for AppError {
 
 impl From<sqlx::Error> for AppError {
     fn from(e: sqlx::Error) -> Self {
-        AppError::Database(e)
+        AppError::Internal(format!("Database error: {e}"))
     }
 }
 

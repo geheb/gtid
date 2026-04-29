@@ -205,7 +205,7 @@ New tables go into the thematically matching database.
 
 - `AppError` enum in `shared/src/errors.rs` is the central error type
 - Route handlers return `Result<..., AppError>`
-- `AppError::Internal` and `AppError::Database` log details, return only generic messages to the client
+- `AppError::Internal` logs details, returns only generic messages to the client (includes database errors via `From<sqlx::Error>`)
 - `expect()` only in startup code, never in request handlers
 - `From` impls for sqlx::Error, jsonwebtoken::Error, tera::Error, argon2::Error
 

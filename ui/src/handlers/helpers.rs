@@ -5,8 +5,8 @@ use axum::{
 use serde::Deserialize;
 
 pub use gtid_shared::limits::{
-    MAX_CLIENT_ID, MAX_CLIENT_SECRET, MAX_CODE_VERIFIER, MAX_CSRF_TOKEN, MAX_DISPLAY_NAME, MAX_EMAIL, MAX_GRANT_TYPE,
-    MAX_LANG, MAX_PASSWORD, MAX_REFRESH_TOKEN, MAX_RESET_TOKEN, MAX_ROLE, MAX_SCOPE, MAX_SETUP_TOKEN, MAX_SUBJECT,
+    MAX_CLIENT_ID, MAX_CLIENT_SECRET, MAX_CSRF_TOKEN, MAX_DISPLAY_NAME, MAX_EMAIL,
+    MAX_LANG, MAX_PASSWORD, MAX_RESET_TOKEN, MAX_ROLE, MAX_SCOPE, MAX_SETUP_TOKEN, MAX_SUBJECT,
     MAX_URI, MAX_UUID,
 };
 
@@ -44,16 +44,16 @@ pub fn get_all(fields: &[(String, String)], key: &str) -> Vec<String> {
         .collect()
 }
 
-pub fn validate_redirect_uri(uri: &str) -> Result<(), String> {
+pub fn validate_redirect_uri(uri: &str, i18n: &gtid_shared::i18n::I18n) -> Result<(), String> {
     if uri.is_empty() {
-        return Err("Redirect URI is required".into());
+        return Err(i18n.error_redirect_uri_required.clone());
     }
     let lower = uri.to_lowercase();
     if !lower.starts_with("https://") && !lower.starts_with("http://") {
-        return Err("Redirect URI must use http:// or https:// scheme".into());
+        return Err(i18n.error_redirect_uri_scheme.clone());
     }
     if lower.contains("..") || lower.contains("\\") {
-        return Err("Redirect URI contains invalid characters".into());
+        return Err(i18n.error_redirect_uri_invalid_chars.clone());
     }
     Ok(())
 }
@@ -90,6 +90,13 @@ pub struct DeleteForm {
 mod tests {
     use super::*;
 
+    fn test_i18n() -> &'static gtid_shared::i18n::I18n {
+        use std::sync::LazyLock;
+        static LOCALES: LazyLock<gtid_shared::i18n::Locales> =
+            LazyLock::new(gtid_shared::i18n::build_locales);
+        LOCALES.get("de")
+    }
+
     #[test]
     fn anonymize() {
         assert_eq!(anonymize_email("thomas@example.com"), "t...s@example.com");
@@ -100,53 +107,53 @@ mod tests {
 
     #[test]
     fn valid_https() {
-        assert!(validate_redirect_uri("https://example.com/cb").is_ok());
+        assert!(validate_redirect_uri("https://example.com/cb", test_i18n()).is_ok());
     }
 
     #[test]
     fn valid_http() {
-        assert!(validate_redirect_uri("http://localhost:8080/cb").is_ok());
+        assert!(validate_redirect_uri("http://localhost:8080/cb", test_i18n()).is_ok());
     }
 
     #[test]
     fn rejects_javascript_scheme() {
-        assert!(validate_redirect_uri("javascript://alert(1)").is_err());
+        assert!(validate_redirect_uri("javascript://alert(1)", test_i18n()).is_err());
     }
 
     #[test]
     fn rejects_mixed_case_javascript() {
-        assert!(validate_redirect_uri("JavaScript://alert(1)").is_err());
+        assert!(validate_redirect_uri("JavaScript://alert(1)", test_i18n()).is_err());
     }
 
     #[test]
     fn rejects_data_scheme() {
-        assert!(validate_redirect_uri("data:text/html,<h1>hi</h1>").is_err());
+        assert!(validate_redirect_uri("data:text/html,<h1>hi</h1>", test_i18n()).is_err());
     }
 
     #[test]
     fn rejects_ftp_scheme() {
-        assert!(validate_redirect_uri("ftp://example.com").is_err());
+        assert!(validate_redirect_uri("ftp://example.com", test_i18n()).is_err());
     }
 
     #[test]
     fn rejects_empty() {
-        assert!(validate_redirect_uri("").is_err());
+        assert!(validate_redirect_uri("", test_i18n()).is_err());
     }
 
     #[test]
     fn rejects_path_traversal() {
-        assert!(validate_redirect_uri("https://example.com/../secret").is_err());
+        assert!(validate_redirect_uri("https://example.com/../secret", test_i18n()).is_err());
     }
 
     #[test]
     fn rejects_backslash() {
-        assert!(validate_redirect_uri("https://example.com\\@evil.com").is_err());
+        assert!(validate_redirect_uri("https://example.com\\@evil.com", test_i18n()).is_err());
     }
 
     #[test]
     fn accepts_mixed_case_http() {
-        assert!(validate_redirect_uri("HTTP://localhost/cb").is_ok());
-        assert!(validate_redirect_uri("HTTPS://example.com/cb").is_ok());
+        assert!(validate_redirect_uri("HTTP://localhost/cb", test_i18n()).is_ok());
+        assert!(validate_redirect_uri("HTTPS://example.com/cb", test_i18n()).is_ok());
     }
 
     #[test]

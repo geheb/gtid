@@ -165,6 +165,9 @@ pub async fn start_server(mut config: AppConfig) -> (u16, u16, Option<String>) {
             core.clone(),
             middleware::bot_trap::bot_trap_guard,
         ))
+        .layer(axum::middleware::from_fn(
+            middleware::language::set_request_lang,
+        ))
         .with_state(state.clone());
 
     let cleanup_state = core;
