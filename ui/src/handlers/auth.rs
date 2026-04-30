@@ -46,7 +46,7 @@ pub async fn rp_initiated_logout(
     // Validate id_token_hint if provided - decode without audience to extract client_id
     let hint_client_id = if let Some(ref hint) = query.id_token_hint {
         // Reject oversized tokens to prevent DoS
-        if hint.len() > 2048 {
+        if hint.len() > crate::handlers::MAX_ID_TOKEN_HINT {
             return Err(AppError::BadRequest(t.error_id_token_hint_too_large.clone()));
         }
         let decoding_keys = state.key_store.decoding_keys();
@@ -99,7 +99,7 @@ pub async fn rp_initiated_logout(
         }
         let mut url = uri.clone();
         if let Some(ref s) = query.state {
-            if s.len() > 1024 {
+            if s.len() > crate::handlers::MAX_STATE {
                 return Err(AppError::BadRequest(t.error_state_too_long.clone()));
             }
             url.push_str(&format!("?state={}", urlencoding(s)));

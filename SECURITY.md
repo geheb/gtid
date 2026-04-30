@@ -60,7 +60,7 @@ now.duration_since(earlier)
 **Pattern:** Enforce size limits at two layers - global middleware and per-field validation.
 
 - **Global:** `RequestBodyLimitLayer` on every router (default 64 KB)
-- **Per-field:** Validate length before processing (e.g. `id_token_hint ≤ 2048`, `state ≤ 1024`, `code_challenge 43–128`)
+- **Per-field:** Validate length before processing (e.g. `id_token_hint <= 2048`, `state <= 2048`, `code_challenge 43–128`)
 - **Content-Type:** Whitelist allowed types in middleware, reject everything else (including `multipart/form-data`)
 - **Redirect URI validation:** Exact match against registered client URIs using constant-time comparison. Only `http`/`https` schemes allowed - rejects path traversal (`..`, `\`) on client creation. Prevents open redirect attacks
 

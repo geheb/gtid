@@ -177,10 +177,10 @@ mod tests {
         assert_eq!(c.public_ui_uri, "http://localhost:3001");
         assert_eq!(c.api_listen_port, 3000);
         assert_eq!(c.ui_listen_port, 3001);
-        assert_eq!(c.database_uri_users, "sqlite:gtid_users.db");
-        assert_eq!(c.database_uri_clients, "sqlite:gtid_clients.db");
-        assert_eq!(c.database_uri_emails, "sqlite:gtid_emails.db");
-        assert_eq!(c.database_uri_config, "sqlite:gtid_config.db");
+        assert_eq!(c.database_uri_users, "sqlite:.db/gtid_users.db");
+        assert_eq!(c.database_uri_clients, "sqlite:.db/gtid_clients.db");
+        assert_eq!(c.database_uri_emails, "sqlite:.db/gtid_emails.db");
+        assert_eq!(c.database_uri_config, "sqlite:.db/gtid_config.db");
         assert_eq!(c.lockout_max_attempts, 3);
         assert_eq!(c.lockout_duration_secs, 3600);
         assert!(c.secure_cookies);

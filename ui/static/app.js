@@ -50,12 +50,10 @@ document.addEventListener("DOMContentLoaded", function () {
     setupGenerateAndCopy("btn-generate-password", "btn-copy-password", "password", 16);
 
     document.querySelectorAll("form[method='POST']:not(.no-spinner)").forEach(function (form) {
-        form.addEventListener("submit", function () {
-            form.querySelectorAll("button[type='submit']").forEach(function (btn) {
-                btn.disabled = true;
-                var label = btn.textContent;
-                btn.innerHTML = '<span class="btn-spinner"></span> ' + label.trim();
-            });
+        form.addEventListener("submit", function (e) {
+            var btn = e.submitter;
+            btn.innerHTML = '<span class="btn-spinner"></span> ' + btn.textContent.trim();
+            setTimeout(function () { btn.disabled = true; }, 0);
         });
     });
 

@@ -200,7 +200,7 @@ pub async fn authorize_post(
     if form.code_challenge_method != "S256" {
         return Err(AppError::BadRequest(t.error_only_s256_supported.clone()));
     }
-    if form.code_challenge.len() < 43 || form.code_challenge.len() > 128 {
+    if form.code_challenge.len() < crate::handlers::MIN_CODE_CHALLENGE || form.code_challenge.len() > crate::handlers::MAX_CODE_CHALLENGE {
         return Err(AppError::BadRequest(t.error_code_challenge_length.clone()));
     }
 
@@ -210,7 +210,7 @@ pub async fn authorize_post(
     }
 
     if let Some(ref s) = form.state
-        && s.len() > 1024
+        && s.len() > crate::handlers::MAX_STATE
     {
         return Err(AppError::BadRequest(t.error_state_too_long.clone()));
     }
@@ -289,19 +289,19 @@ async fn validate_authorize_params(
     gtid_shared::oauth::validate_scope(scope, lang)?;
 
     let state_val = params.state.as_deref().ok_or_else(|| t.error_missing_state.clone())?;
-    if state_val.len() > 1024 {
+    if state_val.len() > crate::handlers::MAX_STATE {
         return Err(t.error_state_too_long.clone());
     }
 
     // #11: Nonce is required to prevent replay attacks on ID tokens
     let nonce = params.nonce.as_deref().ok_or_else(|| t.error_missing_nonce.clone())?;
-    if nonce.is_empty() || nonce.len() > 512 {
+    if nonce.is_empty() || nonce.len() > crate::handlers::MAX_NONCE {
         return Err(t.error_nonce_length.clone());
     }
 
     // #5: PKCE code_challenge must be 43–128 base64url characters (RFC 7636 §4.2)
     let code_challenge = params.code_challenge.as_deref().ok_or_else(|| t.error_missing_code_challenge.clone())?;
-    if code_challenge.len() < 43 || code_challenge.len() > 128 {
+    if code_challenge.len() < crate::handlers::MIN_CODE_CHALLENGE || code_challenge.len() > crate::handlers::MAX_CODE_CHALLENGE {
         return Err(t.error_code_challenge_length.clone());
     }
 

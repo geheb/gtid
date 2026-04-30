@@ -153,8 +153,8 @@ async fn hidden_field_manipulation() {
         .unwrap();
     assert_eq!(resp.status(), 400, "11c: Empty code_challenge not rejected");
 
-    // 11d: Oversized state (>1024 chars) -> must be 400
-    let long_state = "A".repeat(1025);
+    // 11d: Oversized state (>2048 chars) -> must be 400
+    let long_state = "A".repeat(2049);
     let resp = client
         .post(server.ui_url("/authorize"))
         .form(&[

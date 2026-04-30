@@ -23,7 +23,7 @@ pub enum PasswordError {
 }
 
 pub fn validate_password_strength(password: &str) -> Result<(), PasswordError> {
-    if password.len() < 10 {
+    if password.len() < crate::limits::MIN_PASSWORD {
         return Err(PasswordError::TooShort);
     }
     if !password.chars().any(|c| c.is_ascii_uppercase()) {
@@ -45,7 +45,7 @@ pub fn validate_password_strength(password: &str) -> Result<(), PasswordError> {
 }
 
 pub fn validate_secret_strength(password: &str) -> Result<(), PasswordError> {
-    if password.len() < 16 {
+    if password.len() < crate::limits::MIN_SECRET {
         return Err(PasswordError::TooShort);
     }
     if !password.chars().any(|c| c.is_ascii_uppercase()) {
