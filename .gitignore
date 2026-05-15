@@ -1,5 +1,7 @@
-/target
+target/
 .env
 .db/
 .keys/
 /dev/**/data
+fuzz/artifacts
+fuzz/corpus

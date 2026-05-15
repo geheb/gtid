@@ -161,4 +161,31 @@ mod tests {
         assert_eq!(format_secret_for_display("ABCDEFGH"), "ABCD EFGH");
         assert_eq!(format_secret_for_display("ABCDE"), "ABCD E");
     }
+
+    proptest::proptest! {
+        #[test]
+        fn encrypt_decrypt_roundtrip_random(
+            plaintext in "[A-Za-z2-7]{16,128}",
+            master_bytes in proptest::array::uniform32(0u8..)
+        ) {
+            let user_key = derive_user_key(&master_bytes, "user-proptest").unwrap();
+            let encrypted = encrypt_secret(&plaintext, &user_key).unwrap();
+            let decrypted = decrypt_secret(&encrypted, &user_key).unwrap();
+            assert_eq!(decrypted, plaintext);
+        }
+
+        #[test]
+        fn different_user_key_fails(
+            plaintext in "[A-Za-z2-7]{16,64}",
+            master1 in proptest::array::uniform32(0u8..),
+            master2 in proptest::array::uniform32(0u8..)
+        ) {
+            let key1 = derive_user_key(&master1, "user-a").unwrap();
+            let key2 = derive_user_key(&master2, "user-b").unwrap();
+            if key1 != key2 {
+                let encrypted = encrypt_secret(&plaintext, &key1).unwrap();
+                assert!(decrypt_secret(&encrypted, &key2).is_err());
+            }
+        }
+    }
 }

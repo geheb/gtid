@@ -106,6 +106,27 @@ fn derive_kid(pub_bytes: &[u8]) -> String {
     URL_SAFE_NO_PAD.encode(&hash[..8])
 }
 
+fn build_jwk(pub_pem: &[u8]) -> Result<(String, serde_json::Value), KeyError> {
+    let pem_str = std::str::from_utf8(pub_pem)?;
+    let der_b64: String = pem_str.lines().filter(|l| !l.starts_with("-----")).collect();
+    let der = base64::engine::general_purpose::STANDARD.decode(&der_b64)?;
+
+    let pub_bytes = &der[der.len() - 32..];
+    let x = URL_SAFE_NO_PAD.encode(pub_bytes);
+    let kid = derive_kid(pub_bytes);
+
+    let jwk = serde_json::json!({
+        "kty": "OKP",
+        "crv": "Ed25519",
+        "alg": "EdDSA",
+        "use": "sig",
+        "kid": kid,
+        "x": x
+    });
+
+    Ok((kid, jwk))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -163,25 +184,5 @@ mod tests {
         let jwks2 = store.jwks_json();
         assert_eq!(jwks2["keys"].as_array().unwrap().len(), 2);
     }
-}
 
-fn build_jwk(pub_pem: &[u8]) -> Result<(String, serde_json::Value), KeyError> {
-    let pem_str = std::str::from_utf8(pub_pem)?;
-    let der_b64: String = pem_str.lines().filter(|l| !l.starts_with("-----")).collect();
-    let der = base64::engine::general_purpose::STANDARD.decode(&der_b64)?;
-
-    let pub_bytes = &der[der.len() - 32..];
-    let x = URL_SAFE_NO_PAD.encode(pub_bytes);
-    let kid = derive_kid(pub_bytes);
-
-    let jwk = serde_json::json!({
-        "kty": "OKP",
-        "crv": "Ed25519",
-        "alg": "EdDSA",
-        "use": "sig",
-        "kid": kid,
-        "x": x
-    });
-
-    Ok((kid, jwk))
 }

@@ -1,0 +1,50 @@
+[package]
+name = "gtid-fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+gtid-shared = { path = "../shared" }
+
+[dependencies.gtid-ui]
+path = "../ui"
+
+[[bin]]
+name = "pkce_verify"
+path = "fuzz_targets/pkce_verify.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "scope_validation"
+path = "fuzz_targets/scope_validation.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "email_normalize"
+path = "fuzz_targets/email_normalize.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "password_strength"
+path = "fuzz_targets/password_strength.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "redirect_uri"
+path = "fuzz_targets/redirect_uri.rs"
+test = false
+doc = false
+bench = false

@@ -54,4 +54,29 @@ mod tests {
         let (verifier, _) = generate_pkce();
         assert!(!verify_pkce_s256(&verifier, ""));
     }
+
+    proptest::proptest! {
+        #[test]
+        fn generate_then_verify_always_passes(
+            verifier in "[A-Za-z0-9_-]{43,128}"
+        ) {
+            let hash = Sha256::digest(verifier.as_bytes());
+            let challenge = URL_SAFE_NO_PAD.encode(hash);
+            assert!(verify_pkce_s256(&verifier, &challenge));
+        }
+
+        #[test]
+        fn wrong_challenge_never_matches(
+            verifier in "[A-Za-z0-9_-]{43,128}",
+            wrong in "[A-Za-z0-9_-]{43,128}"
+        ) {
+            let hash = Sha256::digest(verifier.as_bytes());
+            let challenge = URL_SAFE_NO_PAD.encode(hash);
+            let wrong_hash = Sha256::digest(wrong.as_bytes());
+            let wrong_challenge = URL_SAFE_NO_PAD.encode(wrong_hash);
+            if challenge != wrong_challenge {
+                assert!(!verify_pkce_s256(&verifier, &wrong_challenge));
+            }
+        }
+    }
 }

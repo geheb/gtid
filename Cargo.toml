@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = ["shared", "api", "ui", "server"]
+exclude = ["fuzz"]
 
 [profile.release]
 opt-level = 3

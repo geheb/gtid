@@ -162,4 +162,22 @@ mod tests {
         assert_eq!(subject, "Reset for Anna");
         assert_eq!(body, "<p>Hello Anna, your code is 1234</p>");
     }
+
+    proptest::proptest! {
+        #[test]
+        fn normalize_email_is_idempotent(
+            email in "\\PC{0,200}"
+        ) {
+            let n1 = normalize_email(&email);
+            let n2 = normalize_email(&n1);
+            assert_eq!(n1, n2, "normalize_email must be idempotent");
+        }
+
+        #[test]
+        fn normalize_email_never_panics(
+            email in "\\PC{0,500}"
+        ) {
+            let _ = normalize_email(&email);
+        }
+    }
 }

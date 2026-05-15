@@ -241,4 +241,52 @@ mod tests {
         let keys: &[&DecodingKey] = &[];
         assert!(decode_access_token_multi(&token, keys, ISSUER, CLIENT).is_err());
     }
+
+    proptest::proptest! {
+        #[test]
+        fn access_token_roundtrip_proptest(
+            user_id in "[a-z0-9-]{1,36}",
+            scope in "(openid|profile|email)( (openid|profile|email))*"
+        ) {
+            let (enc, dec, kid) = test_keys();
+            let token = issue_access_token(&enc, &kid, ISSUER, CLIENT, &user_id, &scope, 900).unwrap();
+            let claims = decode_access_token(&token, &dec, ISSUER, CLIENT).unwrap();
+            assert_eq!(claims.sub, user_id);
+            assert_eq!(claims.scope, scope);
+            assert_eq!(claims.iss, ISSUER);
+            assert_eq!(claims.aud, CLIENT);
+        }
+
+        #[test]
+        fn wrong_audience_always_rejected(
+            user_id in "[a-z0-9-]{1,36}",
+            wrong_aud in "[a-z0-9-]{1,36}"
+        ) {
+            let (enc, dec, kid) = test_keys();
+            let token = issue_access_token(&enc, &kid, ISSUER, CLIENT, &user_id, "openid", 900).unwrap();
+            if wrong_aud != CLIENT {
+                assert!(decode_access_token(&token, &dec, ISSUER, &wrong_aud).is_err());
+            }
+        }
+
+        #[test]
+        fn wrong_issuer_always_rejected(
+            user_id in "[a-z0-9-]{1,36}",
+            wrong_iss in "[a-z0-9-:/.]{5,48}"
+        ) {
+            let (enc, dec, kid) = test_keys();
+            let token = issue_access_token(&enc, &kid, ISSUER, CLIENT, &user_id, "openid", 900).unwrap();
+            if wrong_iss != ISSUER {
+                assert!(decode_access_token(&token, &dec, &wrong_iss, CLIENT).is_err());
+            }
+        }
+
+        #[test]
+        fn at_hash_not_empty(
+            access_token in "[A-Za-z0-9._-]{10,2000}"
+        ) {
+            let hash = compute_at_hash(&access_token);
+            assert!(!hash.is_empty());
+        }
+    }
 }

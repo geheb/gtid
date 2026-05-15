@@ -175,4 +175,37 @@ mod tests {
     fn verify_invalid_hash() {
         assert!(!verify_password("anything", "not-a-valid-hash"));
     }
+
+    proptest::proptest! {
+        #![proptest_config(proptest::test_runner::Config::with_cases(5))]
+        #[test]
+        fn hash_then_verify_always_passes(
+            password in "[\\x20-\\x7e]{10,64}"
+        ) {
+            let hash = hash_password(&password).unwrap();
+            assert!(verify_password(&password, &hash));
+        }
+
+        #[test]
+        fn different_passwords_produce_different_hashes(
+            p1 in "[\\x20-\\x7e]{10,32}",
+            p2 in "[\\x20-\\x7e]{10,32}"
+        ) {
+            if p1 != p2 {
+                let h1 = hash_password(&p1).unwrap();
+                assert!(!verify_password(&p2, &h1));
+            }
+        }
+
+        #[test]
+        fn hash_same_password_twice_produces_different_hashes(
+            password in "[\\x20-\\x7e]{10,32}"
+        ) {
+            let h1 = hash_password(&password).unwrap();
+            let h2 = hash_password(&password).unwrap();
+            assert_ne!(h1, h2); // different salts
+            assert!(verify_password(&password, &h1));
+            assert!(verify_password(&password, &h2));
+        }
+    }
 }
